@@ -1,0 +1,39 @@
+# Environment variables & secrets
+.env
+.env.*
+*.env
+!.env.example
+
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+Harsh/
+venv/
+env/
+ENV/
+.venv/
+
+# Node / frontend
+node_modules/
+
+# Database (optional local db exclusion if desired)
+db.sqlite3-journal
+
+# Operating System files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
+*~
+
+# Logs & temp files
+*.log
+scratch/
+

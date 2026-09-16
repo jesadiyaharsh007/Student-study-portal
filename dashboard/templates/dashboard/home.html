@@ -1,0 +1,133 @@
+{% extends 'dashboard/base.html' %}
+{% load static %}
+{% block content %}
+
+<!-- Hero Section -->
+<section class="hero-section">
+    <h1 class="hero-title">Your Ultimate Academic Companion</h1>
+    <p class="hero-subtitle">Organize your notes, track assignments, and access a world of knowledge—all in one place.</p>
+    {% if not user.is_authenticated %}
+        <a href="{% url 'register' %}" class="btn btn-primary btn-lg">Get Started Today</a>
+    {% else %}
+        <a href="{% url 'profile' %}" class="btn btn-primary btn-lg">Go to Dashboard</a>
+    {% endif %}
+</section>
+
+<!-- Features Grid -->
+<section class="container mt-5">
+  <div class="row mb-4">
+    <div class="col-12 text-center mb-4">
+        <h3 class="font-weight-bold text-dark">Explore Our Tools</h3>
+        <p class="text-muted">Everything you need to study effectively.</p>
+    </div>
+  </div>
+
+  <div class="row g-4 mb-4">
+    <!-- Notes -->
+    <div class="col-md-6 col-lg-3 mb-4">
+      <a href="{% url 'notes' %}" class="text-decoration-none">
+        <div class="card h-100">
+          <img class="card-img-top" src="{% static 'images/notes.jpg' %}" alt="Notes feature">
+          <div class="card-body">
+            <h5 class="card-title"><i class="fas fa-sticky-note text-warning mr-2"></i>Notes</h5>
+            <p class="card-text">Create and manage your study notes securely. Access them anytime, anywhere.</p>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <!-- Homework -->
+    <div class="col-md-6 col-lg-3 mb-4">
+      <a href="{% url 'homework' %}" class="text-decoration-none">
+        <div class="card h-100">
+          <img class="card-img-top" src="{% static 'images/homework.jpg' %}" alt="Homework tracking">
+          <div class="card-body">
+            <h5 class="card-title"><i class="fas fa-book text-primary mr-2"></i>Homework</h5>
+            <p class="card-text">Track your assignments with deadlines. Stay on top of your due dates easily.</p>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <!-- YouTube -->
+    <div class="col-md-6 col-lg-3 mb-4">
+      <a href="{% url 'youtube' %}" class="text-decoration-none">
+        <div class="card h-100">
+          <img class="card-img-top" src="{% static 'images/youtube.jpg' %}" alt="YouTube search">
+          <div class="card-body">
+            <h5 class="card-title"><i class="fab fa-youtube text-danger mr-2"></i>YouTube</h5>
+            <p class="card-text">Search and watch educational videos directly from the portal without distractions.</p>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <!-- To Do -->
+    <div class="col-md-6 col-lg-3 mb-4">
+      <a href="{% url 'todo' %}" class="text-decoration-none">
+        <div class="card h-100">
+          <img class="card-img-top" src="{% static 'images/todo.jpg' %}" alt="To do list">
+          <div class="card-body">
+            <h5 class="card-title"><i class="fas fa-check-square text-success mr-2"></i>To-Do</h5>
+            <p class="card-text">Manage your daily tasks and strike them off as you complete your goals.</p>
+          </div>
+        </div>
+      </a>
+    </div>
+  </div>
+
+  <div class="row g-4 mb-5">
+    <!-- Books -->
+    <div class="col-md-6 col-lg-3 mb-4">
+      <a href="{% url 'books' %}" class="text-decoration-none">
+        <div class="card h-100">
+          <img class="card-img-top" src="{% static 'images/books.jpg' %}" alt="Books library">
+          <div class="card-body">
+            <h5 class="card-title"><i class="fas fa-book-open text-info mr-2"></i>Books</h5>
+            <p class="card-text">Browse and search for books. Access a vast library of knowledge instantly.</p>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <!-- Dictionary -->
+    <div class="col-md-6 col-lg-3 mb-4">
+      <a href="{% url 'dictionary' %}" class="text-decoration-none">
+        <div class="card h-100">
+          <img class="card-img-top" src="{% static 'images/dictionary.jpg' %}" alt="Dictionary tool">
+          <div class="card-body">
+            <h5 class="card-title"><i class="fas fa-spell-check text-secondary mr-2"></i>Dictionary</h5>
+            <p class="card-text">Find definitions, synonyms, and pronunciation for any word on the go.</p>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <!-- Wikipedia -->
+    <div class="col-md-6 col-lg-3 mb-4">
+      <a href="{% url 'wiki' %}" class="text-decoration-none">
+        <div class="card h-100">
+          <img class="card-img-top" src="{% static 'images/wiki.jpg' %}" alt="Wikipedia search">
+          <div class="card-body">
+            <h5 class="card-title"><i class="fab fa-wikipedia-w text-dark mr-2"></i>Wikipedia</h5>
+            <p class="card-text">Quickly search Wikipedia for research, assignments, and fast facts.</p>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <!-- Conversion -->
+    <div class="col-md-6 col-lg-3 mb-4">
+      <a href="{% url 'conversion' %}" class="text-decoration-none">
+        <div class="card h-100">
+          <img class="card-img-top" src="{% static 'images/conversion.jpg' %}" alt="Unit conversion">
+          <div class="card-body">
+            <h5 class="card-title"><i class="fas fa-calculator text-muted mr-2"></i>Conversion</h5>
+            <p class="card-text">Convert length and mass measurements quickly with our handy calculator.</p>
+          </div>
+        </div>
+      </a>
+    </div>
+  </div>
+</section>
+{% endblock content %}

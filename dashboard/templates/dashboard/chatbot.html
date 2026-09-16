@@ -1,0 +1,72 @@
+{% extends 'dashboard/base.html' %}
+{% load static %}
+
+{% block content %}
+<section class="text-center container mb-4">
+    <h2><i class="fas fa-robot text-primary mr-2"></i>AI Tutor</h2>
+    <p class="text-muted">Ask me any educational questions! I can explain concepts, solve problems, and help you study better.</p>
+</section>
+
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-body bg-light" style="max-height: 60vh; overflow-y: auto;">
+                    {% if chat_history %}
+                        {% for msg in chat_history %}
+                            {% if msg.role == 'user' %}
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-end mb-2">
+                                    <div class="bg-primary text-white p-3 rounded" style="max-width: 80%;">
+                                        <strong>You:</strong><br>
+                                        {{ msg.text }}
+                                    </div>
+                                </div>
+                            </div>
+                            {% else %}
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-start">
+                                    <div class="bg-white border p-3 rounded shadow-sm" style="max-width: 90%;">
+                                        <strong><i class="fas fa-robot text-primary mr-1"></i> AI Tutor:</strong><br>
+                                        <div class="mt-2 text-justify">
+                                            {{ msg.text|linebreaks }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
+
+                    {% if error %}
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle mr-2"></i>{{ error }}
+                    </div>
+                    {% endif %}
+                    
+                    {% if not chat_history and not error %}
+                    <div class="text-center text-muted my-5">
+                        <i class="fas fa-magic fa-3x mb-3 text-secondary"></i>
+                        <h5>How can I help you learn today?</h5>
+                        <p>Try asking "Explain photosynthesis" or "How do I solve 2x + 5 = 15?"</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <form method="POST" action="{% url 'chatbot' %}">
+                {% csrf_token %}
+                <div class="input-group mb-3 shadow-sm">
+                    <input type="text" name="prompt" class="form-control form-control-lg" placeholder="Ask your question here..." required autocomplete="off">
+                    <div class="input-group-append">
+                        <button class="btn btn-primary px-4" type="submit"><i class="fas fa-paper-plane mr-2"></i>Ask</button>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <a href="{% url 'chatbot' %}?clear=true" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash-alt mr-1"></i>Clear Chat</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock content %}

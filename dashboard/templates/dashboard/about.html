@@ -1,0 +1,69 @@
+{% extends 'dashboard/base.html' %}
+{% load static %}
+{% block content %}
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card shadow-sm border-0 rounded-lg">
+                <div class="card-body p-5">
+                    <div class="text-center mb-5">
+                        <i class="fas fa-graduation-cap fa-4x text-primary mb-3"></i>
+                        <h2 class="font-weight-bold">About Student Study Portal</h2>
+                        <p class="text-muted lead">Empowering students to achieve their academic goals.</p>
+                    </div>
+
+                    <div class="row mb-5">
+                        <div class="col-md-6 mb-4">
+                            <h4 class="font-weight-bold text-dark"><i class="fas fa-bullseye text-primary mr-2"></i>Our Mission</h4>
+                            <p class="text-secondary">Our mission is to provide students with a centralized, easy-to-use platform to manage their academic life. We believe that with the right tools, every student can reach their full potential and organize their studies effectively.</p>
+                        </div>
+                        <div class="col-md-6 mb-4">
+                            <h4 class="font-weight-bold text-dark"><i class="fas fa-lightbulb text-warning mr-2"></i>What We Offer</h4>
+                            <p class="text-secondary">The Student Study Portal brings together essential tools like note-taking, homework tracking, dictionary access, Wikipedia search, and curated educational videos—all in one distraction-free environment.</p>
+                        </div>
+                    </div>
+
+                    <hr class="mb-5">
+
+                    <h3 class="text-center font-weight-bold mb-4">Core Features</h3>
+                    
+                    <div class="row g-4">
+                        <div class="col-md-4 text-center mb-4">
+                            <div class="p-3 bg-light rounded shadow-sm h-100">
+                                <i class="fas fa-tasks fa-2x text-success mb-3"></i>
+                                <h5>Task Management</h5>
+                                <p class="small text-muted mb-0">Keep track of your homework and daily to-dos efficiently.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-center mb-4">
+                            <div class="p-3 bg-light rounded shadow-sm h-100">
+                                <i class="fas fa-book-reader fa-2x text-info mb-3"></i>
+                                <h5>Study Resources</h5>
+                                <p class="small text-muted mb-0">Access dictionary, Wikipedia, and book searches instantly.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-center mb-4">
+                            <div class="p-3 bg-light rounded shadow-sm h-100">
+                                <i class="fas fa-shield-alt fa-2x text-secondary mb-3"></i>
+                                <h5>Secure & Private</h5>
+                                <p class="small text-muted mb-0">Your notes and data are safely stored in your personal account.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="text-center mt-5">
+                        {% if not user.is_authenticated %}
+                            <p class="text-muted mb-3">Ready to transform your study habits?</p>
+                            <a href="{% url 'register' %}" class="btn btn-primary btn-lg px-5">Join Now</a>
+                        {% else %}
+                            <a href="{% url 'home' %}" class="btn btn-primary btn-lg px-5">Back to Dashboard</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock content %}
