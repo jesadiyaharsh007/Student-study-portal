@@ -12,7 +12,7 @@
                     <div class="card-header">{{note.title}}</div>
                     <div class="card-body">{{note.description|slice:"0:100"}}</div>
                     <div class="card-footer mt-auto "><a href="{% url 'delete-note' note.id %}">
-                        <i class="fa fa-trash fa-2x"></i></a>
+                            <i class="fa fa-trash fa-2x"></i></a>
                     </div>
                 </div>
             </a>
@@ -25,7 +25,7 @@
 <br><br>
 <div class="container">
     <form method="POST">
-    {% csrf_token %}
+        {% csrf_token %}
         <fieldset class="form-group">
             <legend class="border-bottom mb-4">Create Notes</legend>
         </fieldset>
