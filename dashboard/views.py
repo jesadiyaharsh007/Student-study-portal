@@ -1,4 +1,5 @@
 import requests
+import re
 from django.contrib import messages
 from django.shortcuts import redirect, render
 from django.contrib.auth import logout
@@ -244,47 +245,70 @@ def dictionary(request):
 
         if form.is_valid():
             text = form.cleaned_data["text"]
+            clean_text = text.strip().lower()
 
-            url = f"https://api.dictionaryapi.dev/api/v2/entries/en/{text}"
+            phonetics = ""
+            audio = ""
+            definition = ""
+            example = ""
+            synonyms = []
+            found = False
 
+            # 1. Try Free Dictionary API (3s timeout)
             try:
-                r = requests.get(url, timeout=10)
+                url = f"https://api.dictionaryapi.dev/api/v2/entries/en/{clean_text}"
+                r = requests.get(url, timeout=3, headers={"User-Agent": "Mozilla/5.0"})
+                if r.status_code == 200:
+                    answer = r.json()
+                    for p in answer[0].get("phonetics", []):
+                        if p.get("text") and not phonetics:
+                            phonetics = p["text"]
+                        if p.get("audio") and not audio:
+                            audio = p["audio"]
 
-                if r.status_code != 200:
-                    context = {
-                        "form": form,
-                        "input": "",
-                    }
-                    return render(request, "dashboard/dictionary.html", context)
+                    if audio.startswith("//"):
+                        audio = "https:" + audio
 
-                answer = r.json()
+                    if answer[0].get("meanings"):
+                        meanings = answer[0]["meanings"][0]
+                        if meanings.get("definitions"):
+                            defs = meanings["definitions"][0]
+                            definition = defs.get("definition", "")
+                            example = defs.get("example", "")
+                        synonyms = meanings.get("synonyms", [])
+                    found = True
+            except Exception:
+                pass
 
-                phonetics = ""
-                audio = ""
-                definition = ""
-                example = ""
-                synonyms = []
+            # 2. Fallback to Wiktionary & Datamuse if primary API timed out or didn't respond
+            if not found:
+                try:
+                    w_url = f"https://en.wiktionary.org/api/rest_v1/page/definition/{clean_text}"
+                    wr = requests.get(w_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=4)
+                    if wr.status_code == 200:
+                        entries = wr.json().get("en", [])
+                        if entries and entries[0].get("definitions"):
+                            first_def = entries[0]["definitions"][0]
+                            raw_def = first_def.get("definition", "")
+                            definition = re.sub(r"<[^<]+?>", "", raw_def).strip()
+                            if first_def.get("examples"):
+                                example = re.sub(r"<[^<]+?>", "", first_def["examples"][0]).strip()
+                            
+                            phonetics = f"/{clean_text}/"
+                            audio = f"https://translate.google.com/translate_tts?ie=UTF-8&tl=en&client=tw-ob&q={clean_text}"
 
-                for p in answer[0].get("phonetics", []):
-                    if p.get("text") and phonetics == "":
-                        phonetics = p["text"]
+                            # Fetch synonyms from Datamuse
+                            try:
+                                sr = requests.get(f"https://api.datamuse.com/words?rel_syn={clean_text}", timeout=3).json()
+                                synonyms = [item["word"] for item in sr[:6]]
+                            except Exception:
+                                synonyms = []
 
-                    if p.get("audio") and audio == "":
-                        audio = p["audio"]
+                            found = True
+                except Exception:
+                    pass
 
-                if audio.startswith("//"):
-                    audio = "https:" + audio
-
-                if answer[0].get("meanings"):
-                    meanings = answer[0]["meanings"][0]
-
-                    if meanings.get("definitions"):
-                        defs = meanings["definitions"][0]
-                        definition = defs.get("definition", "")
-                        example = defs.get("example", "")
-
-                    synonyms = meanings.get("synonyms", [])
-
+            if found:
                 context = {
                     "form": form,
                     "input": text,
@@ -294,17 +318,12 @@ def dictionary(request):
                     "example": example,
                     "synonyms": synonyms,
                 }
-
                 return render(request, "dashboard/dictionary.html", context)
-
-            except Exception as e:
-                messages.error(request, "Dictionary service is currently unavailable.")
-
+            else:
                 context = {
                     "form": form,
                     "input": "",
                 }
-
                 return render(request, "dashboard/dictionary.html", context)
 
     context = {
