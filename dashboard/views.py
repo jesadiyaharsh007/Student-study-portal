@@ -1,8 +1,9 @@
+from functools import wraps
 import requests
 import re
 from django.contrib import messages
 from django.shortcuts import redirect, render
-from django.contrib.auth import logout
+from django.contrib.auth import login, logout, authenticate
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views import generic
@@ -18,8 +19,35 @@ from .forms import (
     ConversionLengthForm,
     ConversionMassForm,
     UserRegistrationForm,
+    StudentLoginForm,
 )
 from .models import Notes, Homework, Todo
+
+def student_required(view_func):
+    @wraps(view_func)
+    def _wrapped_view(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect('login')
+        return view_func(request, *args, **kwargs)
+    return _wrapped_view
+
+def login_view(request):
+    if request.user.is_authenticated:
+        if not (request.user.is_staff or request.user.is_superuser):
+            return redirect('home')
+        logout(request)
+
+    if request.method == "POST":
+        form = StudentLoginForm(request, data=request.POST)
+        if form.is_valid():
+            user = form.get_user()
+            login(request, user)
+            messages.success(request, f"Welcome back, {user.username}!")
+            return redirect('home')
+    else:
+        form = StudentLoginForm()
+
+    return render(request, "dashboard/login.html", {'form': form})
 
 def home(request):
     return render(request, 'dashboard/home.html')
@@ -27,21 +55,23 @@ def home(request):
 def about(request):
     return render(request, 'dashboard/about.html')
 
-@login_required
+@student_required
 def notes(request):
     if request.method == "POST":
         form = Notesform(request.POST)
         if form.is_valid():
-            note = Notes(user=request.user, title=request.POST['title'], description=request.POST['description'])
+            note = form.save(commit=False)
+            note.user = request.user
             note.save()
             messages.success(request, f"Notes added from {request.user.username} Successfully!")
+            return redirect('notes')
     else:
         form = Notesform()
     notes = Notes.objects.filter(user=request.user)
     context = {'notes': notes, 'form': form}
     return render(request, 'dashboard/notes.html', context)
 
-@login_required
+@student_required
 def delete_note(request, pk=None):
     Notes.objects.get(id=pk).delete()
     return redirect("notes")
@@ -49,7 +79,7 @@ def delete_note(request, pk=None):
 class NoteDetailview(LoginRequiredMixin, generic.DetailView):
     model = Notes
 
-@login_required
+@student_required
 def homework(request):
     if request.method == "POST":
         form = HomeworkForm(request.POST)
@@ -80,14 +110,14 @@ def homework(request):
     }
     return render(request,'dashboard/homework.html',context)
 
-@login_required
+@student_required
 def update_homework(request, pk=None):
     homework = Homework.objects.get(id=pk)
     homework.is_finished = not homework.is_finished
     homework.save()
     return redirect('homework')  
 
-@login_required
+@student_required
 def delete_homework(request, pk=None):
     Homework.objects.get(id=pk).delete()
     return redirect('homework')          
@@ -123,7 +153,7 @@ def youtube(request):
     context = {'form':form}
     return render(request, "dashboard/youtube.html", context)
 
-@login_required
+@student_required
 def todo(request):
     if request.method == "POST":
         form = TodoForm(request.POST)
@@ -159,14 +189,14 @@ def todo(request):
 
     return render(request, "dashboard/todo.html", context)
 
-@login_required
+@student_required
 def update_todo(request, pk=None):
     todo = Todo.objects.get(id=pk)
     todo.is_finished = not todo.is_finished
     todo.save()
     return redirect("todo") 
 
-@login_required
+@student_required
 def delete_todo(request, pk=None):
     Todo.objects.get(id=pk).delete()
     return redirect("todo")
@@ -449,7 +479,7 @@ def logout_view(request):
     logout(request)
     return render(request, "dashboard/logout.html")
 
-@login_required
+@student_required
 def profile(request):
     homework = Homework.objects.filter(is_finished=False, user=request.user)
     todos = Todo.objects.filter(is_finished=False, user=request.user)

@@ -13,7 +13,7 @@
     integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous" />
   <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css"
     integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous" />
-  <link rel="stylesheet" href="{% static 'css/main.css' %}?v=2.1" />
+  <link rel="stylesheet" href="{% static 'css/main.css' %}?v=2.3" />
 </head>
 
 <body>
@@ -37,7 +37,7 @@
             </li>
             {% if user.is_authenticated %}
             <li class="nav-item">
-              <a class="nav-link" href="{% url 'profile' %}"><i class="fas fa-user-circle mr-1"></i> Dashboard</a>
+              <a class="nav-link" href="{% url 'profile' %}"><i class="fas fa-columns mr-1"></i> Dashboard</a>
             </li>
             <li class="nav-item dropdown">
               <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown"
@@ -60,9 +60,71 @@
                     class="fas fa-calculator mr-2"></i>Conversion</a>
               </div>
             </li>
-            <li class="nav-item ml-lg-3 mt-2 mt-lg-0">
-              <a class="btn btn-outline-danger btn-sm px-3" href="{% url 'logout' %}"><i
-                  class="fas fa-sign-out-alt mr-1"></i> Logout</a>
+            <!-- User Profile Dropdown -->
+            <li class="nav-item dropdown ml-lg-3 mt-2 mt-lg-0">
+              <a class="nav-link dropdown-toggle user-profile-btn" href="#" id="userProfileDropdown" role="button"
+                data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                <span class="user-avatar-badge mr-2">
+                  {% if user.username %}{{ user.username|slice:":1"|upper }}{% else %}U{% endif %}
+                </span>
+                <span class="user-profile-name mr-1">{{ user.username }}</span>
+                <i class="fas fa-chevron-down user-chevron"></i>
+              </a>
+              <div class="dropdown-menu dropdown-menu-right shadow-lg user-profile-menu p-0" aria-labelledby="userProfileDropdown">
+                <!-- User Profile Header Info -->
+                <div class="user-profile-header p-3">
+                  <div class="d-flex align-items-center">
+                    <div class="user-avatar-large mr-3">
+                      {% if user.username %}{{ user.username|slice:":1"|upper }}{% else %}U{% endif %}
+                    </div>
+                    <div class="user-info-text text-truncate" style="max-width: 175px;">
+                      <h6 class="mb-0 font-weight-bold text-dark text-truncate">{{ user.username }}</h6>
+                      {% if user.email %}
+                      <small class="text-muted text-truncate d-block">{{ user.email }}</small>
+                      {% elif user.is_staff %}
+                      <small class="text-muted d-block">Administrator</small>
+                      {% else %}
+                      <small class="text-muted d-block">Student Member</small>
+                      {% endif %}
+                      <span class="badge badge-success-soft mt-1">
+                        <i class="fas fa-circle mr-1" style="font-size: 6px; vertical-align: middle;"></i>Logged In
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="dropdown-divider my-0"></div>
+                
+                <!-- Quick Navigation Links -->
+                <div class="py-2">
+                  <a class="dropdown-item user-dropdown-item" href="{% url 'profile' %}">
+                    <i class="fas fa-columns text-primary mr-2"></i> My Dashboard
+                  </a>
+                  <a class="dropdown-item user-dropdown-item" href="{% url 'homework' %}">
+                    <i class="fas fa-book text-warning mr-2"></i> Due Homework
+                  </a>
+                  <a class="dropdown-item user-dropdown-item" href="{% url 'todo' %}">
+                    <i class="fas fa-check-circle text-success mr-2"></i> My To-dos
+                  </a>
+                  <a class="dropdown-item user-dropdown-item" href="{% url 'notes' %}">
+                    <i class="fas fa-sticky-note text-info mr-2"></i> My Notes
+                  </a>
+                  {% if user.is_staff %}
+                  <a class="dropdown-item user-dropdown-item font-weight-bold text-primary" href="/admin/" target="_blank">
+                    <i class="fas fa-shield-alt text-primary mr-2"></i> Admin Panel
+                  </a>
+                  {% endif %}
+                </div>
+                
+                <div class="dropdown-divider my-0"></div>
+                
+                <!-- Logout inside Profile section -->
+                <div class="p-2">
+                  <a class="dropdown-item user-dropdown-item logout-link font-weight-bold text-danger rounded" href="{% url 'logout' %}">
+                    <i class="fas fa-sign-out-alt mr-2 text-danger"></i> Logout
+                  </a>
+                </div>
+              </div>
             </li>
             {% else %}
             <li class="nav-item">

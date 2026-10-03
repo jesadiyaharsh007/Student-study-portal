@@ -148,13 +148,42 @@ html, body {
 .form-control {
     border-radius: 0.5rem;
     border: 1px solid #cbd5e1;
-    padding: 0.75rem 1rem;
-    transition: border-color 0.2s;
+    padding: 0.65rem 1rem;
+    font-size: 0.95rem;
+    color: #1e293b;
+    background-color: #ffffff;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    height: auto;
 }
 
-.form-control:focus {
+select.form-control,
+select.form-control:not([size]):not([multiple]),
+select.select.form-control,
+select.custom-select {
+    height: 48px !important;
+    min-height: 48px !important;
+    padding: 0.55rem 1rem !important;
+    line-height: 1.5 !important;
+    font-size: 0.95rem !important;
+    color: #1e293b !important;
+    background-color: #ffffff !important;
+    cursor: pointer;
+    vertical-align: middle !important;
+    box-sizing: border-box !important;
+}
+
+select.form-control option {
+    padding: 0.5rem 1rem;
+    font-size: 0.95rem;
+    color: #1e293b;
+    background-color: #ffffff;
+}
+
+.form-control:focus,
+select.form-control:focus {
     border-color: #2563eb;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    background-color: #ffffff;
 }
 
 /* Footer */
@@ -203,3 +232,146 @@ a:hover {
 .example::-webkit-scrollbar {
     display: none;
 }
+
+/* ==========================================================================
+   User Profile Dropdown Navigation Styles
+   ========================================================================== */
+.user-profile-btn {
+    display: inline-flex !important;
+    align-items: center;
+    background: #ffffff;
+    border: 1px solid #e2e8f0 !important;
+    padding: 0.35rem 0.85rem 0.35rem 0.45rem !important;
+    border-radius: 9999px !important;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.user-profile-btn:hover,
+.show > .user-profile-btn {
+    background-color: #f8fafc !important;
+    border-color: #cbd5e1 !important;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.12) !important;
+    color: #1e293b !important;
+}
+
+.user-profile-btn::after {
+    display: none !important;
+}
+
+.user-avatar-badge {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-transform: uppercase;
+    box-shadow: 0 2px 4px rgba(37, 99, 235, 0.25);
+    flex-shrink: 0;
+}
+
+.user-profile-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #1e293b;
+    max-width: 130px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.user-chevron {
+    font-size: 0.7rem;
+    color: #94a3b8;
+    transition: transform 0.2s ease-in-out;
+}
+
+.show .user-chevron {
+    transform: rotate(180deg);
+    color: #2563eb;
+}
+
+.user-profile-menu {
+    width: 280px;
+    min-width: 280px;
+    border-radius: 1rem !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+    overflow: hidden;
+    margin-top: 0.6rem !important;
+    animation: fadeInDropdown 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeInDropdown {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.user-profile-header {
+    background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%);
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.user-avatar-large {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-transform: uppercase;
+    box-shadow: 0 4px 8px -2px rgba(37, 99, 235, 0.35);
+    flex-shrink: 0;
+}
+
+.badge-success-soft {
+    background-color: #dcfce7;
+    color: #166534;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 0.2rem 0.6rem;
+    border-radius: 9999px;
+    display: inline-block;
+}
+
+.user-dropdown-item {
+    padding: 0.65rem 1.25rem !important;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #334155 !important;
+    display: flex;
+    align-items: center;
+    transition: all 0.15s ease-in-out;
+}
+
+.user-dropdown-item:hover {
+    background-color: #eff6ff !important;
+    color: #2563eb !important;
+    padding-left: 1.45rem !important;
+}
+
+.user-dropdown-item.logout-link {
+    color: #dc2626 !important;
+}
+
+.user-dropdown-item.logout-link:hover {
+    background-color: #fef2f2 !important;
+    color: #b91c1c !important;
+    padding-left: 1.45rem !important;
+}

@@ -2,25 +2,37 @@
 {% load static %} 
 {% block content %}
 
-<section class='text-center container'>
-
-    <div class="container">
-
-        <div class="content-section p-0 mt-5">
-
-            <div class="m-3">
-                <h2>{{notes.title}}</h2>
+<section class='container'>
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-0 mt-4" style="border-radius: 1rem;">
+                <div class="card-body p-4 p-md-5">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span class="badge badge-pill badge-primary px-3 py-2 font-weight-bold" style="font-size: 0.85rem;">
+                            <i class="fas fa-tag mr-1"></i> {{ notes.subject }}
+                        </span>
+                        <a href="{% url 'notes' %}" class="btn btn-outline-secondary btn-sm">
+                            <i class="fas fa-arrow-left mr-1"></i> Back to Notes
+                        </a>
+                    </div>
+                    <h2 class="font-weight-bold text-dark mb-3">{{ notes.title }}</h2>
+                    <hr class="my-3">
+                    <div class="text-secondary" style="font-size: 1.05rem; line-height: 1.7; white-space: pre-line;">
+                        {{ notes.description }}
+                    </div>
+                    <hr class="my-4">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <a href="{% url 'delete-note' notes.id %}" class="btn btn-outline-danger btn-sm" onclick="return confirm('Are you sure you want to delete this note?');">
+                            <i class="fas fa-trash-alt mr-1"></i> Delete Note
+                        </a>
+                        <a href="{% url 'notes' %}" class="btn btn-primary btn-sm">
+                            <i class="fas fa-list mr-1"></i> All Notes
+                        </a>
+                    </div>
+                </div>
             </div>
-
-            <hr class="p-0 m-0">
-            <p class="description m-5 p-5">
-                {{notes.description}}
-            </p>
-            <hr>
         </div>
-
     </div>
-
 </section>
 
 {% endblock content %}

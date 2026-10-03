@@ -2,8 +2,22 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
 
+SUBJECT_CHOICES = (
+    ('Java', 'Java'),
+    ('PHP', 'PHP'),
+    ('Python', 'Python'),
+    ('ADBMS', 'ADBMS'),
+    ('Spring', 'Spring'),
+    ('C', 'C'),
+    ('C++', 'C++'),
+    ('ML', 'ML'),
+    ('Docker', 'Docker'),
+    ('Other', 'Other'),
+)
+
 class Notes(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
+    subject = models.CharField(max_length=50, choices=SUBJECT_CHOICES, default='Java')
     title = models.CharField(max_length=200)
     description = models.TextField()
     
@@ -16,7 +30,7 @@ class Notes(models.Model):
 
 class Homework(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    subject = models.CharField(max_length=50, default='General')
+    subject = models.CharField(max_length=50, choices=SUBJECT_CHOICES, default='Java')
     title = models.CharField(max_length=100, default='')
     description = models.TextField(default='')
     due = models.DateTimeField(default=timezone.now)
