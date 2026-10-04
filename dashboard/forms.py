@@ -21,7 +21,6 @@ class StudentLoginForm(AuthenticationForm):
 
         if username and password:
             clean_username = username.strip()
-            # Check if input matches email or username (case-insensitive)
             user_by_email = User.objects.filter(email__iexact=clean_username).first()
             if user_by_email:
                 auth_username = user_by_email.username
@@ -39,7 +38,6 @@ class StudentLoginForm(AuthenticationForm):
 
     def confirm_login_allowed(self, user):
         super().confirm_login_allowed(user)
-        # Block admin/staff from logging in as a student
         if user.is_staff or user.is_superuser:
             raise forms.ValidationError(
                 "This account has Administrator privileges. Admin accounts cannot log in as a student. "

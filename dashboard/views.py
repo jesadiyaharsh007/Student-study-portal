@@ -284,7 +284,6 @@ def dictionary(request):
             synonyms = []
             found = False
 
-            # 1. Try Free Dictionary API (3s timeout)
             try:
                 url = f"https://api.dictionaryapi.dev/api/v2/entries/en/{clean_text}"
                 r = requests.get(url, timeout=3, headers={"User-Agent": "Mozilla/5.0"})
@@ -310,7 +309,6 @@ def dictionary(request):
             except Exception:
                 pass
 
-            # 2. Fallback to Wiktionary & Datamuse if primary API timed out or didn't respond
             if not found:
                 try:
                     w_url = f"https://en.wiktionary.org/api/rest_v1/page/definition/{clean_text}"
@@ -327,7 +325,6 @@ def dictionary(request):
                             phonetics = f"/{clean_text}/"
                             audio = f"https://translate.google.com/translate_tts?ie=UTF-8&tl=en&client=tw-ob&q={clean_text}"
 
-                            # Fetch synonyms from Datamuse
                             try:
                                 sr = requests.get(f"https://api.datamuse.com/words?rel_syn={clean_text}", timeout=3).json()
                                 synonyms = [item["word"] for item in sr[:6]]
@@ -501,7 +498,6 @@ def chatbot(request):
     import google.generativeai as genai
     from django.conf import settings
     
-    # Handle clear chat request
     if request.GET.get('clear') == 'true':
         if 'chat_history' in request.session:
             del request.session['chat_history']
@@ -514,7 +510,6 @@ def chatbot(request):
         if not prompt:
             return render(request, 'dashboard/chatbot.html', {'chat_history': history, 'error': 'Please enter a prompt.'})
             
-        # Convert session history to Gemini format
         gemini_history = []
         for msg in history:
             gemini_history.append({
@@ -524,7 +519,6 @@ def chatbot(request):
             
         try:
             genai.configure(api_key=settings.GEMINI_API_KEY)
-            # Use system_instruction if supported, otherwise just prepend to first message
             model = genai.GenerativeModel('gemini-flash-latest')
             chat = model.start_chat(history=gemini_history)
             
@@ -537,7 +531,6 @@ def chatbot(request):
             history.append({'role': 'user', 'text': prompt})
             history.append({'role': 'model', 'text': response.text})
             
-            # Keep history bounded (e.g. last 30 messages)
             if len(history) > 30:
                 history = history[-30:]
                 
