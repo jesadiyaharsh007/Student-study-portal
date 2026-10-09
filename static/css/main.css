@@ -5,7 +5,8 @@ html, body {
     height: 100%;
     width: 100%;
     font-family: 'Inter', sans-serif;
-    background-color: #f8fafc;
+    background: linear-gradient(135deg, #f0f4f8 0%, #e0e7ff 100%);
+    background-attachment: fixed;
     color: #1e293b;
     margin: 0;
     padding: 0;
@@ -13,8 +14,11 @@ html, body {
 
 /* Navbar Enhancements */
 .navbar {
-    background-color: #ffffff !important;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    background: rgba(255, 255, 255, 0.7) !important;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
     padding: 0.8rem 2rem;
 }
 
@@ -59,11 +63,14 @@ html, body {
 /* Hero Section */
 .hero-section {
     padding: 5rem 2rem;
-    background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%);
+    background: rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.6);
     border-radius: 1rem;
     margin-bottom: 3rem;
     text-align: center;
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.1);
 }
 
 .hero-title {
@@ -83,11 +90,13 @@ html, body {
 
 /* Cards (Features) */
 .card {
-    border: none;
+    border: 1px solid rgba(255, 255, 255, 0.7);
     border-radius: 1rem;
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
+    box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.1), 0 8px 10px -6px rgba(37, 99, 235, 0.05);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    background-color: #ffffff;
+    background: rgba(255, 255, 255, 0.5);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     overflow: hidden;
     height: 100%;
 }
