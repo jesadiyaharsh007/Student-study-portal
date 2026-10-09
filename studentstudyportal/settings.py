@@ -85,6 +85,10 @@ DATABASES = {
     }
 }
 
+# Fix for Supabase pgbouncer query parameter which psycopg2 doesn't understand
+if 'DATABASE_URL' in os.environ:
+    os.environ['DATABASE_URL'] = os.environ['DATABASE_URL'].replace('?pgbouncer=true', '')
+
 # Update database configuration from $DATABASE_URL.
 db_from_env = dj_database_url.config(conn_max_age=500)
 if db_from_env:
