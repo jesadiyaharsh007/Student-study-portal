@@ -5,3 +5,5 @@ crispy-bootstrap4
 requests
 youtube-search
 wikipedia
+dj-database-url
+psycopg2-binary
