@@ -165,7 +165,6 @@
 
   /* ------------------------------------------------------------ prefetch on intent */
   const seen = new Set();
-  let hoverT;
   const canPrefetch = a => {
     if (!a || a.hasAttribute('data-noprefetch') || a.target || a.hasAttribute('download')) return false;
     const u = new URL(a.href, location.href);
@@ -179,8 +178,6 @@
     l.rel = 'prefetch'; l.href = u; l.as = 'document';
     document.head.append(l);
   };
-  on(document, 'pointerover', e => { const a = e.target.closest('a[href]'); if (a && e.pointerType === 'mouse') { clearTimeout(hoverT); hoverT = setTimeout(() => prefetch(a), 40); } });
-  on(document, 'pointerout', () => clearTimeout(hoverT));
   on(document, 'mousedown', e => { const a = e.target.closest('a[href]'); if (a) prefetch(a); }, { passive: true });
   on(document, 'touchstart', e => prefetch(e.target.closest('a[href]')), { passive: true });
 
@@ -913,8 +910,9 @@
       let step = 0;
       const phaseTimer = setInterval(() => {
         step = Math.min(step + 1, PHASES.length - 1);
+        word.style.animation = 'none';
         word.classList.add('swap');
-        setTimeout(() => { word.textContent = PHASES[step]; word.classList.remove('swap'); }, 180);
+        setTimeout(() => { word.textContent = PHASES[step]; word.style.animation = ''; word.classList.remove('swap'); }, 180);
       }, 2200);
       try {
         const fd = new FormData(); fd.append('prompt', text); fd.append('history', JSON.stringify(hist.slice(-6)));

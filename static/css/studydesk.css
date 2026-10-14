@@ -885,24 +885,23 @@ dialog.closing::backdrop { animation: fade .25s reverse forwards; }
 @keyframes orbSpin { to { transform: rotate(360deg); } }
 @keyframes orbFloat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
 @keyframes orbTilt { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(6deg) translateY(-1px); } }
-.think-text { display: inline-flex; align-items: baseline; gap: 1px; font-size: .92rem; font-weight: 500; }
+.think-text { display: inline-flex; align-items: center; gap: 2px; font-size: .92rem; font-weight: 500; white-space: nowrap; min-width: 12.5em; }
+.typing .bubble { white-space: nowrap; }
 .think-word {
-  background: linear-gradient(90deg, var(--muted) 0%, var(--ink) 45%, var(--muted) 90%) 0 0 / 220% 100%;
-  -webkit-background-clip: text; background-clip: text; color: transparent;
-  animation: thinkShimmer 1.6s linear infinite;
-  transition: opacity .18s ease, transform .18s ease;
+  color: var(--muted);
+  animation: thinkPulse 1.6s ease-in-out infinite;
+  transition: opacity .18s ease;
 }
-.think-word.swap { opacity: 0; transform: translateY(3px); }
+.think-word.swap { opacity: 0; }
 .think-dots { display: inline-flex; gap: 2px; margin-left: 2px; }
 .think-dots i { width: 3px; height: 3px; border-radius: 50%; background: var(--muted); animation: thinkDot 1.2s ease-in-out infinite; }
 .think-dots i:nth-child(2) { animation-delay: .15s; }
 .think-dots i:nth-child(3) { animation-delay: .3s; }
-@keyframes thinkShimmer { from { background-position: 120% 0; } to { background-position: -100% 0; } }
+@keyframes thinkPulse { 0%, 100% { opacity: .6; } 50% { opacity: 1; } }
 @keyframes thinkDot { 0%, 80%, 100% { opacity: .25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
 @media (prefers-reduced-motion: reduce) {
   .lexi-orb, .lexi-orb .ic, .think-word, .think-dots i { animation: none; }
   .lexi-orb::before { animation: none; }
-  .think-word { color: var(--muted); background: none; }
 }
 .chat-empty { margin: auto; max-width: 560px; padding: 1rem; }
 .chat-empty h2 { font-size: clamp(2rem, 4.4vw, 3.2rem); letter-spacing: -.05em; font-weight: 500; margin: 1rem 0 .6rem; } .chat-empty p { color: var(--muted); }
