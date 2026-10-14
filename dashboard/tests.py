@@ -137,7 +137,7 @@ class ViewTests(TestCase):
         self.client.login(username='teststudent', password='password123')
         res = self.client.get(reverse('chatbot'))
         self.assertEqual(res.status_code, 200)
-        self.assertContains(res, 'AI Tutor')
+        self.assertContains(res, 'Lexi')
         self.assertContains(res, 'composer-send')
         self.assertContains(res, 'arrow-up')
 

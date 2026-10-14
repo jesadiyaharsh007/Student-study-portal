@@ -563,7 +563,7 @@
     }
   }));
 
-  /* ------------------------------------------------------------ AI tutor */
+  /* ------------------------------------------------------------ Lexi */
   const chat = $('#chat');
   if (chat) {
     const log = $('#chat-log'), form = $('#chat-form'), ta = $('textarea', form), send = $('button[type=submit]', form);
@@ -910,7 +910,7 @@
         clearInterval(statusTimer);
         t.remove();
         if (d.ok) addMsg('bot', d.reply);
-        else { toast('danger', d.error || 'The tutor is unavailable right now.'); }
+        else { toast('danger', d.error || 'Lexi is unavailable right now.'); }
       } catch (e) {
         clearInterval(statusTimer);
         t.remove();

@@ -6,7 +6,7 @@ TOOLS = (
     ("notes", "notes", "Notes", "note", "amber", "Capture ideas and organise them by subject."),
     ("homework", "homework", "Homework", "clipboard", "violet", "Track assignments and never miss a deadline."),
     ("todo", "todo", "To-do", "checks", "green", "A fast checklist for everything else."),
-    ("chatbot", "chatbot", "AI Tutor", "bot", "pink", "Ask anything and get a clear explanation."),
+    ("chatbot", "chatbot", "Lexi", "bot", "pink", "Ask anything and get a clear explanation."),
     ("dictionary", "dictionary", "Dictionary", "book-a", "teal", "Definitions, phonetics and synonyms."),
     ("books", "books", "Books", "book-open", "sky", "Search a huge open library of books."),
     ("wiki", "wiki", "Wikipedia", "globe", "slate", "Quick, trustworthy summaries."),

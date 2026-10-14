@@ -1,6 +1,6 @@
 {% extends 'dashboard/base.html' %}
 {% load static ui %}
-{% block title %}AI Tutor{% endblock %}
+{% block title %}Lexi{% endblock %}
 {% block robots %}noindex,nofollow{% endblock %}
 {% block head %}
 <!-- KaTeX for beautiful math formulas ($$...$$ and $...$) -->
@@ -23,7 +23,7 @@
   <section class="bz chat" id="chat"><div class="core">
     <header class="chat-head">
       <span class="glyph">{% icon "bot" %}</span>
-      <div class="u-flex-1"><b class="chat-title">AI Tutor</b><small class="muted">Explanations, examples and practice questions.</small></div>
+      <div class="u-flex-1"><b class="chat-title">Lexi</b><small class="muted">Explanations, examples and practice questions.</small></div>
       <button class="btn btn-line btn-sm no-ico" id="chat-clear" type="button" {% if not chat_history %}hidden{% endif %}>New chat</button>
     </header>
 

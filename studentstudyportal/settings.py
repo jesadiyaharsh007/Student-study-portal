@@ -218,7 +218,7 @@ JAZZMIN_UI_TWEAKS = {
     }
 }
 
-# AI Tutor API Key
+# Lexi (AI Bot) API Key
 # Load from environment variable (Vercel dashboard), or local .env file if present
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip(' "\'')
 if not GEMINI_API_KEY:

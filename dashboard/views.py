@@ -558,7 +558,7 @@ def conversion(request):
 # --------------------------------------------------------------------------- AI tutor
 
 AI_TUTOR_SYSTEM_PROMPT = (
-    "You are the AI Tutor on Student Study Portal — a knowledgeable, clear, and direct academic assistant.\n"
+    "You are Lexi, the AI study companion on Student Study Portal — a knowledgeable, clear, and direct academic assistant.\n"
     "Your mission is to help students learn effectively: explain concepts clearly and concisely without unnecessary conversational preamble or filler. "
     "Provide intuitive examples, step-by-step problem solving, and practice questions promptly.\n\n"
     "FORMATTING & COPYABLE CONTENT RULES (CRITICAL):\n"
@@ -672,7 +672,7 @@ def chatbot(request):
         if not prompt:
             error = "Please type a question first."
         elif not settings.GEMINI_API_KEY:
-            error = "The AI Tutor isn't configured yet. Please add GEMINI_API_KEY in your Vercel project Settings > Environment Variables."
+            error = "Lexi isn't configured yet. Please add GEMINI_API_KEY in your Vercel project Settings > Environment Variables."
         else:
             try:
                 reply = _query_gemini_tutor(settings.GEMINI_API_KEY, history, prompt)
@@ -683,8 +683,8 @@ def chatbot(request):
                 except Exception as sess_err:
                     logging.getLogger(__name__).warning("Could not persist session on serverless: %s", sess_err)
             except Exception as e:
-                logging.getLogger(__name__).warning("AI Tutor call failed: %s", e)
-                error = "The AI Tutor couldn't answer right now. Please try again."
+                logging.getLogger(__name__).warning("Lexi call failed: %s", e)
+                error = "Lexi couldn't answer right now. Please try again."
 
         if _is_ajax(request):
             if error:
