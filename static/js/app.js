@@ -569,7 +569,12 @@
     const md = t => {
       if (!t) return '';
       const mathTokens = [];
-      let text = String(t);
+      let text = String(t).replace(/\r\n?/g, '\n');
+      // A reply wrapped entirely in one ```markdown fence is prose, not code: unwrap it.
+      const wrapped = text.trim().match(/^```(?:markdown|md)\n([\s\S]*?)\n?```$/i);
+      if (wrapped) text = wrapped[1];
+      // Tables need a blank line before them to be recognised as tables.
+      text = text.replace(/([^\n|][^\n]*)\n(\|[^\n]*\|[ \t]*\n\|[ \t:|-]+\|)/g, '$1\n\n$2');
       const saveMath = (expr, isDisplay) => {
         const id = 'KMATH' + mathTokens.length + 'TOKEN';
         mathTokens.push({ id, expr: expr.trim(), isDisplay });

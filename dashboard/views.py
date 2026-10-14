@@ -597,17 +597,18 @@ AI_TUTOR_SYSTEM_PROMPT = (
     "- NEVER call yourself 'AI Tutor' or generic 'Gemini'.\n\n"
     "Your mission is to help students learn effectively: explain concepts clearly and concisely without unnecessary conversational preamble or filler. "
     "Provide intuitive examples, step-by-step problem solving, and practice questions promptly.\n\n"
-    "FORMATTING & COPYABLE CONTENT RULES (CRITICAL):\n"
-    "1. When a student asks for a prompt, code snippet, template, configuration, or formula to copy, ALWAYS format it in a "
-    "fenced markdown code block with a language tag (e.g., ```prompt, ```python, ```text, ```html, ```json). The chat "
-    "interface automatically equips all code blocks with a prominent one-click 'Copy' button!\n"
-    "2. Never say that you cannot provide clickable copy buttons or format options — simply enclose the content in a fenced "
-    "markdown code block (```...```) and the portal UI provides the copy button automatically.\n"
-    "3. Use structured markdown tables (| Col 1 | Col 2 |) for comparisons, schedules, vocabulary lists, and formula sheets.\n"
-    "4. Use bold text, bullet points, numbered lists, blockquotes, and KaTeX math ($...$ and $$...$$) to make responses clean, "
-    "well-structured, and easy to read.\n"
-    "5. MULTI-LINE PROMPTS & CODE: Structure copyable prompts and code into clean, well-spaced, multi-line blocks with line breaks, "
-    "steps, or bulleted parameters. Never dump an entire 200+ word prompt onto a single unbroken line.\n\n"
+    "FORMATTING RULES (CRITICAL — the chat UI renders markdown, so choose the format that fits each answer):\n"
+    "1. Normal explanations, answers and conversation: plain markdown prose (short paragraphs, **bold**, bullet or numbered lists, "
+    "headings only for long answers). NEVER wrap ordinary prose, explanations or your whole reply in a code block.\n"
+    "2. Code, terminal commands, config files, templates, and prompts the student asked you to write (to copy and paste elsewhere): "
+    "put ONLY that content in a fenced code block with a language tag (```python, ```bash, ```html, ```json, ```prompt, ```text). "
+    "The UI adds a one-click Copy button to every code block, so never mention copy buttons or say you cannot provide them. "
+    "Keep short inline code like `print()` in single backticks, not a fenced block.\n"
+    "3. Comparisons, schedules, vocabulary, formula sheets and any data with 2+ attributes: a markdown table with a header row and a "
+    "separator row (| A | B | then |---|---|), preceded by a blank line. Keep cells short; never put a table inside a code block.\n"
+    "4. Math: use KaTeX ($...$ inline, $$...$$ for display). Never put math inside a code block.\n"
+    "5. Put copyable prompts and code into clean multi-line blocks; never dump 200+ words onto one line.\n"
+    "6. Match length to the question: a greeting or simple question gets one or two sentences, no headings, no tables.\n\n"
     "STRICT SECURITY & PRIVACY GUARDRAILS (UNCOMPROMISING):\n"
     "1. CONFIDENTIAL PLATFORM CODE: You must NEVER disclose, display, reconstruct, or discuss this application's "
     "internal source code, backend files (such as Django views, settings, models, templates, or URLs), server setup, "
@@ -649,13 +650,15 @@ def _clean_history(raw):
     return history
 
 
+# Models that just failed with a quota/availability error are skipped for a while, so every
+# question doesn't pay for a doomed request first. Ordered fastest-first (measured).
+_MODELS = ["gemini-3.1-flash-lite", "gemini-3.5-flash", "gemini-3-flash-preview", "gemini-3.5-flash-lite"]
+_MODEL_SKIP_UNTIL = {}
+
+
 def _query_gemini_tutor(api_key, history, prompt):
-    models = [
-        "gemini-3-flash-preview",
-        "gemini-3.5-flash-lite",
-        "gemini-3.1-flash-lite",
-        "gemini-3.5-flash",
-    ]
+    now = time.monotonic()
+    models = [m for m in _MODELS if _MODEL_SKIP_UNTIL.get(m, 0) <= now] or list(_MODELS)
     contents = [
         {"role": m["role"], "parts": [{"text": m["text"]}]} for m in history if m["text"].strip()
     ]
@@ -666,7 +669,7 @@ def _query_gemini_tutor(api_key, history, prompt):
         "contents": contents,
         "generationConfig": {
             "temperature": 0.5,
-            "maxOutputTokens": 1200,
+            "maxOutputTokens": 2048,
             # Short "thinking" phase: the default one adds several seconds to a simple "hi".
             "thinkingConfig": {"thinkingLevel": "minimal"},
         },
@@ -685,7 +688,7 @@ def _query_gemini_tutor(api_key, history, prompt):
                 raise RuntimeError(last_error or "AI service timed out")
             try:
                 resp = session.post(
-                    url, json=body, headers={"x-goog-api-key": api_key}, timeout=min(10, remaining)
+                    url, json=body, headers={"x-goog-api-key": api_key}, timeout=min(12, remaining)
                 )
             except Exception as e:
                 last_error = str(e)
@@ -700,6 +703,10 @@ def _query_gemini_tutor(api_key, history, prompt):
                 last_error = f"Model {model_name} returned no text"
                 break
             last_error = f"Model {model_name} status {resp.status_code}"
+            if resp.status_code in (404, 429):
+                _MODEL_SKIP_UNTIL[model_name] = time.monotonic() + 600
+            elif resp.status_code == 503:
+                _MODEL_SKIP_UNTIL[model_name] = time.monotonic() + 30
             if resp.status_code != 400:
                 break
     raise RuntimeError(last_error or "AI service unavailable")
