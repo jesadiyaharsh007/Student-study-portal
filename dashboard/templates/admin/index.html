@@ -1,0 +1,64 @@
+{% extends "admin/index.html" %}
+{% load i18n %}
+
+{% block content %}
+{% if ov_users %}
+<section class="sd-overview" aria-label="Overview">
+  <div class="sd-stats">
+    <a class="sd-card sd-stat" href="{% url 'admin:auth_user_changelist' %}">
+      <span class="sd-label">Students</span>
+      <b class="sd-num">{{ ov_users.total }}</b>
+      <small>{% if ov_users.week %}+{{ ov_users.week }} this week{% else %}none new this week{% endif %}</small>
+    </a>
+    <a class="sd-card sd-stat" href="{% url 'admin:dashboard_notes_changelist' %}">
+      <span class="sd-label">Notes</span>
+      <b class="sd-num">{{ ov_notes }}</b>
+      <small>across all subjects</small>
+    </a>
+    <a class="sd-card sd-stat" href="{% url 'admin:dashboard_homework_changelist' %}?is_finished__exact=0">
+      <span class="sd-label">Homework open</span>
+      <b class="sd-num">{{ ov_hw.open }}</b>
+      <small>{% if ov_hw.overdue %}<span class="sd-bad">{{ ov_hw.overdue }} overdue</span>{% else %}nothing overdue{% endif %}</small>
+    </a>
+    <a class="sd-card sd-stat" href="{% url 'admin:dashboard_todo_changelist' %}?is_finished__exact=0">
+      <span class="sd-label">To-dos open</span>
+      <b class="sd-num">{{ ov_todo.open }}</b>
+      <small>{{ ov_todo.done }} finished</small>
+    </a>
+  </div>
+
+  <div class="sd-grid">
+    <div class="sd-card sd-ring-card">
+      <span class="sd-label">Task completion</span>
+      <div class="sd-ring" style="--pct: {{ ov_completion }}"><b>{{ ov_completion }}<small>%</small></b></div>
+      <small>homework and to-dos finished</small>
+    </div>
+
+    <div class="sd-card">
+      <span class="sd-label">Busiest subjects</span>
+      {% if ov_subjects %}
+      <ul class="sd-bars">
+        {% for s in ov_subjects %}
+        <li><span>{{ s.name }}</span><i style="--w: {{ s.pct }}%"></i><b>{{ s.count }}</b></li>
+        {% endfor %}
+      </ul>
+      {% else %}<p class="sd-empty">No notes or homework yet.</p>{% endif %}
+    </div>
+
+    <div class="sd-card">
+      <span class="sd-label">Newest students</span>
+      <ul class="sd-people">
+        {% for u in ov_recent %}
+        <li>
+          <span class="sd-avatar">{{ u.username|slice:":1"|upper }}</span>
+          <a href="{% url 'admin:auth_user_change' u.pk %}">{{ u.username }}</a>
+          <small>{{ u.date_joined|timesince }} ago</small>
+        </li>
+        {% empty %}<li class="sd-empty">No students yet.</li>{% endfor %}
+      </ul>
+    </div>
+  </div>
+</section>
+{% endif %}
+{{ block.super }}
+{% endblock %}

@@ -1,5 +1,4 @@
 django
-django-jazzmin
 django-crispy-forms
 crispy-bootstrap4
 requests

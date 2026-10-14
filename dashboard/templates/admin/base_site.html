@@ -1,0 +1,31 @@
+{% extends "admin/base.html" %}
+{% load i18n static %}
+
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block extrastyle %}{{ block.super }}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400..600&display=swap">
+<link rel="stylesheet" href="{% static 'css/admin_skin.css' %}?v=6">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%230d0e10'/%3E%3Cpath d='M16 8 6 13l10 5 8-4v6h2v-7z' fill='%23fff'/%3E%3Cpath d='M10 17v3.5c0 1.6 2.7 3 6 3s6-1.4 6-3V17l-6 3z' fill='%23e5501f'/%3E%3C/svg%3E">
+{% endblock %}
+
+{% block branding %}
+<a class="sd-brand" href="{% url 'admin:index' %}">
+  <span class="sd-mark"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 8 6 13l10 5 8-4v6h2v-7z" fill="currentColor"/><path d="M10 17v3.5c0 1.6 2.7 3 6 3s6-1.4 6-3V17l-6 3z" fill="var(--accent)"/></svg></span>
+  <span class="sd-name">{{ site_header|default:_('Django administration') }}<small>Admin</small></span>
+</a>
+{% endblock %}
+
+{% block nav-global %}
+{% if has_permission %}
+<nav class="sd-nav" aria-label="Admin sections">
+  <a href="{% url 'admin:index' %}" {% if request.path == '/admin/' %}aria-current="page"{% endif %}>Overview</a>
+  <a href="{% url 'admin:auth_user_changelist' %}" {% if '/admin/auth/user' in request.path %}aria-current="page"{% endif %}>Students</a>
+  <a href="{% url 'admin:dashboard_notes_changelist' %}" {% if '/admin/dashboard/notes' in request.path %}aria-current="page"{% endif %}>Notes</a>
+  <a href="{% url 'admin:dashboard_homework_changelist' %}" {% if '/admin/dashboard/homework' in request.path %}aria-current="page"{% endif %}>Homework</a>
+  <a href="{% url 'admin:dashboard_todo_changelist' %}" {% if '/admin/dashboard/todo' in request.path %}aria-current="page"{% endif %}>To-dos</a>
+</nav>
+{% endif %}
+{% endblock %}
