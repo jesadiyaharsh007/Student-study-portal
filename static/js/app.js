@@ -175,9 +175,6 @@
     if (!canPrefetch(a)) return;
     const u = new URL(a.href, location.href).href;
     seen.add(u);
-    try {
-      fetch(u, { priority: 'low', credentials: 'same-origin' }).catch(() => {});
-    } catch (e) {}
     const l = document.createElement('link');
     l.rel = 'prefetch'; l.href = u; l.as = 'document';
     document.head.append(l);
@@ -886,6 +883,15 @@
       send.disabled = !ta.value.trim();
     }
 
+    // History lives in the browser: nothing to load or save on the server per message.
+    const HKEY = 'lexi-chat-' + (chat.dataset.user || 'u');
+    let hist = [];
+    try { hist = JSON.parse(localStorage.getItem(HKEY) || '[]'); if (!Array.isArray(hist)) hist = []; } catch (e) { hist = []; }
+    const saveHist = () => { try { localStorage.setItem(HKEY, JSON.stringify(hist.slice(-30))); } catch (e) {} };
+    if (!$$('.msg', log).length) hist.forEach(m => addMsg(m.role === 'user' ? 'user' : 'bot', m.text));
+    else { hist = []; saveHist(); }
+
+    const PHASES = ['Thinking', 'Reading your question', 'Working out the answer', 'Putting it together', 'Almost there'];
     let busy = false;
     async function ask(text) {
       if (busy || !text.trim()) return;
@@ -897,23 +903,31 @@
       const t = document.createElement('div');
       t.className = 'msg bot typing tone-pink';
       t.innerHTML = `
-        <div class="av"><svg class="ic" aria-hidden="true"><use href="#i-cap"/></svg></div>
+        <div class="av lexi-orb" aria-hidden="true"><svg class="ic"><use href="#i-cap"/></svg></div>
         <div class="bubble" role="status" aria-label="Lexi is thinking...">
-          <div class="typing-wave" aria-hidden="true">
-            <i></i><i></i><i></i>
-          </div>
+          <span class="think-text"><span class="think-word">${PHASES[0]}</span><span class="think-dots" aria-hidden="true"><i></i><i></i><i></i></span></span>
         </div>
       `;
       log.append(t); log.scrollTop = log.scrollHeight;
+      const word = $('.think-word', t);
+      let step = 0;
+      const phaseTimer = setInterval(() => {
+        step = Math.min(step + 1, PHASES.length - 1);
+        word.classList.add('swap');
+        setTimeout(() => { word.textContent = PHASES[step]; word.classList.remove('swap'); }, 180);
+      }, 2200);
       try {
-        const fd = new FormData(); fd.append('prompt', text);
+        const fd = new FormData(); fd.append('prompt', text); fd.append('history', JSON.stringify(hist.slice(-6)));
         const r = await fetch(url, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrf() }, credentials: 'same-origin' });
         const d = await r.json().catch(() => ({}));
-        t.remove();
-        if (d.ok) addMsg('bot', d.reply);
-        else { toast('danger', d.error || 'Lexi is unavailable right now.'); }
+        clearInterval(phaseTimer); t.remove();
+        if (d.ok) {
+          addMsg('bot', d.reply);
+          hist.push({ role: 'user', text: text.trim() }, { role: 'model', text: d.reply });
+          saveHist();
+        } else { toast('danger', d.error || 'Lexi is unavailable right now.'); }
       } catch (e) {
-        t.remove();
+        clearInterval(phaseTimer); t.remove();
         toast('danger', 'You appear to be offline.');
       }
       busy = false;
@@ -927,9 +941,8 @@
       if (send && !busy) send.disabled = !ta.value.trim();
     });
     $$('[data-suggest]').forEach(b => on(b, 'click', () => ask(b.dataset.suggest)));
-    on($('#chat-clear'), 'click', async () => {
-      const fd = new FormData(); fd.append('clear', '1');
-      await fetch(url, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrf() }, credentials: 'same-origin' });
+    on($('#chat-clear'), 'click', () => {
+      hist = []; try { localStorage.removeItem(HKEY); } catch (e) {}
       location.reload();
     });
   }

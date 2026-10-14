@@ -22,10 +22,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-&m#j%)6)#sye5_uz#u1g!le6cx=w8sdjnvt#ki38w$!(c$@9bj'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY') or 'django-insecure-&m#j%)6)#sye5_uz#u1g!le6cx=w8sdjnvt#ki38w$!(c$@9bj'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# DEBUG logs every SQL query in memory and renders slow debug pages, so it is off on Vercel.
+# Set DJANGO_DEBUG=1 to force it on.
+DEBUG = os.environ.get('DJANGO_DEBUG', '0' if os.environ.get('VERCEL') == '1' else '1') == '1'
 
 ALLOWED_HOSTS = ['*']
 
@@ -91,6 +93,12 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'studentstudyportal.wsgi.application'
 
+# Sessions live in a signed cookie: no DB read/write on every request, which is
+# the biggest latency cost on serverless with a remote Postgres. (Lexi's chat
+# history is kept in the browser, so the cookie stays tiny.)
+SESSION_ENGINE = 'django.contrib.sessions.backends.signed_cookies'
+SESSION_COOKIE_HTTPONLY = True
+
 
 # Caching
 # Fast in-memory caching for templates, sessions, and tool lookups
@@ -126,6 +134,8 @@ if 'DATABASE_URL' in os.environ:
     if db_from_env:
         DATABASES['default'].update(db_from_env)
         DATABASES['default']['CONN_HEALTH_CHECKS'] = True
+        # pgbouncer (transaction mode) does not support server-side cursors
+        DATABASES['default']['DISABLE_SERVER_SIDE_CURSORS'] = True
 else:
     # If running on Vercel or a serverless/read-only environment without DATABASE_URL:
     # Copy SQLite database to writable /tmp directory so reads & writes don't crash

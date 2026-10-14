@@ -1,5 +1,7 @@
 import functools
+import json
 import re
+import time
 
 import requests
 from django.contrib import messages
@@ -615,6 +617,21 @@ def _get_ai_http_session():
     return _AI_HTTP_SESSION
 
 
+def _clean_history(raw):
+    """Parse the history the browser sends (a JSON list) into at most 6 safe turns."""
+    try:
+        items = json.loads(raw) if isinstance(raw, str) and raw else []
+    except ValueError:
+        return []
+    history = []
+    for m in (items if isinstance(items, list) else [])[-6:]:
+        if not isinstance(m, dict) or not isinstance(m.get("text"), str):
+            continue
+        text = re.sub(r'\b(the\s+)?AI\s+[Tt]utor\b', 'Lexi', m["text"], flags=re.IGNORECASE)[:1500]
+        history.append({"role": "user" if m.get("role") == "user" else "model", "text": text})
+    return history
+
+
 def _query_gemini_tutor(api_key, history, prompt):
     models = [
         "gemini-3-flash-preview",
@@ -622,14 +639,9 @@ def _query_gemini_tutor(api_key, history, prompt):
         "gemini-3.1-flash-lite",
         "gemini-3.5-flash",
     ]
-    # Send only recent context (last 6 turns) so Gemini doesn't have to process thousands of tokens
-    recent_history = history[-6:] if history else []
-    contents = []
-    for m in recent_history:
-        role = "user" if m.get("role") == "user" else "model"
-        text = (m.get("text") or "").strip()
-        if text:
-            contents.append({"role": role, "parts": [{"text": text[:1500]}]})
+    contents = [
+        {"role": m["role"], "parts": [{"text": m["text"]}]} for m in history if m["text"].strip()
+    ]
     contents.append({"role": "user", "parts": [{"text": prompt}]})
 
     payload = {
@@ -638,27 +650,41 @@ def _query_gemini_tutor(api_key, history, prompt):
         "generationConfig": {
             "temperature": 0.5,
             "maxOutputTokens": 1200,
+            # Short "thinking" phase: the default one adds several seconds to a simple "hi".
+            "thinkingConfig": {"thinkingLevel": "minimal"},
         },
     }
+    bare_payload = {**payload, "generationConfig": {k: v for k, v in payload["generationConfig"].items() if k != "thinkingConfig"}}
 
     session = _get_ai_http_session()
+    deadline = time.monotonic() + 24  # stay under the 30s function limit
     last_error = None
     for model_name in models:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
-        try:
-            resp = session.post(url, json=payload, timeout=6)
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
+        # If a model rejects thinkingConfig (HTTP 400), retry it once without.
+        for body in (payload, bare_payload):
+            remaining = deadline - time.monotonic()
+            if remaining < 2:
+                raise RuntimeError(last_error or "AI service timed out")
+            try:
+                resp = session.post(
+                    url, json=body, headers={"x-goog-api-key": api_key}, timeout=min(10, remaining)
+                )
+            except Exception as e:
+                last_error = str(e)
+                break
             if resp.status_code == 200:
-                data = resp.json()
-                candidates = data.get("candidates", [])
+                candidates = resp.json().get("candidates", [])
                 if candidates:
                     parts = candidates[0].get("content", {}).get("parts", [])
-                    if parts and "text" in parts[0]:
-                        return parts[0]["text"]
+                    text = "".join(p.get("text", "") for p in parts if not p.get("thought"))
+                    if text:
+                        return text
+                last_error = f"Model {model_name} returned no text"
+                break
             last_error = f"Model {model_name} status {resp.status_code}"
-        except Exception as e:
-            last_error = str(e)
-            continue
-
+            if resp.status_code != 400:
+                break
     raise RuntimeError(last_error or "AI service unavailable")
 
 
@@ -667,31 +693,17 @@ def chatbot(request):
     from django.conf import settings
     import logging
 
+    # History lives in the browser (localStorage) and is sent with each question, so
+    # chatting never touches the database or the session.
     if request.GET.get("clear") == "true" or (request.method == "POST" and request.POST.get("clear")):
-        try:
-            request.session.pop("chat_history", None)
-            request.session.modified = True
-        except Exception:
-            pass
         if _is_ajax(request):
             return JsonResponse({"ok": True})
         return redirect("chatbot")
 
-    try:
-        raw_history = request.session.get("chat_history", [])
-        history = []
-        for m in (raw_history if isinstance(raw_history, list) else []):
-            if isinstance(m, dict):
-                text = m.get("text") or ""
-                if isinstance(text, str) and ("AI Tutor" in text or "ai tutor" in text or "AI tutor" in text):
-                    text = re.sub(r'\b(the\s+)?AI\s+[Tt]utor\b', 'Lexi', text, flags=re.IGNORECASE)
-                history.append({"role": m.get("role", "user"), "text": text})
-    except Exception:
-        history = []
-    ctx = {"chat_history": history}
-
+    ctx = {}
     if request.method == "POST":
         prompt = (request.POST.get("prompt") or "").strip()[:2000]
+        history = _clean_history(request.POST.get("history"))
         error = reply = None
         if not prompt:
             error = "Please type a question first."
@@ -700,12 +712,6 @@ def chatbot(request):
         else:
             try:
                 reply = _query_gemini_tutor(settings.GEMINI_API_KEY, history, prompt)
-                history = (history + [{"role": "user", "text": prompt}, {"role": "model", "text": reply}])[-30:]
-                try:
-                    request.session["chat_history"] = history
-                    request.session.modified = True
-                except Exception as sess_err:
-                    logging.getLogger(__name__).warning("Could not persist session on serverless: %s", sess_err)
             except Exception as e:
                 logging.getLogger(__name__).warning("Lexi call failed: %s", e)
                 error = "Lexi couldn't answer right now. Please try again."
@@ -714,7 +720,10 @@ def chatbot(request):
             if error:
                 return JsonResponse({"ok": False, "error": error})
             return JsonResponse({"ok": True, "reply": reply})
-        ctx.update(chat_history=history, error=error)
+        ctx.update(
+            chat_history=[{"role": "user", "text": prompt}, {"role": "model", "text": reply}] if reply else [],
+            error=error,
+        )
 
     return render(request, "dashboard/chatbot.html", ctx)
 

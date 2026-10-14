@@ -30,30 +30,9 @@
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="{% static 'css/studydesk.css' %}?v=6.4">
+  <link rel="stylesheet" href="{% static 'css/studydesk.css' %}?v=6.5">
   <script type="speculationrules">
-  {
-    "prerender": [
-      {
-        "source": "list",
-        "urls": [
-          "{% url 'home' %}",
-          {% if user.is_authenticated %}"{% url 'profile' %}",{% endif %}
-          "{% url 'notes' %}",
-          "{% url 'homework' %}",
-          "{% url 'todo' %}",
-          "{% url 'chatbot' %}",
-          "{% url 'dictionary' %}",
-          "{% url 'books' %}",
-          "{% url 'wiki' %}",
-          "{% url 'youtube' %}",
-          "{% url 'conversion' %}",
-          "{% url 'about' %}"
-        ],
-        "eagerness": "moderate"
-      }
-    ]
-  }
+  {"prefetch": [{"where": {"href_matches": "/*", "not": {"href_matches": ["/logout*", "/admin*", "/static/*"]}}, "eagerness": "moderate"}]}
   </script>
   {% block head %}{% endblock %}
 </head>
