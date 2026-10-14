@@ -22,7 +22,7 @@
 <div class="wrap-n">
   <section class="bz chat" id="chat"><div class="core">
     <header class="chat-head">
-      <span class="glyph">{% icon "bot" %}</span>
+      <span class="glyph">{% icon "cap" %}</span>
       <div class="u-flex-1"><b class="chat-title">Lexi</b><small class="muted">Explanations, examples and practice questions.</small></div>
       <button class="btn btn-line btn-sm no-ico" id="chat-clear" type="button" {% if not chat_history %}hidden{% endif %}>New chat</button>
     </header>
@@ -32,7 +32,7 @@
       {% if m.role == 'user' %}
       <div class="msg user"><div class="av">{{ user.username|initial }}</div><div class="bubble">{{ m.text }}</div></div>
       {% else %}
-      <div class="msg bot"><div class="av">{% icon "bot" %}</div><div class="bubble" data-md>{{ m.text }}</div></div>
+      <div class="msg bot"><div class="av">{% icon "cap" %}</div><div class="bubble" data-md>{{ m.text }}</div></div>
       {% endif %}
       {% endfor %}
       {% if error %}<div class="form-alert">{% icon "alert-circle" %}{{ error }}</div>{% endif %}

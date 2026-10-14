@@ -869,72 +869,34 @@ dialog.closing::backdrop { animation: fade .25s reverse forwards; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: .65rem 1rem;
+  padding: .75rem 1.15rem;
   min-height: 38px;
   width: fit-content;
   border-radius: 18px;
   background: var(--sunk);
   box-shadow: inset 0 0 0 1px var(--hair);
 }
-.claude-loader {
+.typing-wave {
   display: inline-flex;
   align-items: center;
-  gap: .65rem;
+  gap: 6px;
   line-height: 1;
 }
-.claude-spark-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 17px;
-  height: 17px;
-  color: var(--accent);
-  transform-origin: center center;
-  animation: claudeSpin 2.4s cubic-bezier(.4, 0, .2, 1) infinite;
-  will-change: transform, opacity;
-}
-.claude-spark-icon svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-@keyframes claudeSpin {
-  0% {
-    transform: rotate(0deg) scale(.92);
-    opacity: .75;
-    filter: drop-shadow(0 0 0px transparent);
-  }
-  50% {
-    transform: rotate(180deg) scale(1.1);
-    opacity: 1;
-    filter: drop-shadow(0 0 6px var(--accent-soft));
-  }
-  100% {
-    transform: rotate(360deg) scale(.92);
-    opacity: .75;
-    filter: drop-shadow(0 0 0px transparent);
-  }
-}
-.claude-wave {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-.claude-wave i {
+.typing-wave i {
   display: inline-block;
-  width: 5px;
-  height: 5px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--muted);
   opacity: .35;
   transform: scale(.8);
-  animation: claudePulse 1.3s cubic-bezier(.45, .05, .55, .95) infinite;
+  animation: typingPulse 1.3s cubic-bezier(.45, .05, .55, .95) infinite;
   will-change: transform, opacity, background-color;
 }
-.claude-wave i:nth-child(1) { animation-delay: 0s; }
-.claude-wave i:nth-child(2) { animation-delay: .18s; }
-.claude-wave i:nth-child(3) { animation-delay: .36s; }
-@keyframes claudePulse {
+.typing-wave i:nth-child(1) { animation-delay: 0s; }
+.typing-wave i:nth-child(2) { animation-delay: .18s; }
+.typing-wave i:nth-child(3) { animation-delay: .36s; }
+@keyframes typingPulse {
   0%, 100% {
     transform: scale(.8);
     opacity: .35;
@@ -948,8 +910,7 @@ dialog.closing::backdrop { animation: fade .25s reverse forwards; }
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .claude-spark-icon { animation: none; opacity: 1; }
-  .claude-wave i { animation: none; opacity: .7; }
+  .typing-wave i { animation: none; opacity: .7; }
 }
 .chat-empty { margin: auto; max-width: 560px; padding: 1rem; }
 .chat-empty h2 { font-size: clamp(2rem, 4.4vw, 3.2rem); letter-spacing: -.05em; font-weight: 500; margin: 1rem 0 .6rem; } .chat-empty p { color: var(--muted); }

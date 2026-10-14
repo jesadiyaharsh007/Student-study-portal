@@ -857,7 +857,7 @@
       $('#chat-clear')?.removeAttribute('hidden');
       const m = document.createElement('div');
       m.className = 'msg ' + (role === 'user' ? 'user' : 'bot tone-pink');
-      const av = role === 'user' ? esc(initial) : '<svg class="ic"><use href="#i-bot"/></svg>';
+      const av = role === 'user' ? esc(initial) : '<svg class="ic"><use href="#i-cap"/></svg>';
       m.innerHTML = `<div class="av">${av}</div><div class="bubble"></div>`;
       const b = $('.bubble', m);
       if (role === 'user') b.textContent = text;
@@ -893,17 +893,10 @@
       const t = document.createElement('div');
       t.className = 'msg bot typing tone-pink';
       t.innerHTML = `
-        <div class="av"><svg class="ic" aria-hidden="true"><use href="#i-bot"/></svg></div>
+        <div class="av"><svg class="ic" aria-hidden="true"><use href="#i-cap"/></svg></div>
         <div class="bubble" role="status" aria-label="Lexi is thinking...">
-          <div class="claude-loader" aria-hidden="true">
-            <span class="claude-spark-icon">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12,2a1.5,1.5,0,0,1,1.5,1.5v3.5a1.5,1.5,0,0,1-3,0V3.5A1.5,1.5,0,0,1,12,2Zm0,13a1.5,1.5,0,0,1,1.5,1.5v3.5a1.5,1.5,0,0,1-3,0V16.5A1.5,1.5,0,0,1,12,15ZM2,12A1.5,1.5,0,0,1,3.5,10.5H7a1.5,1.5,0,0,1,0,3H3.5A1.5,1.5,0,0,1,2,12Zm15,0a1.5,1.5,0,0,1,1.5-1.5h3.5a1.5,1.5,0,0,1,0,3H18.5A1.5,1.5,0,0,1,17,12ZM4.93,4.93a1.5,1.5,0,0,1,2.12,0l2.47,2.48a1.5,1.5,0,0,1-2.12,2.12L4.93,7.05A1.5,1.5,0,0,1,4.93,4.93Zm11.67,11.67a1.5,1.5,0,0,1,2.12,0l2.48,2.47a1.5,1.5,0,0,1-2.12,2.12l-2.48-2.47A1.5,1.5,0,0,1,16.6,16.6ZM4.93,19.07a1.5,1.5,0,0,1,0-2.12l2.47-2.48a1.5,1.5,0,0,1,2.12,2.12L7.05,19.07A1.5,1.5,0,0,1,4.93,19.07Zm11.67-11.67a1.5,1.5,0,0,1,0-2.12l2.48-2.48a1.5,1.5,0,0,1,2.12,2.12L19.07,7.4A1.5,1.5,0,0,1,16.6,7.4Z"/>
-              </svg>
-            </span>
-            <span class="claude-wave">
-              <i></i><i></i><i></i>
-            </span>
+          <div class="typing-wave" aria-hidden="true">
+            <i></i><i></i><i></i>
           </div>
         </div>
       `;
