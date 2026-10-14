@@ -35,6 +35,14 @@ def _is_ajax(request):
     return request.headers.get("x-requested-with") == "XMLHttpRequest"
 
 
+def _progress(items):
+    return sum(1 for i in items if i.is_finished), len(items)
+
+
+def _pct(done, total):
+    return round(done * 100 / total) if total else 0
+
+
 def _safe_next(request):
     target = request.POST.get("next") or request.GET.get("next") or ""
     if target and url_has_allowed_host_and_scheme(target, {request.get_host()}, request.is_secure()):
@@ -195,8 +203,13 @@ def homework(request):
         .only("id", "subject", "title", "description", "due", "is_finished")
         .order_by("is_finished", "due")
     )
+    items = list(items)
+    done, total = _progress(items)
     return render(request, "dashboard/homework.html", {
         "homework": items,
+        "done": done,
+        "total": total,
+        "pct": _pct(done, total),
         "form": form,
         "open_form": request.method == "POST",
     })
@@ -249,7 +262,11 @@ def todo(request):
     else:
         form = TodoForm()
     items = Todo.objects.filter(user=request.user).only("id", "title", "is_finished").order_by("is_finished", "-id")
-    return render(request, "dashboard/todo.html", {"form": form, "todos": items})
+    items = list(items)
+    done, total = _progress(items)
+    return render(request, "dashboard/todo.html", {
+        "form": form, "todos": items, "done": done, "total": total, "pct": _pct(done, total),
+    })
 
 
 @student_required

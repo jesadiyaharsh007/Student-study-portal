@@ -30,7 +30,7 @@
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="{% static 'css/studydesk.css' %}?v=7.0">
+  <link rel="stylesheet" href="{% static 'css/studydesk.css' %}?v=7.2">
   {% block head %}{% endblock %}
 </head>
 <body{% if user.is_authenticated %} data-csrf="{{ csrf_token }}" data-initial="{{ user.username|initial }}"{% endif %}>

@@ -8,7 +8,7 @@
     <div>
       <header class="head u-margin-bottom-1p8rem">
         <div><h1>To-do</h1><p>Small tasks, finished one tap at a time.</p></div>
-        {% include 'dashboard/partials/ring.html' with pct=0 size="96px" %}
+        {% include 'dashboard/partials/ring.html' with pct=pct size="96px" %}
       </header>
 
       <form class="quick-add" method="post" action="{% url 'todo' %}" data-ajax="add" data-target="#todo-list" autocomplete="off">
@@ -23,7 +23,7 @@
           <button type="button" data-filter="pending" aria-pressed="false">Open</button>
           <button type="button" data-filter="done" aria-pressed="false">Done</button>
         </div>
-        <span class="count"><span data-bind="done">0</span> of <span data-bind="total">0</span> done</span>
+        <span class="count"><span data-bind="done">{{ done }}</span> of <span data-bind="total">{{ total }}</span> done</span>
       </div>
 
       <ul class="items" id="todo-list" data-list data-filterable {% if not todos %}hidden{% endif %}>

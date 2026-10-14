@@ -231,12 +231,10 @@
   }
   $$('[data-count-to]').forEach(countUp);
   const setRing = (ring, pct) => {
-    const fg = $('.fg', ring);
-    if (fg) fg.style.strokeDashoffset = 100 - pct;
+    ring.style.setProperty('--pct', pct);
     const n = $('[data-ring-num]', ring);
-    if (n) { n.dataset.from = ring._init ? n.textContent : 0; ring._init = true; n.dataset.countTo = pct; countUp(n); }
+    if (n) { n.dataset.from = n.textContent; n.dataset.countTo = pct; countUp(n); }
   };
-  requestAnimationFrame(() => $$('.ring[data-pct]').forEach(r => setRing(r, +r.dataset.pct)));
 
   /* ------------------------------------------------------------ confetti */
   function confetti(host) {

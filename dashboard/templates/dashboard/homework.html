@@ -9,7 +9,7 @@
     <div class="in">
       <div><h1>Homework</h1><p>Every deadline, ordered by what is due first.</p>
         <button class="btn btn-ink u-margin-top-1p4rem" type="button" data-open="hw-dialog"><span>Add homework</span><span class="btn-ico">{% icon "plus" %}</span></button></div>
-      {% include 'dashboard/partials/ring.html' with pct=0 size="110px" %}
+      {% include 'dashboard/partials/ring.html' with pct=pct size="110px" %}
     </div>
   </div></section>
 
@@ -20,7 +20,7 @@
       <button type="button" data-filter="pending" aria-pressed="false">Pending</button>
       <button type="button" data-filter="done" aria-pressed="false">Done</button>
     </div>
-    <span class="count"><span data-bind="done">0</span> of <span data-bind="total">0</span> finished</span>
+    <span class="count"><span data-bind="done">{{ done }}</span> of <span data-bind="total">{{ total }}</span> finished</span>
   </div>
   {% endif %}
 
