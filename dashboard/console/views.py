@@ -20,7 +20,7 @@ from .auth import MAX_ATTEMPTS, clear_failures, console_required, is_locked, rec
 
 def _safe_next(request):
     target = request.POST.get("next") or request.GET.get("next") or ""
-    if target.startswith("/console/") and url_has_allowed_host_and_scheme(target, {request.get_host()}, request.is_secure()):
+    if target.startswith("/admin/") and url_has_allowed_host_and_scheme(target, {request.get_host()}, request.is_secure()):
         return target
     return reverse("console:overview")
 

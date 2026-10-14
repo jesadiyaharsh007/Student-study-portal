@@ -194,20 +194,30 @@ class ConsoleTests(TestCase):
 
     def signin(self, client=None, **extra):
         client = client or self.client
-        return client.post('/console/login/', {'username': 'boss', 'password': self.PASSWORD, **extra})
+        return client.post('/admin/login/', {'username': 'boss', 'password': self.PASSWORD, **extra})
 
     # ---- access ----
-    def test_old_admin_is_gone(self):
-        self.assertEqual(self.client.get('/admin/').status_code, 404)
+    def test_student_site_does_not_advertise_the_admin(self):
+        for url in ('/login/', '/register/', '/'):
+            self.assertNotContains(self.client.get(url), '/admin/')
+        self.client.login(username='asha', password='Student-pass-123')
+        self.assertNotContains(self.client.get('/profile/'), '/admin/')
+        # staff are told nothing about where to sign in either
+        res = Client().post('/login/', {'username': 'boss', 'password': self.PASSWORD})
+        self.assertNotContains(res, '/admin/')
+
+    def test_django_admin_is_not_installed(self):
+        from django.apps import apps
+        self.assertFalse(apps.is_installed('django.contrib.admin'))
 
     def test_pages_require_sign_in(self):
-        for url in ('/console/', '/console/users/', f'/console/users/{self.asha.pk}/', '/console/security/'):
+        for url in ('/admin/', '/admin/users/', f'/admin/users/{self.asha.pk}/', '/admin/security/'):
             res = self.client.get(url)
             self.assertEqual(res.status_code, 302, url)
-            self.assertIn('/console/login/', res['Location'])
+            self.assertIn('/admin/login/', res['Location'])
 
     def test_students_cannot_sign_in(self):
-        res = self.client.post('/console/login/', {'username': 'asha', 'password': 'Student-pass-123'})
+        res = self.client.post('/admin/login/', {'username': 'asha', 'password': 'Student-pass-123'})
         self.assertEqual(res.status_code, 200)
         self.assertContains(res, 'not allowed in the console')
         self.assertNotIn('sd_rt', res.cookies)
@@ -218,22 +228,22 @@ class ConsoleTests(TestCase):
         self.assertEqual(res.status_code, 302)
         for name in ('sd_at', 'sd_rt'):
             self.assertTrue(res.cookies[name]['httponly'])
-            self.assertEqual(res.cookies[name]['path'], '/console/')
+            self.assertEqual(res.cookies[name]['path'], '/admin/')
         self.assertEqual(AdminSession.objects.filter(user=self.admin, revoked_at__isnull=True).count(), 1)
-        self.assertEqual(self.client.get('/console/').status_code, 200)
+        self.assertEqual(self.client.get('/admin/').status_code, 200)
 
     def test_sign_in_with_email_and_safe_next(self):
-        res = self.client.post('/console/login/', {'username': 'BOSS@example.com', 'password': self.PASSWORD, 'next': '/console/users/'})
-        self.assertEqual(res['Location'], '/console/users/')
+        res = self.client.post('/admin/login/', {'username': 'BOSS@example.com', 'password': self.PASSWORD, 'next': '/admin/users/'})
+        self.assertEqual(res['Location'], '/admin/users/')
         self.client.cookies.clear()
-        res = self.client.post('/console/login/', {'username': 'boss', 'password': self.PASSWORD, 'next': 'https://evil.example/'})
-        self.assertEqual(res['Location'], '/console/')
+        res = self.client.post('/admin/login/', {'username': 'boss', 'password': self.PASSWORD, 'next': 'https://evil.example/'})
+        self.assertEqual(res['Location'], '/admin/')
 
     def test_brute_force_lockout(self):
         for _ in range(5):
-            res = self.client.post('/console/login/', {'username': 'boss', 'password': 'nope'})
+            res = self.client.post('/admin/login/', {'username': 'boss', 'password': 'nope'})
             self.assertEqual(res.status_code, 200)
-        locked = self.client.post('/console/login/', {'username': 'boss', 'password': self.PASSWORD})
+        locked = self.client.post('/admin/login/', {'username': 'boss', 'password': self.PASSWORD})
         self.assertEqual(locked.status_code, 429)
         self.assertNotIn('sd_rt', locked.cookies)
 
@@ -242,7 +252,7 @@ class ConsoleTests(TestCase):
         from .models import AdminSession
         self.signin()
         del self.client.cookies['sd_at']             # the 15 minute access token ran out
-        res = self.client.get('/console/users/')
+        res = self.client.get('/admin/users/')
         self.assertEqual(res.status_code, 200)       # still signed in
         self.assertIn('sd_at', res.cookies)          # new pair issued
         self.assertIn('sd_rt', res.cookies)
@@ -251,16 +261,16 @@ class ConsoleTests(TestCase):
         self.assertIsNotNone(rows[0].revoked_at)     # old refresh token rotated out
         self.assertEqual(rows[0].replaced_by, rows[1].jti)
         self.assertIsNone(rows[1].revoked_at)
-        self.assertEqual(self.client.get('/console/').status_code, 200)
+        self.assertEqual(self.client.get('/admin/').status_code, 200)
 
     def test_parallel_request_with_just_rotated_token_is_tolerated(self):
         self.signin()
         old_refresh = self.client.cookies['sd_rt'].value
         del self.client.cookies['sd_at']
-        self.assertEqual(self.client.get('/console/').status_code, 200)           # rotates
+        self.assertEqual(self.client.get('/admin/').status_code, 200)           # rotates
         other = Client()
         other.cookies['sd_rt'] = old_refresh                                       # raced request, same old token
-        res = other.get('/console/')
+        res = other.get('/admin/')
         self.assertEqual(res.status_code, 200)
         self.assertNotIn('sd_rt', res.cookies)
 
@@ -271,15 +281,15 @@ class ConsoleTests(TestCase):
         self.signin()
         stolen = self.client.cookies['sd_rt'].value
         del self.client.cookies['sd_at']
-        self.client.get('/console/')                                               # legitimate rotation
+        self.client.get('/admin/')                                               # legitimate rotation
         AdminSession.objects.filter(replaced_by__gt='').update(revoked_at=timezone.now() - timedelta(minutes=5))
         thief = Client()
         thief.cookies['sd_rt'] = stolen
-        res = thief.get('/console/')
+        res = thief.get('/admin/')
         self.assertEqual(res.status_code, 302)
         self.assertEqual(AdminSession.objects.filter(user=self.admin, revoked_at__isnull=True).count(), 0)
         del self.client.cookies['sd_at']
-        self.assertEqual(self.client.get('/console/').status_code, 302)           # the real owner must sign in again
+        self.assertEqual(self.client.get('/admin/').status_code, 302)           # the real owner must sign in again
 
     def test_session_is_capped_by_absolute_lifetime(self):
         from datetime import timedelta
@@ -288,7 +298,7 @@ class ConsoleTests(TestCase):
         self.signin()
         AdminSession.objects.update(origin_at=timezone.now() - timedelta(days=31))
         del self.client.cookies['sd_at']
-        self.assertEqual(self.client.get('/console/').status_code, 302)
+        self.assertEqual(self.client.get('/admin/').status_code, 302)
 
     def test_disabled_staff_cannot_refresh(self):
         self.signin()
@@ -296,31 +306,31 @@ class ConsoleTests(TestCase):
         from django.core.cache import cache
         cache.clear()
         del self.client.cookies['sd_at']
-        self.assertEqual(self.client.get('/console/').status_code, 302)
+        self.assertEqual(self.client.get('/admin/').status_code, 302)
 
     def test_sign_out_revokes_the_session(self):
         from .models import AdminSession
         self.signin()
         old_refresh = self.client.cookies['sd_rt'].value
-        res = self.client.post('/console/logout/')
+        res = self.client.post('/admin/logout/')
         self.assertEqual(res.status_code, 302)
         self.assertEqual(AdminSession.objects.filter(revoked_at__isnull=True).count(), 0)
         other = Client()
         other.cookies['sd_rt'] = old_refresh
-        self.assertEqual(other.get('/console/').status_code, 302)
+        self.assertEqual(other.get('/admin/').status_code, 302)
 
     def test_console_and_student_site_sessions_are_independent(self):
         self.signin()
         self.client.get('/login/')                  # visiting the student login must not end the console session
-        self.assertEqual(self.client.get('/console/').status_code, 200)
+        self.assertEqual(self.client.get('/admin/').status_code, 200)
         student = Client()
         student.login(username='asha', password='Student-pass-123')
-        self.assertEqual(student.get('/console/').status_code, 302)
+        self.assertEqual(student.get('/admin/').status_code, 302)
 
     # ---- what the console shows ----
     def test_overview_numbers_and_no_content(self):
         self.signin()
-        res = self.client.get('/console/')
+        res = self.client.get('/admin/')
         self.assertContains(res, 'Total users')
         self.assertEqual(res.context['totals']['total'], 2)       # staff are not counted as users
         self.assertEqual(res.context['totals']['inactive'], 1)
@@ -331,7 +341,7 @@ class ConsoleTests(TestCase):
 
     def test_users_list_shows_account_facts_only(self):
         self.signin()
-        res = self.client.get('/console/users/')
+        res = self.client.get('/admin/users/')
         self.assertContains(res, 'asha@example.com')
         self.assertContains(res, 'ben@example.com')
         self.assertNotContains(res, 'boss@example.com')            # admins are not listed
@@ -344,20 +354,20 @@ class ConsoleTests(TestCase):
         for i in range(20):
             User.objects.create_user(f'kid{i:02d}', f'kid{i:02d}@example.com', 'Student-pass-123')
         self.signin()
-        self.assertContains(self.client.get('/console/users/?q=asha'), 'asha@example.com')
-        self.assertNotContains(self.client.get('/console/users/?q=asha'), 'ben@example.com')
-        inactive = self.client.get('/console/users/?status=inactive')
+        self.assertContains(self.client.get('/admin/users/?q=asha'), 'asha@example.com')
+        self.assertNotContains(self.client.get('/admin/users/?q=asha'), 'ben@example.com')
+        inactive = self.client.get('/admin/users/?status=inactive')
         self.assertContains(inactive, 'ben@example.com')
         self.assertNotContains(inactive, 'asha@example.com')
-        self.assertEqual(self.client.get('/console/users/?joined=7').context['total'], 22)
-        page2 = self.client.get('/console/users/?page=2&sort=name')
+        self.assertEqual(self.client.get('/admin/users/?joined=7').context['total'], 22)
+        page2 = self.client.get('/admin/users/?page=2&sort=name')
         self.assertEqual(page2.status_code, 200)
         self.assertEqual(page2.context['page'].number, 2)
-        self.assertEqual(self.client.get('/console/users/?sort=<script>').status_code, 200)
+        self.assertEqual(self.client.get('/admin/users/?sort=<script>').status_code, 200)
 
     def test_user_detail_has_counts_but_no_content_or_controls(self):
         self.signin()
-        res = self.client.get(f'/console/users/{self.asha.pk}/')
+        res = self.client.get(f'/admin/users/{self.asha.pk}/')
         self.assertContains(res, 'asha@example.com')
         self.assertEqual(res.context['person'].n_notes, 1)
         self.assertEqual(res.context['person'].n_homework, 2)
@@ -368,18 +378,18 @@ class ConsoleTests(TestCase):
             self.assertNotContains(res, secret)
         html = res.content.decode()
         self.assertEqual(html.count('method="post"'), 1)      # only the sidebar sign-out button
-        self.assertIn('/console/logout/', html)
+        self.assertIn('/admin/logout/', html)
         self.assertNotIn('Delete', html)
         self.assertNotIn('name="is_active"', html)
 
     def test_staff_accounts_are_not_viewable_as_users(self):
         self.signin()
-        self.assertEqual(self.client.get(f'/console/users/{self.admin.pk}/').status_code, 404)
+        self.assertEqual(self.client.get(f'/admin/users/{self.admin.pk}/').status_code, 404)
 
     def test_console_is_read_only(self):
         self.signin()
         before = (User.objects.count(), Notes.objects.count())
-        for url in ('/console/', '/console/users/', f'/console/users/{self.asha.pk}/'):
+        for url in ('/admin/', '/admin/users/', f'/admin/users/{self.asha.pk}/'):
             self.assertEqual(self.client.post(url, {'delete': '1'}).status_code, 405, url)
             self.assertEqual(self.client.delete(url).status_code, 405, url)
         self.assertEqual(before, (User.objects.count(), Notes.objects.count()))
@@ -390,18 +400,18 @@ class ConsoleTests(TestCase):
         self.signin()
         second = Client()
         self.signin(second)
-        res = self.client.get('/console/security/')
+        res = self.client.get('/admin/security/')
         self.assertContains(res, 'This device')
         self.assertEqual(len(res.context['sessions']), 2)
-        self.client.post('/console/security/', {'action': 'revoke_others'})
+        self.client.post('/admin/security/', {'action': 'revoke_others'})
         self.assertEqual(AdminSession.objects.filter(user=self.admin, revoked_at__isnull=True).count(), 1)
         del second.cookies['sd_at']
-        self.assertEqual(second.get('/console/').status_code, 302)
-        self.assertEqual(self.client.get('/console/').status_code, 200)
+        self.assertEqual(second.get('/admin/').status_code, 302)
+        self.assertEqual(self.client.get('/admin/').status_code, 200)
 
     def test_responses_are_not_cached(self):
         self.signin()
-        res = self.client.get('/console/')
+        res = self.client.get('/admin/')
         self.assertIn('no-store', res['Cache-Control'])
         self.assertIn('noindex', res['X-Robots-Tag'])
 
@@ -423,7 +433,7 @@ class ConsoleTests(TestCase):
         self.assertEqual(res.status_code, 302)
         self.assertEqual(calls['n'], 2)
         heal.assert_called_once()
-        self.assertEqual(self.client.get('/console/').status_code, 200)
+        self.assertEqual(self.client.get('/admin/').status_code, 200)
 
     def test_sign_in_reports_a_friendly_error_if_the_table_cannot_be_created(self):
         from unittest import mock

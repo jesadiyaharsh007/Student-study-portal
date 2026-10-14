@@ -1,6 +1,6 @@
 """Sign-in for the admin console: short-lived access token + rotating refresh token.
 
-Both tokens live in HttpOnly cookies scoped to /console/, so they are independent of the student
+Both tokens live in HttpOnly cookies scoped to /admin/, so they are independent of the student
 site's session (signing in to one never signs you out of the other).
 
 * Access token  - signed, stateless, valid ACCESS_TTL seconds. Checked on every request without a DB hit.
@@ -30,7 +30,7 @@ GRACE = 15  # seconds: parallel requests may present a token that was rotated a 
 
 ACCESS_COOKIE = "sd_at"
 REFRESH_COOKIE = "sd_rt"
-COOKIE_PATH = "/console/"
+COOKIE_PATH = "/admin/"
 
 _ACCESS_SALT = "console.access.v1"
 _REFRESH_SALT = "console.refresh.v1"
