@@ -8,8 +8,6 @@
 {% block content %}
 <div class="wrap-n">
   <section class="chat{% if not chat_history %} is-empty{% endif %}" id="chat" data-user="{{ user.pk }}">
-    <button class="btn btn-line btn-sm no-ico chat-new" id="chat-clear" type="button" {% if not chat_history %}hidden{% endif %}>New chat</button>
-
     <div class="chat-log" id="chat-log" aria-live="polite">
       {% for m in chat_history %}
       {% if m.role == 'user' %}
@@ -26,6 +24,8 @@
         <span class="glyph chat-logo">{% icon "cap" %}</span>
         <h2>What are we learning today?</h2>
       </div>
+
+      <button class="chat-new" id="chat-clear" type="button" {% if not chat_history %}hidden{% endif %}>{% icon "plus" "ic-sm" %}<span>New chat</span></button>
 
       <form class="composer" id="chat-form" method="post" action="{% url 'chatbot' %}">
         {% csrf_token %}

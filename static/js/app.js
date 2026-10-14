@@ -565,6 +565,7 @@
   if (chat) {
     const log = $('#chat-log'), form = $('#chat-form'), ta = $('textarea', form), send = $('button[type=submit]', form);
     const url = form.action;
+    const scrollEnd = () => requestAnimationFrame(() => scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' }));
     const md = t => {
       if (!t) return '';
       const mathTokens = [];
@@ -875,7 +876,9 @@
         enhanceBubble(b, text);
       }
       log.append(m);
-      log.scrollTop = log.scrollHeight;
+      // Short replies: keep the end in view. Long ones: show where the answer starts.
+      if (role !== 'user' && m.offsetHeight > innerHeight * .6) scrollTo({ top: m.getBoundingClientRect().top + scrollY - 100, behavior: 'smooth' });
+      else scrollEnd();
       return m;
     };
 
@@ -884,7 +887,7 @@
       b.innerHTML = md(t);
       enhanceBubble(b, t);
     });
-    log.scrollTop = log.scrollHeight;
+    scrollEnd();
 
     // Send button state management
     if (ta && send) {
@@ -916,7 +919,7 @@
           <span class="think-text"><span class="think-word">${PHASES[0]}</span><span class="think-dots" aria-hidden="true"><i></i><i></i><i></i></span></span>
         </div>
       `;
-      log.append(t); log.scrollTop = log.scrollHeight;
+      log.append(t); scrollEnd();
       const word = $('.think-word', t);
       let step = 0;
       const phaseTimer = setInterval(() => {
