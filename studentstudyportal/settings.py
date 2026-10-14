@@ -105,9 +105,16 @@ DATABASES = {
 # Fix for Supabase pgbouncer query parameter which psycopg2 doesn't understand
 if 'DATABASE_URL' in os.environ:
     os.environ['DATABASE_URL'] = os.environ['DATABASE_URL'].replace('?pgbouncer=true', '')
-    db_from_env = dj_database_url.config(conn_max_age=500)
+    # On serverless (Vercel), setting conn_max_age=0 and conn_health_checks=True
+    # stops Django from trying to reuse frozen/broken TCP connections that cause 5-15s timeouts!
+    is_serverless = os.environ.get('VERCEL') == '1'
+    db_from_env = dj_database_url.config(
+        conn_max_age=0 if is_serverless else 60,
+        conn_health_checks=True
+    )
     if db_from_env:
         DATABASES['default'].update(db_from_env)
+        DATABASES['default']['CONN_HEALTH_CHECKS'] = True
 else:
     # If running on Vercel or a serverless/read-only environment without DATABASE_URL:
     # Copy SQLite database to writable /tmp directory so reads & writes don't crash

@@ -11,8 +11,6 @@ from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views import generic
 from django.views.decorators.http import require_POST
-import wikipedia as wiki_api
-from youtube_search import YoutubeSearch
 
 from .forms import (
     HomeworkForm,
@@ -283,6 +281,7 @@ def youtube(request):
     ctx = {"q": q}
     if q:
         try:
+            from youtube_search import YoutubeSearch
             found = YoutubeSearch(q, max_results=10).to_dict()
             ctx["results"] = [
                 {
@@ -587,6 +586,18 @@ AI_TUTOR_SYSTEM_PROMPT = (
 )
 
 
+_AI_HTTP_SESSION = None
+
+
+def _get_ai_http_session():
+    global _AI_HTTP_SESSION
+    if _AI_HTTP_SESSION is None:
+        _AI_HTTP_SESSION = requests.Session()
+        adapter = requests.adapters.HTTPAdapter(pool_connections=5, pool_maxsize=10, max_retries=1)
+        _AI_HTTP_SESSION.mount("https://", adapter)
+    return _AI_HTTP_SESSION
+
+
 def _query_gemini_tutor(api_key, history, prompt):
     models = [
         "gemini-3.5-flash-lite",
@@ -595,10 +606,14 @@ def _query_gemini_tutor(api_key, history, prompt):
         "gemini-3.5-flash",
         "gemini-flash-latest",
     ]
+    # Send only recent context (last 6 turns) so Gemini doesn't have to process thousands of tokens
+    recent_history = history[-6:] if history else []
     contents = []
-    for m in history:
+    for m in recent_history:
         role = "user" if m.get("role") == "user" else "model"
-        contents.append({"role": role, "parts": [{"text": m.get("text", "")}]})
+        text = (m.get("text") or "").strip()
+        if text:
+            contents.append({"role": role, "parts": [{"text": text[:1500]}]})
     contents.append({"role": "user", "parts": [{"text": prompt}]})
 
     payload = {
@@ -606,15 +621,16 @@ def _query_gemini_tutor(api_key, history, prompt):
         "contents": contents,
         "generationConfig": {
             "temperature": 0.7,
-            "maxOutputTokens": 2048,
+            "maxOutputTokens": 1600,
         },
     }
 
+    session = _get_ai_http_session()
     last_error = None
     for model_name in models:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
         try:
-            resp = requests.post(url, json=payload, timeout=12)
+            resp = session.post(url, json=payload, timeout=8)
             if resp.status_code == 200:
                 data = resp.json()
                 candidates = data.get("candidates", [])
