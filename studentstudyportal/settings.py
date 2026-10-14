@@ -73,6 +73,8 @@ MIDDLEWARE = [
     'dashboard.middleware.FriendlyErrorPagesMiddleware',
 ]
 
+AUTHENTICATION_BACKENDS = ['dashboard.auth_backend.CachedUserBackend']
+
 ROOT_URLCONF = 'studentstudyportal.urls'
 
 TEMPLATES = [
@@ -124,11 +126,11 @@ DATABASES = {
 # Fix for Supabase pgbouncer query parameter which psycopg2 doesn't understand
 if 'DATABASE_URL' in os.environ:
     os.environ['DATABASE_URL'] = os.environ['DATABASE_URL'].replace('?pgbouncer=true', '')
-    # On serverless (Vercel), setting conn_max_age=0 and conn_health_checks=True
-    # stops Django from trying to reuse frozen/broken TCP connections that cause 5-15s timeouts!
+    # Keep connections open for 60s so a warm instance skips the TLS handshake on every request;
+    # conn_health_checks drops any connection the platform froze or closed in between.
     is_serverless = os.environ.get('VERCEL') == '1'
     db_from_env = dj_database_url.config(
-        conn_max_age=0 if is_serverless else 60,
+        conn_max_age=60,
         conn_health_checks=True
     )
     if db_from_env:
