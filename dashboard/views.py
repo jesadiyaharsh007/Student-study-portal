@@ -588,7 +588,13 @@ AI_TUTOR_SYSTEM_PROMPT = (
 
 
 def _query_gemini_tutor(api_key, history, prompt):
-    models = ["gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-3.5-flash", "gemini-flash-latest"]
+    models = [
+        "gemini-3.5-flash-lite",
+        "gemini-flash-lite-latest",
+        "gemini-3.1-flash-lite",
+        "gemini-3.5-flash",
+        "gemini-flash-latest",
+    ]
     contents = []
     for m in history:
         role = "user" if m.get("role") == "user" else "model"
@@ -608,7 +614,7 @@ def _query_gemini_tutor(api_key, history, prompt):
     for model_name in models:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
         try:
-            resp = requests.post(url, json=payload, timeout=25)
+            resp = requests.post(url, json=payload, timeout=12)
             if resp.status_code == 200:
                 data = resp.json()
                 candidates = data.get("candidates", [])
@@ -630,12 +636,19 @@ def chatbot(request):
     import logging
 
     if request.GET.get("clear") == "true" or (request.method == "POST" and request.POST.get("clear")):
-        request.session.pop("chat_history", None)
+        try:
+            request.session.pop("chat_history", None)
+            request.session.modified = True
+        except Exception:
+            pass
         if _is_ajax(request):
             return JsonResponse({"ok": True})
         return redirect("chatbot")
 
-    history = request.session.get("chat_history", [])
+    try:
+        history = request.session.get("chat_history", [])
+    except Exception:
+        history = []
     ctx = {"chat_history": history}
 
     if request.method == "POST":
@@ -644,19 +657,23 @@ def chatbot(request):
         if not prompt:
             error = "Please type a question first."
         elif not settings.GEMINI_API_KEY:
-            error = "The AI Tutor isn't configured yet. Add a GEMINI_API_KEY to enable it."
+            error = "The AI Tutor isn't configured yet. Please add GEMINI_API_KEY in your Vercel project Settings > Environment Variables."
         else:
             try:
                 reply = _query_gemini_tutor(settings.GEMINI_API_KEY, history, prompt)
                 history = (history + [{"role": "user", "text": prompt}, {"role": "model", "text": reply}])[-30:]
-                request.session["chat_history"] = history
+                try:
+                    request.session["chat_history"] = history
+                    request.session.modified = True
+                except Exception as sess_err:
+                    logging.getLogger(__name__).warning("Could not persist session on serverless: %s", sess_err)
             except Exception as e:
                 logging.getLogger(__name__).warning("AI Tutor call failed: %s", e)
                 error = "The AI Tutor couldn't answer right now. Please try again."
 
         if _is_ajax(request):
             if error:
-                return JsonResponse({"ok": False, "error": error}, status=502 if prompt else 400)
+                return JsonResponse({"ok": False, "error": error})
             return JsonResponse({"ok": True, "reply": reply})
         ctx.update(chat_history=history, error=error)
 

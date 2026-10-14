@@ -36,4 +36,5 @@ ehthumbs.db
 # Logs & temp files
 *.log
 scratch/
+staticfiles_build/
 

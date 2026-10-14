@@ -29,6 +29,15 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
+CSRF_TRUSTED_ORIGINS = [
+    'https://*.vercel.app',
+    'https://*.now.sh',
+    'http://localhost',
+    'http://127.0.0.1',
+]
+if os.environ.get('VERCEL_URL'):
+    CSRF_TRUSTED_ORIGINS.append(f"https://{os.environ.get('VERCEL_URL')}")
+
 
 # Application definition
 
@@ -96,11 +105,22 @@ DATABASES = {
 # Fix for Supabase pgbouncer query parameter which psycopg2 doesn't understand
 if 'DATABASE_URL' in os.environ:
     os.environ['DATABASE_URL'] = os.environ['DATABASE_URL'].replace('?pgbouncer=true', '')
-
-# Update database configuration from $DATABASE_URL.
-db_from_env = dj_database_url.config(conn_max_age=500)
-if db_from_env:
-    DATABASES['default'].update(db_from_env)
+    db_from_env = dj_database_url.config(conn_max_age=500)
+    if db_from_env:
+        DATABASES['default'].update(db_from_env)
+else:
+    # If running on Vercel or a serverless/read-only environment without DATABASE_URL:
+    # Copy SQLite database to writable /tmp directory so reads & writes don't crash
+    if os.environ.get('VERCEL') == '1' or not os.access(BASE_DIR, os.W_OK):
+        import shutil
+        tmp_db = Path('/tmp') / 'db.sqlite3'
+        orig_db = BASE_DIR / 'db.sqlite3'
+        if orig_db.exists() and not tmp_db.exists():
+            try:
+                shutil.copy2(orig_db, tmp_db)
+            except Exception:
+                pass
+        DATABASES['default']['NAME'] = tmp_db
 
 
 # Password validation
@@ -192,12 +212,12 @@ JAZZMIN_UI_TWEAKS = {
 }
 
 # AI Tutor API Key
-# Load from environment variable, or local .env file if present
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+# Load from environment variable (Vercel dashboard), or local .env file if present
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip(' "\'')
 if not GEMINI_API_KEY:
     _env_file = BASE_DIR / '.env'
     if _env_file.exists():
-        with open(_env_file) as _f:
+        with open(_env_file, encoding='utf-8') as _f:
             for _line in _f:
                 if _line.startswith('GEMINI_API_KEY='):
                     GEMINI_API_KEY = _line.strip().split('=', 1)[1].strip(' "\'')
