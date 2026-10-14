@@ -136,6 +136,7 @@ if 'DATABASE_URL' in os.environ:
     if db_from_env:
         DATABASES['default'].update(db_from_env)
         DATABASES['default']['CONN_HEALTH_CHECKS'] = True
+        DATABASES['default'].setdefault('OPTIONS', {})['connect_timeout'] = 10
         # pgbouncer (transaction mode) does not support server-side cursors
         DATABASES['default']['DISABLE_SERVER_SIDE_CURSORS'] = True
 else:

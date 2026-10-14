@@ -1,5 +1,6 @@
 import functools
 import json
+from concurrent.futures import ThreadPoolExecutor
 import re
 import time
 
@@ -429,20 +430,31 @@ def _lookup_wiktionary(word):
     return {"phonetics": "", "audio": "", "meanings": meanings, "synonyms": synonyms}
 
 
+def _safe_lookup(lookup, word):
+    try:
+        return lookup(word)
+    except Exception:
+        return None
+
+
+def _lookup_word(word):
+    """Ask both dictionaries at once (instead of one after the other); prefer the first."""
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(_safe_lookup, f, word) for f in (_lookup_dictionaryapi, _lookup_wiktionary)]
+        for fut in futures:
+            entry = fut.result()
+            if entry:
+                return entry
+    return None
+
+
 @student_required
 def dictionary(request):
     q = _query(request)
     ctx = {"q": q}
     if q:
         word = q.lower()
-        entry = None
-        for lookup in (_lookup_dictionaryapi, _lookup_wiktionary):
-            try:
-                entry = lookup(word)
-            except Exception:
-                entry = None
-            if entry:
-                break
+        entry = _lookup_word(word)
         ctx["searched"] = True
         if entry:
             ctx.update(entry, word=q)
@@ -463,8 +475,23 @@ WIKI_HEADERS = {
 }
 
 
-@functools.lru_cache(maxsize=128)
+_WIKI_CACHE = {}
+
+
 def _fetch_wikipedia(query):
+    """Cached wrapper: only successful lookups are remembered, so a timeout is never cached."""
+    key = (query or "").strip().lower()
+    if key in _WIKI_CACHE:
+        return _WIKI_CACHE[key], None
+    article, error = _fetch_wikipedia_uncached(query)
+    if article:
+        if len(_WIKI_CACHE) >= 128:
+            _WIKI_CACHE.pop(next(iter(_WIKI_CACHE)))
+        _WIKI_CACHE[key] = article
+    return article, error
+
+
+def _fetch_wikipedia_uncached(query):
     """
     Fetches Wikipedia articles using the official Wikimedia REST v1 and OpenSearch APIs,
     with smart disambiguation resolution and compliant User-Agent headers.
@@ -510,12 +537,23 @@ def _fetch_wikipedia(query):
 
         disambig_result = None
 
-        # Step 2: Fetch REST v1 summary, preferring non-disambiguation articles
-        for title in candidates:
+        # Step 2: Fetch REST v1 summaries (top candidates in parallel), preferring non-disambiguation articles
+        def _summary(title):
+            safe = urllib.parse.quote(title.replace(" ", "_"))
+            try:
+                return session.get(
+                    f"https://en.wikipedia.org/api/rest_v1/page/summary/{safe}", headers=WIKI_HEADERS, timeout=8
+                )
+            except Exception:
+                return None
+
+        top = candidates[:4]
+        with ThreadPoolExecutor(max_workers=len(top)) as pool:
+            summaries = list(pool.map(_summary, top))
+
+        for title, r_sum in zip(top, summaries):
             safe_title = urllib.parse.quote(title.replace(" ", "_"))
-            summary_url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{safe_title}"
-            r_sum = session.get(summary_url, headers=WIKI_HEADERS, timeout=8)
-            if r_sum.status_code == 200:
+            if r_sum is not None and r_sum.status_code == 200:
                 s_data = r_sum.json()
                 extract = (s_data.get("extract") or "").strip()
                 page_type = s_data.get("type")
