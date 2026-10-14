@@ -54,3 +54,28 @@ class Todo(models.Model):
     class Meta:
         verbose_name = "to-do"
         verbose_name_plural = "to-dos"
+
+
+class AdminSession(models.Model):
+    """One refresh token of the admin console (see dashboard/console/tokens.py).
+
+    Refresh tokens rotate: each use revokes the row and creates a successor, so a stolen token
+    that is replayed is detected. Access tokens are stateless and short-lived.
+    """
+
+    jti = models.CharField(max_length=64, unique=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="console_sessions")
+    created_at = models.DateTimeField(default=timezone.now)
+    last_used_at = models.DateTimeField(default=timezone.now)
+    expires_at = models.DateTimeField()
+    origin_at = models.DateTimeField(default=timezone.now)  # when this chain started (absolute lifetime cap)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    replaced_by = models.CharField(max_length=64, blank=True, default="")
+    user_agent = models.CharField(max_length=255, blank=True, default="")
+    ip = models.GenericIPAddressField(null=True, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["user", "revoked_at"])]
+
+    def __str__(self):
+        return f"{self.user_id}:{self.jti[:6]}"

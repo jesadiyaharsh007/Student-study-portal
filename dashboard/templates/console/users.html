@@ -1,0 +1,89 @@
+{% extends "console/base.html" %}
+{% load ui console_tags %}
+{% block title %}Users{% endblock %}
+{% block heading %}Users{% endblock %}
+
+{% block content %}
+<div class="cs-pagehead">
+  <div>
+    <h2>{{ total }} user{{ total|pluralize }}{% if q or status or joined %} found{% endif %}</h2>
+    <p>Username, email and account status. Open a user to see how much they have created.</p>
+  </div>
+</div>
+
+<section class="cs-card cs-table-card">
+  <form class="cs-toolbar" method="get" role="search">
+    <label class="cs-input cs-grow">{% icon "search" "ic-sm" %}<input type="search" name="q" value="{{ q }}" placeholder="Search username or email" aria-label="Search users"></label>
+    <input type="hidden" name="status" value="{{ status }}">
+    <input type="hidden" name="joined" value="{{ joined }}">
+    <input type="hidden" name="sort" value="{{ sort }}">
+    <button class="cs-btn cs-btn-primary" type="submit">Search</button>
+  </form>
+
+  <div class="cs-filters">
+    <nav class="cs-tabs" aria-label="Status">
+      <a href="?{% if q %}q={{ q|urlencode }}&{% endif %}joined={{ joined }}&sort={{ sort }}" {% if not status %}aria-current="true"{% endif %}>All</a>
+      <a href="?{% if q %}q={{ q|urlencode }}&{% endif %}status=active&joined={{ joined }}&sort={{ sort }}" {% if status == 'active' %}aria-current="true"{% endif %}>Active</a>
+      <a href="?{% if q %}q={{ q|urlencode }}&{% endif %}status=inactive&joined={{ joined }}&sort={{ sort }}" {% if status == 'inactive' %}aria-current="true"{% endif %}>Inactive</a>
+    </nav>
+    <nav class="cs-tabs" aria-label="Joined">
+      <a href="?{% if q %}q={{ q|urlencode }}&{% endif %}status={{ status }}&sort={{ sort }}" {% if not joined %}aria-current="true"{% endif %}>Any time</a>
+      <a href="?{% if q %}q={{ q|urlencode }}&{% endif %}status={{ status }}&joined=7&sort={{ sort }}" {% if joined == '7' %}aria-current="true"{% endif %}>7 days</a>
+      <a href="?{% if q %}q={{ q|urlencode }}&{% endif %}status={{ status }}&joined=30&sort={{ sort }}" {% if joined == '30' %}aria-current="true"{% endif %}>30 days</a>
+      <a href="?{% if q %}q={{ q|urlencode }}&{% endif %}status={{ status }}&joined=90&sort={{ sort }}" {% if joined == '90' %}aria-current="true"{% endif %}>90 days</a>
+    </nav>
+    <details class="cs-menu">
+      <summary>{% icon "layers" "ic-sm" %}<span>Sort: {% for key, item in sorts.items %}{% if key == sort %}{{ item.0 }}{% endif %}{% endfor %}</span></summary>
+      <ul>
+        {% for key, item in sorts.items %}
+        <li><a href="?{% if q %}q={{ q|urlencode }}&{% endif %}status={{ status }}&joined={{ joined }}&sort={{ key }}" {% if key == sort %}aria-current="true"{% endif %}>{{ item.0 }}</a></li>
+        {% endfor %}
+      </ul>
+    </details>
+  </div>
+
+  {% if page.object_list %}
+  <div class="cs-scroll">
+    <table class="cs-table">
+      <thead>
+        <tr><th>User</th><th>Status</th><th>Joined</th><th>Last sign-in</th><th class="cs-right">Notes</th><th class="cs-right">Homework</th><th class="cs-right">To-dos</th></tr>
+      </thead>
+      <tbody>
+        {% for u in page.object_list %}
+        <tr>
+          <td>
+            <a class="cs-person-link" href="{% url 'console:user' u.pk %}">
+              <span class="avatar">{{ u.username|initial }}</span>
+              <span class="cs-person"><b>{{ u.username }}</b><small>{{ u.email|default:"No email" }}</small></span>
+            </a>
+          </td>
+          <td><span class="cs-status {% if u.is_active %}on{% else %}off{% endif %}">{% if u.is_active %}Active{% else %}Inactive{% endif %}</span></td>
+          <td><span class="cs-date">{{ u.date_joined|date:"M j, Y" }}</span><small class="cs-sub">{{ u.date_joined|ago }}</small></td>
+          <td>{% if u.last_login %}<span class="cs-date">{{ u.last_login|ago }}</span>{% else %}<span class="cs-muted">Never</span>{% endif %}</td>
+          <td class="cs-right cs-count {% if not u.n_notes %}zero{% endif %}">{{ u.n_notes }}</td>
+          <td class="cs-right cs-count {% if not u.n_homework %}zero{% endif %}">{{ u.n_homework }}</td>
+          <td class="cs-right cs-count {% if not u.n_todos %}zero{% endif %}">{{ u.n_todos }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <footer class="cs-pager">
+    <span>Showing {{ page.start_index }} to {{ page.end_index }} of {{ total }}</span>
+    <div>
+      {% if page.has_previous %}<a class="cs-btn cs-btn-quiet" href="?{{ base_qs }}{% if base_qs %}&{% endif %}page={{ page.previous_page_number }}">{% icon "arrow-left" "ic-sm" %}Previous</a>{% endif %}
+      <span class="cs-pagenum">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+      {% if page.has_next %}<a class="cs-btn cs-btn-quiet" href="?{{ base_qs }}{% if base_qs %}&{% endif %}page={{ page.next_page_number }}">Next{% icon "arrow-up-right" "ic-sm" %}</a>{% endif %}
+    </div>
+  </footer>
+  {% else %}
+  <div class="cs-emptybox">
+    <span class="cs-glyph">{% icon "search" %}</span>
+    <h3>No users match</h3>
+    <p>Try a different name or email, or clear the filters.</p>
+    <a class="cs-btn cs-btn-quiet" href="{% url 'console:users' %}">Clear filters</a>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

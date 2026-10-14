@@ -1,0 +1,52 @@
+{% extends "console/base.html" %}
+{% load ui console_tags %}
+{% block title %}{{ person.username }}{% endblock %}
+{% block heading %}User{% endblock %}
+
+{% block content %}
+<a class="cs-back" href="{% if back %}{{ back }}{% else %}{% url 'console:users' %}{% endif %}">{% icon "arrow-left" "ic-sm" %}All users</a>
+
+<header class="cs-card cs-profile">
+  <span class="avatar cs-av-xl">{{ person.username|initial }}</span>
+  <div class="cs-profile-main">
+    <h2>{{ person.username }}</h2>
+    <p>
+      {% if person.email %}<span>{{ person.email }}</span><button class="cs-copy" type="button" data-copy="{{ person.email }}" aria-label="Copy email">{% icon "copy" "ic-sm" %}<span>Copy</span></button>{% else %}<span class="cs-muted">No email on file</span>{% endif %}
+    </p>
+    <span class="cs-status {% if person.is_active %}on{% else %}off{% endif %}">{% if person.is_active %}Active{% else %}Inactive{% endif %}</span>
+  </div>
+  <dl class="cs-profile-meta">
+    <div><dt>Joined</dt><dd>{{ person.date_joined|date:"M j, Y" }}</dd><small>{{ person.date_joined|ago }}</small></div>
+    <div><dt>Last sign-in</dt><dd>{% if person.last_login %}{{ person.last_login|ago }}{% else %}Never{% endif %}</dd>{% if person.last_login %}<small>{{ person.last_login|date:"M j, Y" }}</small>{% endif %}</div>
+  </dl>
+</header>
+
+<section class="cs-row cs-row-detail">
+  <div class="cs-card">
+    <header class="cs-card-head"><div><h3>Account</h3><p>Account details only</p></div></header>
+    <dl class="cs-facts">
+      <div><dt>Username</dt><dd>{{ person.username }}</dd></div>
+      <div><dt>Email</dt><dd>{{ person.email|default:"Not provided" }}</dd></div>
+      <div><dt>Status</dt><dd>{% if person.is_active %}Active <span class="cs-muted">&middot; can sign in</span>{% else %}Inactive <span class="cs-muted">&middot; cannot sign in</span>{% endif %}</dd></div>
+      <div><dt>Account created</dt><dd>{{ person.date_joined|date:"M j, Y, g:i a" }}</dd></div>
+      <div><dt>Account age</dt><dd>{{ person.date_joined|span }}</dd></div>
+      <div><dt>Last sign-in</dt><dd>{% if person.last_login %}{{ person.last_login|date:"M j, Y, g:i a" }}{% else %}Has not signed in yet{% endif %}</dd></div>
+    </dl>
+  </div>
+
+  <div class="cs-card">
+    <header class="cs-card-head"><div><h3>Activity</h3><p>How much they have created</p></div></header>
+    <div class="cs-tiles">
+      <div class="cs-tile"><span class="cs-glyph">{% icon "note" %}</span><b>{{ person.n_notes }}</b><span>{{ person.n_notes|pluralize:"Note,Notes" }}</span></div>
+      <div class="cs-tile"><span class="cs-glyph">{% icon "clipboard" %}</span><b>{{ person.n_homework }}</b><span>Homework</span><small>{{ person.n_homework_done }} done</small></div>
+      <div class="cs-tile"><span class="cs-glyph">{% icon "checks" %}</span><b>{{ person.n_todos }}</b><span>{{ person.n_todos|pluralize:"To-do,To-dos" }}</span><small>{{ person.n_todos_done }} done</small></div>
+    </div>
+    <div class="cs-completion">
+      <div class="cs-ring" style="--pct: {{ completion }}"><b>{{ completion }}<small>%</small></b></div>
+      <p><b>Tasks finished</b><span>{% if tasks %}{{ done }} of {{ tasks }} homework items and to-dos are done.{% else %}No homework or to-dos yet.{% endif %}</span></p>
+    </div>
+  </div>
+</section>
+
+<p class="cs-privacy">{% icon "lock" "ic-sm" %}<span>For privacy, the console shows how much a student has created, never what they wrote. This page is read-only.</span></p>
+{% endblock %}

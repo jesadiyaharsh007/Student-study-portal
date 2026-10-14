@@ -75,7 +75,7 @@
           <a class="menu-item" href="{% url 'homework' %}">{% icon "clipboard" %}Homework</a>
           <a class="menu-item" href="{% url 'todo' %}">{% icon "checks" %}To-dos</a>
           <a class="menu-item" href="{% url 'notes' %}">{% icon "note" %}Notes</a>
-          {% if user.is_staff %}<a class="menu-item" href="/admin/" data-noprefetch>{% icon "shield" %}Admin panel</a>{% endif %}
+          {% if user.is_staff %}<a class="menu-item" href="/console/" data-noprefetch>{% icon "shield" %}Admin console</a>{% endif %}
           <div class="menu-sep"></div>
           <a class="menu-item danger" href="{% url 'logout' %}" data-noprefetch>{% icon "logout" %}Log out</a>
         </div></div>

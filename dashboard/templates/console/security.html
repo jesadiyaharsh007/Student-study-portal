@@ -1,0 +1,46 @@
+{% extends "console/base.html" %}
+{% load ui console_tags %}
+{% block title %}Security{% endblock %}
+{% block heading %}Security{% endblock %}
+
+{% block content %}
+<div class="cs-pagehead">
+  <div>
+    <h2>Your sign-in sessions</h2>
+    <p>Where you are signed in to the console, and how your session stays alive.</p>
+  </div>
+  {% if sessions|length > 1 %}
+  <form method="post">{% csrf_token %}<input type="hidden" name="action" value="revoke_others"><button class="cs-btn cs-btn-quiet" type="submit">Sign out other devices</button></form>
+  {% endif %}
+</div>
+
+<section class="cs-row cs-row-detail">
+  <div class="cs-card cs-table-card">
+    <header class="cs-card-head cs-pad"><div><h3>Active sessions</h3><p>{{ sessions|length }} signed in</p></div></header>
+    <ul class="cs-sessions">
+      {% for item in sessions %}
+      <li>
+        <span class="cs-glyph">{% icon "shield" %}</span>
+        <span class="cs-person">
+          <b>{{ item.device }}{% if item.here %} <em class="cs-here">This device</em>{% endif %}</b>
+          <small>{% if item.s.ip %}{{ item.s.ip }} &middot; {% endif %}Signed in {{ item.s.origin_at|ago }} &middot; Active {{ item.s.last_used_at|ago }}</small>
+        </span>
+        {% if not item.here %}
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="revoke_one"><input type="hidden" name="id" value="{{ item.s.pk }}"><button class="cs-btn cs-btn-quiet" type="submit">Sign out</button></form>
+        {% endif %}
+      </li>
+      {% empty %}<li class="cs-empty">No active sessions.</li>{% endfor %}
+    </ul>
+  </div>
+
+  <div class="cs-card">
+    <header class="cs-card-head"><div><h3>How your session works</h3><p>You should not be signed out while you work</p></div></header>
+    <ol class="cs-steps">
+      <li><b>Access token</b><span>Proves who you are on each request. It lasts {{ access_minutes }} minutes.</span></li>
+      <li><b>Refresh token</b><span>When the access token runs out, it quietly gets you a new one. It lasts {{ refresh_days }} days from your last visit.</span></li>
+      <li><b>Rotation</b><span>Every refresh replaces the token. A copied token that is replayed signs out every session.</span></li>
+      <li><b>Protected cookies</b><span>Both tokens are HttpOnly and only sent to the console.</span></li>
+    </ol>
+  </div>
+</section>
+{% endblock %}

@@ -176,159 +176,231 @@ class ViewTests(TestCase):
         self.assertEqual(res.status_code, 302)
 
 
-class AdminPanelTests(TestCase):
+class ConsoleTests(TestCase):
+    PASSWORD = 'Console-pass-123'
+
     def setUp(self):
         from datetime import timedelta
+        from django.core.cache import cache
         from django.utils import timezone
-        from .models import Homework, Notes, Todo
-        self.admin = User.objects.create_superuser('boss', 'boss@example.com', 'Admin-pass-123')
-        self.student = User.objects.create_user('stu', 'stu@example.com', 'Student-pass-123')
-        self.note = Notes.objects.create(user=self.student, subject='Python', title='=cmd|calc', description='a b c')
-        self.hw_late = Homework.objects.create(user=self.student, subject='Java', title='Late', due=timezone.now() - timedelta(days=2))
-        self.hw_ok = Homework.objects.create(user=self.student, subject='Java', title='Later', due=timezone.now() + timedelta(days=3))
-        self.todo = Todo.objects.create(user=self.student, title='Do it')
+        cache.clear()
+        self.admin = User.objects.create_user('boss', 'boss@example.com', self.PASSWORD, is_staff=True)
+        self.asha = User.objects.create_user('asha', 'asha@example.com', 'Student-pass-123')
+        self.ben = User.objects.create_user('ben', 'ben@example.com', 'Student-pass-123', is_active=False)
+        Notes.objects.create(user=self.asha, subject='Python', title='Secret diary entry', description='private words')
+        Homework.objects.create(user=self.asha, subject='Java', title='Confidential essay', due=timezone.now() + timedelta(days=2), is_finished=True)
+        Homework.objects.create(user=self.asha, subject='Java', title='Another one', due=timezone.now() + timedelta(days=3))
+        Todo.objects.create(user=self.asha, title='Hidden errand', is_finished=False)
 
-    def test_students_cannot_open_admin(self):
-        self.client.login(username='stu', password='Student-pass-123')
-        res = self.client.get('/admin/')
-        self.assertEqual(res.status_code, 302)
-        self.assertIn('/admin/login/', res['Location'])
+    def signin(self, client=None, **extra):
+        client = client or self.client
+        return client.post('/console/login/', {'username': 'boss', 'password': self.PASSWORD, **extra})
 
-    def test_overview_shows_live_numbers(self):
-        self.client.login(username='boss', password='Admin-pass-123')
-        res = self.client.get('/admin/')
+    # ---- access ----
+    def test_old_admin_is_gone(self):
+        self.assertEqual(self.client.get('/admin/').status_code, 404)
+
+    def test_pages_require_sign_in(self):
+        for url in ('/console/', '/console/users/', f'/console/users/{self.asha.pk}/', '/console/security/'):
+            res = self.client.get(url)
+            self.assertEqual(res.status_code, 302, url)
+            self.assertIn('/console/login/', res['Location'])
+
+    def test_students_cannot_sign_in(self):
+        res = self.client.post('/console/login/', {'username': 'asha', 'password': 'Student-pass-123'})
         self.assertEqual(res.status_code, 200)
-        self.assertContains(res, 'Overview')
-        self.assertContains(res, 'sd-stat')
-        self.assertEqual(res.context['ov_users']['total'], 2)
-        self.assertEqual(res.context['ov_notes'], 1)
-        self.assertEqual(res.context['ov_hw']['overdue'], 1)
-        self.assertEqual(res.context['ov_hw']['open'], 2)
-        self.assertEqual(res.context['ov_todo']['open'], 1)
+        self.assertContains(res, 'not allowed in the console')
+        self.assertNotIn('sd_rt', res.cookies)
 
-    def test_every_changelist_and_form_renders(self):
-        self.client.login(username='boss', password='Admin-pass-123')
-        for url in ('/admin/auth/user/', '/admin/dashboard/notes/', '/admin/dashboard/homework/', '/admin/dashboard/todo/',
-                    '/admin/dashboard/homework/?deadline=overdue', '/admin/dashboard/homework/?deadline=week',
-                    '/admin/dashboard/notes/?q=cmd', f'/admin/dashboard/notes/{self.note.pk}/change/',
-                    f'/admin/dashboard/homework/{self.hw_ok.pk}/change/', '/admin/auth/user/add/',
-                    f'/admin/auth/user/{self.student.pk}/change/'):
-            self.assertEqual(self.client.get(url).status_code, 200, url)
-
-    def test_deadline_filter(self):
-        self.client.login(username='boss', password='Admin-pass-123')
-        res = self.client.get('/admin/dashboard/homework/?deadline=overdue')
-        self.assertContains(res, 'Late')
-        self.assertNotContains(res, 'Later')
-
-    def test_mark_done_action(self):
-        from .models import Homework
-        self.client.login(username='boss', password='Admin-pass-123')
-        self.client.post('/admin/dashboard/homework/', {
-            'action': 'mark_done', '_selected_action': [self.hw_late.pk, self.hw_ok.pk],
-        })
-        self.assertEqual(Homework.objects.filter(is_finished=True).count(), 2)
-
-    def test_csv_export_neutralises_formulas(self):
-        self.client.login(username='boss', password='Admin-pass-123')
-        res = self.client.post('/admin/dashboard/notes/', {'action': 'csv_export_action', '_selected_action': [self.note.pk]})
-        if res.status_code != 200 or 'text/csv' not in res.get('Content-Type', ''):
-            # action name is generated by the factory; find it from the changelist instead
-            page = self.client.get('/admin/dashboard/notes/')
-            name = [a for a in page.context['action_form'].fields['action'].choices if 'CSV' in a[1]][0][0]
-            res = self.client.post('/admin/dashboard/notes/', {'action': name, '_selected_action': [self.note.pk]})
-        self.assertIn('text/csv', res['Content-Type'])
-        body = res.content.decode('utf-8')
-        self.assertIn("'=cmd|calc", body)
-        self.assertNotIn(',=cmd|calc', body)
-
-    def test_cannot_disable_own_account(self):
-        self.client.login(username='boss', password='Admin-pass-123')
-        self.client.post('/admin/auth/user/', {'action': 'deactivate', '_selected_action': [self.admin.pk, self.student.pk]})
-        self.admin.refresh_from_db(); self.student.refresh_from_db()
-        self.assertTrue(self.admin.is_active)
-        self.assertFalse(self.student.is_active)
-
-    def test_login_page_uses_site_layout(self):
-        res = self.client.get('/admin/login/')
-        self.assertEqual(res.status_code, 200)
-        self.assertContains(res, 'id="login-form"')
-        self.assertContains(res, 'auth-form')
-        self.assertContains(res, 'data-buddies')
-        self.assertContains(res, 'Manage students')
-        bad = self.client.post('/admin/login/', {'username': 'boss', 'password': 'wrong'})
-        self.assertEqual(bad.status_code, 200)
-        self.assertContains(bad, 'form-alert')
-        ok = self.client.post('/admin/login/?next=/admin/', {'username': 'boss', 'password': 'Admin-pass-123', 'next': '/admin/'})
-        self.assertEqual(ok.status_code, 302)
-
-    def test_shell_has_nav_palette_and_guidance(self):
-        self.client.login(username='boss', password='Admin-pass-123')
-        res = self.client.get('/admin/')
-        self.assertContains(res, 'nav-pill')
-        self.assertContains(res, 'id="palette"')
-        self.assertContains(res, 'Needs your attention')
-        self.assertContains(res, 'Quick actions')
-        self.assertContains(res, 'How this admin works')
-        self.assertEqual([a['text'] for a in res.context['ov_attention']][:1], ['homework overdue'])
-        hw = self.client.get('/admin/dashboard/homework/')
-        self.assertContains(hw, 'sd-hint')
-        self.assertContains(hw, 'Filter by deadline')
-
-    def test_messages_become_toasts(self):
-        self.client.login(username='boss', password='Admin-pass-123')
-        res = self.client.post('/admin/dashboard/homework/', {'action': 'mark_done', '_selected_action': [self.hw_late.pk]}, follow=True)
-        self.assertContains(res, 'class="toast success"')
-
-    def test_admin_is_narrowed_to_what_is_needed(self):
-        self.client.login(username='boss', password='Admin-pass-123')
-        # students create content on the site, so the admin has no "Add" for it
-        for url in ('/admin/dashboard/notes/add/', '/admin/dashboard/homework/add/', '/admin/dashboard/todo/add/'):
-            self.assertEqual(self.client.get(url).status_code, 403, url)
-        # no groups, no permission pickers, no duplicate save buttons
-        self.assertEqual(self.client.get('/admin/auth/group/').status_code, 404)
-        form = self.client.get(f'/admin/auth/user/{self.student.pk}/change/')
-        self.assertNotContains(form, 'user_permissions')
-        self.assertNotContains(form, 'groups')
-        self.assertContains(form, 'name="_save"')
-        # overview no longer repeats the full app list
-        self.assertNotContains(self.client.get('/admin/'), 'All data')
-        # filters use readable names instead of raw field lookups
-        self.assertEqual(self.client.get('/admin/dashboard/homework/?state=open').status_code, 200)
-        self.assertEqual(self.client.get('/admin/auth/user/?account=disabled').status_code, 200)
-        self.assertEqual(self.client.get('/admin/auth/user/?role=staff').status_code, 200)
-
-    def test_custom_student_form_renders_and_saves(self):
-        self.client.login(username='boss', password='Admin-pass-123')
-        url = f'/admin/auth/user/{self.student.pk}/change/'
-        page = self.client.get(url)
-        self.assertContains(page, 'sd-profile')
-        self.assertContains(page, 'Recent activity')
-        self.assertContains(page, 'Danger zone')
-        self.assertContains(page, 'sd-savebar')
-        res = self.client.post(url, {
-            'username': 'stu', 'first_name': 'Asha', 'last_name': 'Patel', 'email': 'asha@example.com',
-            'is_staff': 'on',  # is_active left off: the account gets disabled
-            '_save': 'Save changes',
-        })
+    def test_sign_in_sets_httponly_cookies_scoped_to_console(self):
+        from .models import AdminSession
+        res = self.signin()
         self.assertEqual(res.status_code, 302)
-        self.student.refresh_from_db()
-        self.assertEqual((self.student.first_name, self.student.email), ('Asha', 'asha@example.com'))
-        self.assertTrue(self.student.is_staff)
-        self.assertFalse(self.student.is_active)
+        for name in ('sd_at', 'sd_rt'):
+            self.assertTrue(res.cookies[name]['httponly'])
+            self.assertEqual(res.cookies[name]['path'], '/console/')
+        self.assertEqual(AdminSession.objects.filter(user=self.admin, revoked_at__isnull=True).count(), 1)
+        self.assertEqual(self.client.get('/console/').status_code, 200)
 
-    def test_custom_student_form_shows_errors(self):
-        self.client.login(username='boss', password='Admin-pass-123')
-        res = self.client.post(f'/admin/auth/user/{self.student.pk}/change/', {'username': '', '_save': 'Save changes'})
+    def test_sign_in_with_email_and_safe_next(self):
+        res = self.client.post('/console/login/', {'username': 'BOSS@example.com', 'password': self.PASSWORD, 'next': '/console/users/'})
+        self.assertEqual(res['Location'], '/console/users/')
+        self.client.cookies.clear()
+        res = self.client.post('/console/login/', {'username': 'boss', 'password': self.PASSWORD, 'next': 'https://evil.example/'})
+        self.assertEqual(res['Location'], '/console/')
+
+    def test_brute_force_lockout(self):
+        for _ in range(5):
+            res = self.client.post('/console/login/', {'username': 'boss', 'password': 'nope'})
+            self.assertEqual(res.status_code, 200)
+        locked = self.client.post('/console/login/', {'username': 'boss', 'password': self.PASSWORD})
+        self.assertEqual(locked.status_code, 429)
+        self.assertNotIn('sd_rt', locked.cookies)
+
+    # ---- token refresh ----
+    def test_expired_access_token_is_refreshed_without_signing_out(self):
+        from .models import AdminSession
+        self.signin()
+        del self.client.cookies['sd_at']             # the 15 minute access token ran out
+        res = self.client.get('/console/users/')
+        self.assertEqual(res.status_code, 200)       # still signed in
+        self.assertIn('sd_at', res.cookies)          # new pair issued
+        self.assertIn('sd_rt', res.cookies)
+        rows = AdminSession.objects.filter(user=self.admin).order_by('id')
+        self.assertEqual(rows.count(), 2)
+        self.assertIsNotNone(rows[0].revoked_at)     # old refresh token rotated out
+        self.assertEqual(rows[0].replaced_by, rows[1].jti)
+        self.assertIsNone(rows[1].revoked_at)
+        self.assertEqual(self.client.get('/console/').status_code, 200)
+
+    def test_parallel_request_with_just_rotated_token_is_tolerated(self):
+        self.signin()
+        old_refresh = self.client.cookies['sd_rt'].value
+        del self.client.cookies['sd_at']
+        self.assertEqual(self.client.get('/console/').status_code, 200)           # rotates
+        other = Client()
+        other.cookies['sd_rt'] = old_refresh                                       # raced request, same old token
+        res = other.get('/console/')
         self.assertEqual(res.status_code, 200)
-        self.assertContains(res, 'sd-alert')
-        self.assertContains(res, 'sd-err')
+        self.assertNotIn('sd_rt', res.cookies)
 
-    def test_custom_add_student_form(self):
-        self.client.login(username='boss', password='Admin-pass-123')
-        self.assertContains(self.client.get('/admin/auth/user/add/'), 'Add a student')
-        res = self.client.post('/admin/auth/user/add/', {
-            'username': 'newkid', 'password1': 'Strong-pass-98765', 'password2': 'Strong-pass-98765', 'usable_password': 'true', '_save': 'Create student',
-        })
+    def test_replayed_refresh_token_revokes_every_session(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from .models import AdminSession
+        self.signin()
+        stolen = self.client.cookies['sd_rt'].value
+        del self.client.cookies['sd_at']
+        self.client.get('/console/')                                               # legitimate rotation
+        AdminSession.objects.filter(replaced_by__gt='').update(revoked_at=timezone.now() - timedelta(minutes=5))
+        thief = Client()
+        thief.cookies['sd_rt'] = stolen
+        res = thief.get('/console/')
         self.assertEqual(res.status_code, 302)
-        self.assertTrue(User.objects.filter(username='newkid').exists())
+        self.assertEqual(AdminSession.objects.filter(user=self.admin, revoked_at__isnull=True).count(), 0)
+        del self.client.cookies['sd_at']
+        self.assertEqual(self.client.get('/console/').status_code, 302)           # the real owner must sign in again
+
+    def test_session_is_capped_by_absolute_lifetime(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from .models import AdminSession
+        self.signin()
+        AdminSession.objects.update(origin_at=timezone.now() - timedelta(days=31))
+        del self.client.cookies['sd_at']
+        self.assertEqual(self.client.get('/console/').status_code, 302)
+
+    def test_disabled_staff_cannot_refresh(self):
+        self.signin()
+        User.objects.filter(pk=self.admin.pk).update(is_active=False)
+        from django.core.cache import cache
+        cache.clear()
+        del self.client.cookies['sd_at']
+        self.assertEqual(self.client.get('/console/').status_code, 302)
+
+    def test_sign_out_revokes_the_session(self):
+        from .models import AdminSession
+        self.signin()
+        old_refresh = self.client.cookies['sd_rt'].value
+        res = self.client.post('/console/logout/')
+        self.assertEqual(res.status_code, 302)
+        self.assertEqual(AdminSession.objects.filter(revoked_at__isnull=True).count(), 0)
+        other = Client()
+        other.cookies['sd_rt'] = old_refresh
+        self.assertEqual(other.get('/console/').status_code, 302)
+
+    def test_console_and_student_site_sessions_are_independent(self):
+        self.signin()
+        self.client.get('/login/')                  # visiting the student login must not end the console session
+        self.assertEqual(self.client.get('/console/').status_code, 200)
+        student = Client()
+        student.login(username='asha', password='Student-pass-123')
+        self.assertEqual(student.get('/console/').status_code, 302)
+
+    # ---- what the console shows ----
+    def test_overview_numbers_and_no_content(self):
+        self.signin()
+        res = self.client.get('/console/')
+        self.assertContains(res, 'Total users')
+        self.assertEqual(res.context['totals']['total'], 2)       # staff are not counted as users
+        self.assertEqual(res.context['totals']['inactive'], 1)
+        self.assertEqual(res.context['content']['notes'], 1)
+        self.assertEqual(res.context['content']['homework']['total'], 2)
+        for secret in ('Secret diary entry', 'private words', 'Confidential essay', 'Hidden errand'):
+            self.assertNotContains(res, secret)
+
+    def test_users_list_shows_account_facts_only(self):
+        self.signin()
+        res = self.client.get('/console/users/')
+        self.assertContains(res, 'asha@example.com')
+        self.assertContains(res, 'ben@example.com')
+        self.assertNotContains(res, 'boss@example.com')            # admins are not listed
+        self.assertContains(res, 'Active')
+        self.assertContains(res, 'Inactive')
+        for banned in ('Admin</span>', 'Staff</span>', 'Student</span>', 'Secret diary entry', 'Hidden errand'):
+            self.assertNotContains(res, banned)
+
+    def test_users_search_filter_sort_and_pagination(self):
+        for i in range(20):
+            User.objects.create_user(f'kid{i:02d}', f'kid{i:02d}@example.com', 'Student-pass-123')
+        self.signin()
+        self.assertContains(self.client.get('/console/users/?q=asha'), 'asha@example.com')
+        self.assertNotContains(self.client.get('/console/users/?q=asha'), 'ben@example.com')
+        inactive = self.client.get('/console/users/?status=inactive')
+        self.assertContains(inactive, 'ben@example.com')
+        self.assertNotContains(inactive, 'asha@example.com')
+        self.assertEqual(self.client.get('/console/users/?joined=7').context['total'], 22)
+        page2 = self.client.get('/console/users/?page=2&sort=name')
+        self.assertEqual(page2.status_code, 200)
+        self.assertEqual(page2.context['page'].number, 2)
+        self.assertEqual(self.client.get('/console/users/?sort=<script>').status_code, 200)
+
+    def test_user_detail_has_counts_but_no_content_or_controls(self):
+        self.signin()
+        res = self.client.get(f'/console/users/{self.asha.pk}/')
+        self.assertContains(res, 'asha@example.com')
+        self.assertEqual(res.context['person'].n_notes, 1)
+        self.assertEqual(res.context['person'].n_homework, 2)
+        self.assertEqual(res.context['person'].n_homework_done, 1)
+        self.assertEqual(res.context['person'].n_todos, 1)
+        self.assertEqual(res.context['completion'], 33)
+        for secret in ('Secret diary entry', 'private words', 'Confidential essay', 'Another one', 'Hidden errand'):
+            self.assertNotContains(res, secret)
+        html = res.content.decode()
+        self.assertEqual(html.count('method="post"'), 1)      # only the sidebar sign-out button
+        self.assertIn('/console/logout/', html)
+        self.assertNotIn('Delete', html)
+        self.assertNotIn('name="is_active"', html)
+
+    def test_staff_accounts_are_not_viewable_as_users(self):
+        self.signin()
+        self.assertEqual(self.client.get(f'/console/users/{self.admin.pk}/').status_code, 404)
+
+    def test_console_is_read_only(self):
+        self.signin()
+        before = (User.objects.count(), Notes.objects.count())
+        for url in ('/console/', '/console/users/', f'/console/users/{self.asha.pk}/'):
+            self.assertEqual(self.client.post(url, {'delete': '1'}).status_code, 405, url)
+            self.assertEqual(self.client.delete(url).status_code, 405, url)
+        self.assertEqual(before, (User.objects.count(), Notes.objects.count()))
+        self.assertTrue(User.objects.get(pk=self.asha.pk).is_active)
+
+    def test_security_page_lists_and_revokes_sessions(self):
+        from .models import AdminSession
+        self.signin()
+        second = Client()
+        self.signin(second)
+        res = self.client.get('/console/security/')
+        self.assertContains(res, 'This device')
+        self.assertEqual(len(res.context['sessions']), 2)
+        self.client.post('/console/security/', {'action': 'revoke_others'})
+        self.assertEqual(AdminSession.objects.filter(user=self.admin, revoked_at__isnull=True).count(), 1)
+        del second.cookies['sd_at']
+        self.assertEqual(second.get('/console/').status_code, 302)
+        self.assertEqual(self.client.get('/console/').status_code, 200)
+
+    def test_responses_are_not_cached(self):
+        self.signin()
+        res = self.client.get('/console/')
+        self.assertIn('no-store', res['Cache-Control'])
+        self.assertIn('noindex', res['X-Robots-Tag'])

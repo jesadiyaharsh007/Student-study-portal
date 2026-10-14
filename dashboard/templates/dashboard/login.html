@@ -19,7 +19,7 @@
         {% include 'dashboard/partials/field.html' with field=form.password icon="lock" password=True %}
         <button class="btn btn-ink btn-block" type="submit"><span>Log in</span><span class="btn-ico">{% icon "arrow-up-right" %}</span></button>
       </form>
-      <p class="auth-foot">New here? <a class="link" href="{% url 'register' %}">Create an account</a>. Administrator? <a class="link" href="/admin/" data-noprefetch>Admin portal</a>.</p>
+      <p class="auth-foot">New here? <a class="link" href="{% url 'register' %}">Create an account</a>. Administrator? <a class="link" href="/console/" data-noprefetch>Admin console</a>.</p>
     </section>
   </div>
 </div>

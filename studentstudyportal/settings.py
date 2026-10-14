@@ -44,8 +44,7 @@ if os.environ.get('VERCEL_URL'):
 # Application definition
 
 INSTALLED_APPS = [
-    'dashboard',  # first, so its admin/ templates override Django's
-    'dashboard.admin_apps.StudyAdminConfig',  # django.contrib.admin with the Study Portal admin site
+    'dashboard',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',

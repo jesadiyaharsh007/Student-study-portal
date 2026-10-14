@@ -1,0 +1,71 @@
+{% load static ui %}<!DOCTYPE html>
+<html lang="en" class="no-js">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{% block title %}Console{% endblock %} | Study Portal Console</title>
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%230d0e10'/%3E%3Cpath d='M16 8 6 13l10 5 8-4v6h2v-7z' fill='%23fff'/%3E%3Cpath d='M10 17v3.5c0 1.6 2.7 3 6 3s6-1.4 6-3V17l-6 3z' fill='%23e5501f'/%3E%3C/svg%3E">
+  <script>
+    (function () {
+      var d = document.documentElement;
+      d.classList.remove('no-js');
+      try { var t = localStorage.getItem('theme'); if (t === 'light' || t === 'dark') d.dataset.theme = t; } catch (e) {}
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400..600&display=swap">
+  <link rel="stylesheet" href="{% static 'css/console.css' %}?v=1">
+  {% block head %}{% endblock %}
+</head>
+<body class="cs-body">
+  {% include 'dashboard/partials/icons.html' %}
+  <a class="cs-skip" href="#content">Skip to content</a>
+
+  <div class="cs-shell">
+    <aside class="cs-side" id="cs-side" aria-label="Console navigation">
+      <a class="cs-brand" href="{% url 'console:overview' %}">
+        <span class="cs-mark">{% icon "cap" %}</span>
+        <span><b>Study Portal</b><small>Admin console</small></span>
+      </a>
+
+      <nav class="cs-nav">
+        <a href="{% url 'console:overview' %}" {% if nav == 'overview' %}aria-current="page"{% endif %}>{% icon "dash" %}<span>Overview</span></a>
+        <a href="{% url 'console:users' %}" {% if nav == 'users' %}aria-current="page"{% endif %}>{% icon "user" %}<span>Users</span></a>
+        <a href="{% url 'console:security' %}" {% if nav == 'security' %}aria-current="page"{% endif %}>{% icon "shield" %}<span>Security</span></a>
+      </nav>
+
+      <div class="cs-side-foot">
+        <p class="cs-note">{% icon "lock" "ic-sm" %}<span>Read-only. The console shows counts and account details, never what students wrote.</span></p>
+        <div class="cs-me">
+          <span class="avatar">{{ me.username|initial }}</span>
+          <span class="cs-me-text"><b>{{ me.username }}</b><small>Signed in</small></span>
+          <form method="post" action="{% url 'console:logout' %}">{% csrf_token %}<button class="cs-icon" type="submit" aria-label="Sign out" title="Sign out">{% icon "logout" %}</button></form>
+        </div>
+      </div>
+    </aside>
+    <div class="cs-scrim" data-cs-close></div>
+
+    <div class="cs-main">
+      <header class="cs-top">
+        <button class="cs-icon cs-burger" type="button" data-cs-menu aria-label="Open menu" aria-controls="cs-side">{% icon "menu" %}</button>
+        <h1 class="cs-title">{% block heading %}{% endblock %}</h1>
+        <form class="cs-search" action="{% url 'console:users' %}" method="get" role="search">
+          {% icon "search" "ic-sm" %}
+          <input type="search" name="q" placeholder="Find a user by name or email" aria-label="Find a user" autocomplete="off">
+        </form>
+        <a class="cs-link-site" href="/" title="Open the student site">{% icon "home" %}<span>Student site</span></a>
+        <button class="cs-icon" type="button" data-cs-theme aria-label="Toggle dark mode"><span class="cs-theme"><svg class="ic sun"><use href="#i-sun"/></svg><svg class="ic moon"><use href="#i-moon"/></svg></span></button>
+      </header>
+
+      <main class="cs-content" id="content">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+
+  <script src="{% static 'js/console.js' %}?v=1" defer></script>
+</body>
+</html>

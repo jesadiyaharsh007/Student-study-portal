@@ -1,0 +1,101 @@
+{% extends "console/base.html" %}
+{% load ui console_tags %}
+{% block title %}Overview{% endblock %}
+{% block heading %}Overview{% endblock %}
+
+{% block content %}
+<div class="cs-pagehead">
+  <div>
+    <h2>How the portal is growing</h2>
+    <p>Sign-ups and account health. Student content is never shown, only totals.</p>
+  </div>
+  <nav class="cs-tabs" aria-label="Time range">
+    <a href="?range=7" {% if days == 7 %}aria-current="true"{% endif %}>7 days</a>
+    <a href="?range=30" {% if days == 30 %}aria-current="true"{% endif %}>30 days</a>
+    <a href="?range=90" {% if days == 90 %}aria-current="true"{% endif %}>90 days</a>
+  </nav>
+</div>
+
+<section class="cs-kpis" aria-label="Key numbers">
+  <a class="cs-card cs-kpi" href="{% url 'console:users' %}">
+    <span class="cs-label">Total users</span>
+    <b class="cs-num">{{ totals.total }}</b>
+    <small>{% if totals.today %}{{ totals.today }} joined today{% else %}{{ totals.month }} in the last 30 days{% endif %}</small>
+  </a>
+  <a class="cs-card cs-kpi" href="{% url 'console:users' %}?joined={{ days }}">
+    <span class="cs-label">New in {{ days }} days</span>
+    <b class="cs-num">{{ in_range }}</b>
+    <small>
+      {% if change is None %}No earlier period to compare
+      {% elif change > 0 %}<span class="cs-up">&uarr; {{ change }}%</span> vs the {{ days }} days before
+      {% elif change < 0 %}<span class="cs-down">&darr; {{ change|cut:"-" }}%</span> vs the {{ days }} days before
+      {% else %}Same as the {{ days }} days before{% endif %}
+    </small>
+  </a>
+  <a class="cs-card cs-kpi" href="{% url 'console:users' %}?sort=seen">
+    <span class="cs-label">Signed in this week</span>
+    <b class="cs-num">{{ totals.seen_week }}</b>
+    <small>{% if totals.total %}{% widthratio totals.seen_week totals.total 100 %}% of all users{% else %}No users yet{% endif %}</small>
+  </a>
+  <a class="cs-card cs-kpi" href="{% url 'console:users' %}?status=inactive">
+    <span class="cs-label">Inactive accounts</span>
+    <b class="cs-num">{{ totals.inactive }}</b>
+    <small>{% if totals.inactive %}Cannot sign in right now{% else %}Everyone can sign in{% endif %}</small>
+  </a>
+</section>
+
+<section class="cs-row">
+  <div class="cs-card cs-chart">
+    <header class="cs-card-head">
+      <div><h3>New users per day</h3><p>{{ in_range }} joined in the last {{ days }} days</p></div>
+    </header>
+    <div class="cs-bars" role="img" aria-label="Bar chart of new users per day for the last {{ days }} days" style="--n: {{ series|length }}">
+      {% for p in series %}<i style="--h: {{ p.h }}%" data-tip="{{ p.date|date:'M j' }}: {{ p.n }}" {% if p.n %}class="has"{% endif %}></i>{% endfor %}
+    </div>
+    <div class="cs-axis"><span>{{ first_day|date:"M j" }}</span><span>{{ last_day|date:"M j" }}</span></div>
+  </div>
+
+  <div class="cs-card">
+    <header class="cs-card-head"><div><h3>Engagement</h3><p>How much students have created</p></div></header>
+    <ul class="cs-meter">
+      {% for e in engagement %}
+      <li><span>{{ e.label }}</span><i style="--w: {{ e.pct }}%"></i><b>{{ e.n }}</b></li>
+      {% endfor %}
+    </ul>
+    <p class="cs-foot">Counts of notes, homework and to-dos per student.</p>
+  </div>
+</section>
+
+<section class="cs-row cs-row-2">
+  <div class="cs-card">
+    <header class="cs-card-head"><div><h3>Latest sign-ups</h3><p>Newest accounts first</p></div><a class="cs-more" href="{% url 'console:users' %}">View all {% icon "arrow-up-right" "ic-sm" %}</a></header>
+    {% if recent %}
+    <ul class="cs-people">
+      {% for u in recent %}
+      <li>
+        <a href="{% url 'console:user' u.pk %}">
+          <span class="avatar">{{ u.username|initial }}</span>
+          <span class="cs-person"><b>{{ u.username }}</b><small>{{ u.email|default:"No email" }}</small></span>
+          <span class="cs-status {% if u.is_active %}on{% else %}off{% endif %}">{% if u.is_active %}Active{% else %}Inactive{% endif %}</span>
+          <time class="cs-when" datetime="{{ u.date_joined|date:'c' }}">{{ u.date_joined|ago }}</time>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}<p class="cs-empty">No students have signed up yet.</p>{% endif %}
+  </div>
+
+  <div class="cs-card">
+    <header class="cs-card-head"><div><h3>Content created</h3><p>Totals across all students</p></div></header>
+    <div class="cs-totals">
+      <div><b>{{ content.notes }}</b><span>Notes</span></div>
+      <div><b>{{ content.homework.total }}</b><span>Homework</span></div>
+      <div><b>{{ content.todo.total }}</b><span>To-dos</span></div>
+    </div>
+    <div class="cs-completion">
+      <div class="cs-ring" style="--pct: {{ content.completion }}"><b>{{ content.completion }}<small>%</small></b></div>
+      <p><b>Tasks finished</b><span>{{ content.homework.done|add:content.todo.done }} of {{ content.homework.total|add:content.todo.total }} homework items and to-dos are done.</span></p>
+    </div>
+  </div>
+</section>
+{% endblock %}

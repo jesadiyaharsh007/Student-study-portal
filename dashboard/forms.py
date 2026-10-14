@@ -60,7 +60,7 @@ class StudentLoginForm(AuthenticationForm):
         super().confirm_login_allowed(user)
         if user.is_staff or user.is_superuser:
             raise forms.ValidationError(
-                "Administrator accounts can't sign in as a student. Please use the Admin Portal at /admin/.",
+                "Administrator accounts can't sign in as a student. Please use the admin console at /console/.",
                 code="admin_not_allowed",
             )
 
