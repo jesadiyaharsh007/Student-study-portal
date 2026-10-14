@@ -573,6 +573,9 @@
       // A reply wrapped entirely in one ```markdown fence is prose, not code: unwrap it.
       const wrapped = text.trim().match(/^```(?:markdown|md)\n([\s\S]*?)\n?```$/i);
       if (wrapped) text = wrapped[1];
+      // A ```text block that is only a bullet/numbered list is prose: show it as a normal list.
+      text = text.replace(/```(?:text|txt|plaintext)?[ \t]*\n([\s\S]*?)\n?```/g, (m, body) =>
+        body.trim() && body.trim().split('\n').every(l => !l.trim() || /^\s*(?:\d+[.)]|[-*•])\s/.test(l)) ? '\n' + body + '\n' : m);
       // Tables need a blank line before them to be recognised as tables.
       text = text.replace(/([^\n|][^\n]*)\n(\|[^\n]*\|[ \t]*\n\|[ \t:|-]+\|)/g, '$1\n\n$2');
       const saveMath = (expr, isDisplay) => {

@@ -25,7 +25,7 @@
         <h2>What are we learning today?</h2>
       </div>
 
-      <button class="chat-new" id="chat-clear" type="button" {% if not chat_history %}hidden{% endif %}>{% icon "plus" "ic-sm" %}<span>New chat</span></button>
+      <button class="chat-new" id="chat-clear" type="button" {% if not chat_history %}hidden{% endif %}>{% icon "compose" %}<span>New chat</span></button>
 
       <form class="composer" id="chat-form" method="post" action="{% url 'chatbot' %}">
         {% csrf_token %}
