@@ -1,3 +1,4 @@
+import functools
 import re
 
 import requests
@@ -304,29 +305,34 @@ def youtube(request):
 OPENLIBRARY_FIELDS = "key,title,author_name,cover_i,first_publish_year,number_of_pages_median,subject,ratings_average"
 
 
+@functools.lru_cache(maxsize=128)
 def _openlibrary(query):
-    r = requests.get(
-        "https://openlibrary.org/search.json",
-        params={"q": query, "limit": 12, "fields": OPENLIBRARY_FIELDS},
-        headers=HTTP_HEADERS,
-        timeout=8,
-    )
-    r.raise_for_status()
-    books = []
-    for doc in r.json().get("docs", []):
-        if not doc.get("title"):
-            continue
-        books.append({
-            "title": doc["title"],
-            "authors": ", ".join(doc.get("author_name", [])[:3]),
-            "year": doc.get("first_publish_year"),
-            "pages": doc.get("number_of_pages_median"),
-            "categories": doc.get("subject", [])[:3],
-            "rating": round(doc["ratings_average"], 1) if doc.get("ratings_average") else None,
-            "thumbnail": f"https://covers.openlibrary.org/b/id/{doc['cover_i']}-M.jpg" if doc.get("cover_i") else "",
-            "link": f"https://openlibrary.org{doc['key']}" if doc.get("key") else "",
-        })
-    return books
+    try:
+        r = requests.get(
+            "https://openlibrary.org/search.json",
+            params={"q": query, "limit": 12, "fields": OPENLIBRARY_FIELDS},
+            headers=HTTP_HEADERS,
+            timeout=3.5,
+        )
+        if r.status_code != 200:
+            return ()
+        books = []
+        for doc in r.json().get("docs", []):
+            if not doc.get("title"):
+                continue
+            books.append({
+                "title": doc["title"],
+                "authors": ", ".join(doc.get("author_name", [])[:3]),
+                "year": doc.get("first_publish_year"),
+                "pages": doc.get("number_of_pages_median"),
+                "categories": doc.get("subject", [])[:3],
+                "rating": round(doc["ratings_average"], 1) if doc.get("ratings_average") else None,
+                "thumbnail": f"https://covers.openlibrary.org/b/id/{doc['cover_i']}-M.jpg" if doc.get("cover_i") else "",
+                "link": f"https://openlibrary.org{doc['key']}" if doc.get("key") else "",
+            })
+        return tuple(books)
+    except Exception:
+        return ()
 
 
 @student_required
@@ -341,14 +347,18 @@ def books(request):
             ctx["subject"] = latest.subject
     if q:
         try:
-            ctx["results"] = _openlibrary(q)
+            results = list(_openlibrary(q))
+            ctx["results"] = results
             ctx["recommended"] = recommended
+            if not results and not recommended:
+                ctx["error"] = "No books found for that topic. Try a different search."
         except Exception:
             if not recommended:
                 ctx["error"] = "The library didn't respond. Please try again in a moment."
     return render(request, "dashboard/books.html", ctx)
 
 
+@functools.lru_cache(maxsize=256)
 def _lookup_dictionaryapi(word):
     r = requests.get(f"https://api.dictionaryapi.dev/api/v2/entries/en/{word}", timeout=4, headers=HTTP_HEADERS)
     if r.status_code != 200:
@@ -372,6 +382,7 @@ def _lookup_dictionaryapi(word):
     return {"phonetics": phonetics, "audio": audio, "meanings": meanings, "synonyms": synonyms[:8]}
 
 
+@functools.lru_cache(maxsize=256)
 def _lookup_wiktionary(word):
     r = requests.get(f"https://en.wiktionary.org/api/rest_v1/page/definition/{word}", headers=HTTP_HEADERS, timeout=5)
     if r.status_code != 200:
@@ -433,6 +444,7 @@ WIKI_HEADERS = {
 }
 
 
+@functools.lru_cache(maxsize=128)
 def _fetch_wikipedia(query):
     """
     Fetches Wikipedia articles using the official Wikimedia REST v1 and OpenSearch APIs,
