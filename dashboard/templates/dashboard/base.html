@@ -30,8 +30,31 @@
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400;500&display=swap">
-  <link rel="stylesheet" href="{% static 'css/studydesk.css' %}?v=6.3">
+  <link rel="stylesheet" href="{% static 'css/studydesk.css' %}?v=6.4">
+  <script type="speculationrules">
+  {
+    "prerender": [
+      {
+        "source": "list",
+        "urls": [
+          "{% url 'home' %}",
+          {% if user.is_authenticated %}"{% url 'profile' %}",{% endif %}
+          "{% url 'notes' %}",
+          "{% url 'homework' %}",
+          "{% url 'todo' %}",
+          "{% url 'chatbot' %}",
+          "{% url 'dictionary' %}",
+          "{% url 'books' %}",
+          "{% url 'wiki' %}",
+          "{% url 'youtube' %}",
+          "{% url 'conversion' %}",
+          "{% url 'about' %}"
+        ],
+        "eagerness": "moderate"
+      }
+    ]
+  }
+  </script>
   {% block head %}{% endblock %}
 </head>
 <body{% if user.is_authenticated %} data-csrf="{{ csrf_token }}" data-initial="{{ user.username|initial }}"{% endif %}>
@@ -148,7 +171,7 @@
     </div></div></div>
   </dialog>
 
-  <script src="{% static 'js/app.js' %}?v=5.6" defer></script>
+  <script src="{% static 'js/app.js' %}?v=5.7" defer></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

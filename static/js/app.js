@@ -169,18 +169,22 @@
   const canPrefetch = a => {
     if (!a || a.hasAttribute('data-noprefetch') || a.target || a.hasAttribute('download')) return false;
     const u = new URL(a.href, location.href);
-    return u.origin === location.origin && !/^\/(logout|admin|books)/.test(u.pathname) && !seen.has(u.href) && u.href !== location.href && !(navigator.connection || {}).saveData;
+    return u.origin === location.origin && !/^\/(logout|admin)/.test(u.pathname) && !seen.has(u.href) && u.href !== location.href && !(navigator.connection || {}).saveData;
   };
   const prefetch = a => {
     if (!canPrefetch(a)) return;
     const u = new URL(a.href, location.href).href;
     seen.add(u);
+    try {
+      fetch(u, { priority: 'low', credentials: 'same-origin' }).catch(() => {});
+    } catch (e) {}
     const l = document.createElement('link');
     l.rel = 'prefetch'; l.href = u; l.as = 'document';
     document.head.append(l);
   };
-  on(document, 'pointerover', e => { const a = e.target.closest('a[href]'); if (a && e.pointerType === 'mouse') { clearTimeout(hoverT); hoverT = setTimeout(() => prefetch(a), 80); } });
+  on(document, 'pointerover', e => { const a = e.target.closest('a[href]'); if (a && e.pointerType === 'mouse') { clearTimeout(hoverT); hoverT = setTimeout(() => prefetch(a), 40); } });
   on(document, 'pointerout', () => clearTimeout(hoverT));
+  on(document, 'mousedown', e => { const a = e.target.closest('a[href]'); if (a) prefetch(a); }, { passive: true });
   on(document, 'touchstart', e => prefetch(e.target.closest('a[href]')), { passive: true });
 
   /* ------------------------------------------------------------ command palette */

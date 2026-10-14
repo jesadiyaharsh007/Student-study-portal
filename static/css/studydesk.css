@@ -5,9 +5,6 @@
               inputs 16px. No other radii.
    Motion   : one easing curve, transform + opacity only.
    ========================================================================== */
-
-@view-transition { navigation: auto; }
-
 :root {
   color-scheme: light;
   --bg: #e8e9eb;

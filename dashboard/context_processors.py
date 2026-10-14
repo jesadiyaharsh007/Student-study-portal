@@ -14,13 +14,21 @@ TOOLS = (
     ("conversion", "conversion", "Converter", "swap", "orange", "Length, mass, temperature and more."),
 )
 
+_TOOLS_CACHE = None
+
+
+def _get_tools():
+    global _TOOLS_CACHE
+    if _TOOLS_CACHE is None:
+        _TOOLS_CACHE = [
+            {
+                "key": k, "url": reverse(u), "label": label, "icon": icon, "tone": tone, "desc": desc,
+            }
+            for k, u, label, icon, tone, desc in TOOLS
+        ]
+    return _TOOLS_CACHE
+
 
 def navigation(request):
     match = getattr(request, "resolver_match", None)
-    tools = [
-        {
-            "key": k, "url": reverse(u), "label": label, "icon": icon, "tone": tone, "desc": desc,
-        }
-        for k, u, label, icon, tone, desc in TOOLS
-    ]
-    return {"tools": tools, "current": match.url_name if match else ""}
+    return {"tools": _get_tools(), "current": match.url_name if match else ""}
