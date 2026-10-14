@@ -95,7 +95,8 @@ class ViewTests(TestCase):
         self.assertEqual(note.user, self.user)
 
         # Verify note appears on notes page
-        page_res = self.client.get(reverse('notes'))
+        # (the page shell renders instantly; the list arrives from the data region endpoint)
+        page_res = self.client.get(reverse('notes') + '?_part=1')
         self.assertContains(page_res, 'Python OOP Concepts')
         self.assertContains(page_res, 'Python')
 
@@ -151,5 +152,25 @@ class ViewTests(TestCase):
         self.assertIn("Your name is Lexi", AI_TUTOR_SYSTEM_PROMPT)
         self.assertIn("STRICT SECURITY & PRIVACY GUARDRAILS", AI_TUTOR_SYSTEM_PROMPT)
         self.assertIn("CONFIDENTIAL PLATFORM CODE", AI_TUTOR_SYSTEM_PROMPT)
-        self.assertIn("MULTI-LINE PROMPTS & CODE", AI_TUTOR_SYSTEM_PROMPT)
+        self.assertIn("FORMATTING RULES", AI_TUTOR_SYSTEM_PROMPT)
+        self.assertIn("fenced code block", AI_TUTOR_SYSTEM_PROMPT)
 
+    def test_data_pages_render_shell_first_then_data(self):
+        from .models import Todo
+        self.client.login(username='teststudent', password='password123')
+        Todo.objects.create(user=self.user, title='Read chapter nine')
+        for name in ('notes', 'homework', 'todo', 'profile'):
+            shell = self.client.get(reverse(name))
+            self.assertEqual(shell.status_code, 200)
+            self.assertContains(shell, 'data-async')
+            self.assertContains(shell, 'async-skel')
+            self.assertNotContains(shell, 'Read chapter nine')
+            part = self.client.get(reverse(name) + '?_part=1')
+            self.assertEqual(part.status_code, 200)
+            self.assertNotContains(part, '<html')
+            self.assertEqual(part['Cache-Control'], 'private, no-store')
+        self.assertContains(self.client.get(reverse('todo') + '?_part=1'), 'Read chapter nine')
+
+    def test_data_region_requires_login(self):
+        res = self.client.get(reverse('todo') + '?_part=1')
+        self.assertEqual(res.status_code, 302)

@@ -480,6 +480,54 @@
   setInterval(renderDue, 60000);
   on(document, 'submit', () => setTimeout(renderDue, 700));
 
+  /* ------------------------------------------------------------ async data regions */
+  // The server renders the page shell instantly (no database work); the data region is then
+  // fetched with ?_part=1 and swapped in, so a slow database never blocks the page opening.
+  const asyncRegion = $('[data-async]');
+  if (asyncRegion) {
+    const gated = $$('[data-needs-data]');
+    gated.forEach(el => el.setAttribute('inert', ''));
+    const reveal = region => {
+      region.classList.add('loaded');
+      region.setAttribute('aria-busy', 'false');
+      gated.forEach(el => el.removeAttribute('inert'));
+      $$('[data-filterable]', region).forEach(filterable);
+      // the overall ring on the dashboard lives inside the region: draw it from empty
+      $$('#overall-ring', region).forEach(r => {
+        const p = +r.style.getPropertyValue('--pct') || 0, n = $('[data-ring-num]', r);
+        r.style.setProperty('--pct', 0); if (n) n.textContent = '0';
+        void r.getBoundingClientRect();                      // commit the empty state, then animate to the real value
+        setRing(r, p);
+      });
+      $$('[data-count-to]', region).forEach(el => { el.dataset.from = 0; countUp(el); });
+      refreshCounts();
+      renderDue();
+      if (!reduce) {
+        $$('.item, .note', region).forEach((el, i) => {
+          el.style.setProperty('--k', Math.min(i, 8));
+          el.classList.add('enter');
+          on(el, 'animationend', e => { if (e.animationName === 'enter') el.classList.remove('enter'); }, { once: true });
+        });
+      }
+    };
+    const fail = () => {
+      asyncRegion.setAttribute('aria-busy', 'false');
+      asyncRegion.innerHTML = '<div class="async-err"><h3>Could not load your data</h3><p>Check your connection and try again.</p><button class="btn btn-ink" type="button" data-retry><span>Try again</span></button></div>';
+      on($('[data-retry]', asyncRegion), 'click', () => location.reload());
+    };
+    (async () => {
+      const u = new URL(location.href);
+      u.searchParams.set('_part', '1');
+      try {
+        const r = await fetch(u, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' });
+        if (r.redirected) { location.reload(); return; }       // session ended: let the server send us to login
+        if (!r.ok) throw new Error(r.status);
+        asyncRegion.innerHTML = await r.text();
+        reveal(asyncRegion);
+      } catch (e) { fail(); }
+    })();
+  }
+
   /* greeting + clock on the dashboard */
   const clock = $('[data-clock]');
   if (clock) {

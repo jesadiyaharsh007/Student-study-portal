@@ -1,0 +1,14 @@
+{% load ui %}      <div class="toolbar">
+        <div class="seg" data-filter-for="todo-list" role="group" aria-label="Filter tasks">
+          <button type="button" data-filter="all" aria-pressed="true">All</button>
+          <button type="button" data-filter="pending" aria-pressed="false">Open</button>
+          <button type="button" data-filter="done" aria-pressed="false">Done</button>
+        </div>
+        <span class="count"><span data-bind="done">{{ done }}</span> of <span data-bind="total">{{ total }}</span> done</span>
+      </div>
+
+      <ul class="items" id="todo-list" data-list data-filterable {% if not todos %}hidden{% endif %}>
+        {% for t in todos %}{% include 'dashboard/partials/todo_item.html' %}{% endfor %}
+      </ul>
+      <div class="empty" data-nomatch-for="todo-list" hidden><h3>Nothing here</h3><p>No tasks match this filter.</p></div>
+      <div class="empty" data-empty {% if todos %}hidden{% endif %}><h3>All caught up</h3><p>You have no tasks. Add one above and press Enter.</p></div>

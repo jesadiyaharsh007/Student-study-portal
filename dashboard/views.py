@@ -44,6 +44,17 @@ def _pct(done, total):
     return round(done * 100 / total) if total else 0
 
 
+def _is_part(request):
+    """True when the page is asking for just its data region (see static/js/app.js, [data-async])."""
+    return request.GET.get("_part") == "1"
+
+
+def _part_response(request, template, ctx):
+    resp = render(request, template, ctx)
+    resp["Cache-Control"] = "private, no-store"
+    return resp
+
+
 def _safe_next(request):
     target = request.POST.get("next") or request.GET.get("next") or ""
     if target and url_has_allowed_host_and_scheme(target, {request.get_host()}, request.is_secure()):
@@ -120,6 +131,9 @@ def terms(request):
 
 @student_required
 def profile(request):
+    if not _is_part(request):
+        # Instant shell: no database work. The data region is fetched by the page right after.
+        return render(request, "dashboard/profile.html", {"loading": True})
     todos = list(Todo.objects.filter(user=request.user).only("id", "title", "is_finished").order_by("is_finished", "-id"))
     homework = list(
         Homework.objects.filter(user=request.user)
@@ -133,7 +147,7 @@ def profile(request):
     total = len(todos) + len(homework)
     done = total - len(pending_todos) - len(pending_homework)
 
-    return render(request, "dashboard/profile.html", {
+    return _part_response(request, "dashboard/partials/profile_data.html", {
         "todos": pending_todos[:6],
         "homework": pending_homework[:5],
         "todo_pending": len(pending_todos),
@@ -159,13 +173,18 @@ def notes(request):
             return redirect("notes")
     else:
         form = Notesform()
+        if not _is_part(request):
+            return render(request, "dashboard/notes.html", {"loading": True, "form": form})
     items = list(Notes.objects.filter(user=request.user).only("id", "subject", "title", "description").order_by("-id"))
-    return render(request, "dashboard/notes.html", {
+    ctx = {
         "notes": items,
         "subjects": sorted({n.subject for n in items}),
         "form": form,
         "open_form": request.method == "POST",
-    })
+    }
+    if _is_part(request):
+        return _part_response(request, "dashboard/partials/notes_data.html", ctx)
+    return render(request, "dashboard/notes.html", ctx)
 
 
 @student_required
@@ -199,6 +218,8 @@ def homework(request):
             return redirect("homework")
     else:
         form = HomeworkForm()
+        if not _is_part(request):
+            return render(request, "dashboard/homework.html", {"loading": True, "form": form})
     items = (
         Homework.objects.filter(user=request.user)
         .only("id", "subject", "title", "description", "due", "is_finished")
@@ -206,14 +227,17 @@ def homework(request):
     )
     items = list(items)
     done, total = _progress(items)
-    return render(request, "dashboard/homework.html", {
+    ctx = {
         "homework": items,
         "done": done,
         "total": total,
         "pct": _pct(done, total),
         "form": form,
         "open_form": request.method == "POST",
-    })
+    }
+    if _is_part(request):
+        return _part_response(request, "dashboard/partials/homework_data.html", ctx)
+    return render(request, "dashboard/homework.html", ctx)
 
 
 @student_required
@@ -262,12 +286,15 @@ def todo(request):
             return JsonResponse({"ok": False, "error": "Please enter a task (max 100 characters)."}, status=400)
     else:
         form = TodoForm()
+        if not _is_part(request):
+            return render(request, "dashboard/todo.html", {"loading": True, "form": form})
     items = Todo.objects.filter(user=request.user).only("id", "title", "is_finished").order_by("is_finished", "-id")
     items = list(items)
     done, total = _progress(items)
-    return render(request, "dashboard/todo.html", {
-        "form": form, "todos": items, "done": done, "total": total, "pct": _pct(done, total),
-    })
+    ctx = {"form": form, "todos": items, "done": done, "total": total, "pct": _pct(done, total)}
+    if _is_part(request):
+        return _part_response(request, "dashboard/partials/todo_data.html", ctx)
+    return render(request, "dashboard/todo.html", ctx)
 
 
 @student_required

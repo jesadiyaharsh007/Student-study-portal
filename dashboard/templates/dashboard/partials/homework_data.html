@@ -1,0 +1,21 @@
+{% load ui %}{% if homework %}
+  <div class="toolbar">
+    <div class="seg" data-filter-for="hw-list" role="group" aria-label="Filter homework">
+      <button type="button" data-filter="all" aria-pressed="true">All</button>
+      <button type="button" data-filter="pending" aria-pressed="false">Pending</button>
+      <button type="button" data-filter="done" aria-pressed="false">Done</button>
+    </div>
+    <span class="count"><span data-bind="done">{{ done }}</span> of <span data-bind="total">{{ total }}</span> finished</span>
+  </div>
+{% endif %}
+
+  <ul class="items" id="hw-list" data-list data-filterable {% if not homework %}hidden{% endif %}>
+    {% for h in homework %}{% include 'dashboard/partials/homework_item.html' with full=True %}{% endfor %}
+  </ul>
+  <div class="empty" data-nomatch-for="hw-list" hidden><h3>Nothing here</h3><p>No homework matches this filter.</p></div>
+
+  <div class="empty" data-empty {% if homework %}hidden{% endif %}>
+    <div class="photo">{% photo "homework" "" "150px" %}</div>
+    <h3>No homework yet</h3><p>Add your first assignment and we will count down the days for you.</p>
+    <button class="btn btn-ink" type="button" data-open="hw-dialog"><span>Add homework</span><span class="btn-ico">{% icon "plus" %}</span></button>
+  </div>

@@ -1242,3 +1242,26 @@ body:has(.chat) .footer { display: none; }
 @keyframes wiggle { 20% { translate: -8px 0; } 40% { translate: 8px 0; } 60% { translate: -5px 0; } 80% { translate: 4px 0; } }
 @media (max-width: 1000px) { .buddy-panel { grid-template-rows: minmax(0, 1fr) auto; } .buddies { margin-top: .6rem; } .buddy-panel .cap h2 { font-size: 1.5rem; } .buddy-panel .cap p { display: none; } }
 @media (prefers-reduced-motion: reduce) { .ey { animation: none; } }
+
+/* async data regions: skeleton while loading, staggered reveal once data arrives */
+[data-async] { display: contents; }
+[data-async][aria-busy="true"] { cursor: progress; }
+.async-skel { animation: skelIn .3s .18s var(--out) backwards; display: grid; gap: 1.2rem; }
+@keyframes skelIn { from { opacity: 0; } }
+.async-skel .skeleton { background: color-mix(in oklab, var(--ink) 8%, transparent); }
+.async-skel .sk-toolbar { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
+.sk-pill { display: block; height: 40px; width: 92px; border-radius: 99px; }
+.sk-w-search { width: min(100%, 320px); margin-right: .6rem; } .sk-w-seg { width: 230px; } .sk-w-count { width: 110px; margin-left: auto; }
+.sk-row { display: block; height: 76px; border-radius: var(--r-core, 22px); }
+.sk-notes .sk-card { display: block; break-inside: avoid; margin-bottom: 1rem; border-radius: var(--r-core, 22px); }
+.sk-h1 { height: 150px; } .sk-h2 { height: 190px; } .sk-h3 { height: 230px; }
+.sk-stack { display: grid; gap: 1.2rem; align-content: start; }
+.sk-hero { display: block; height: 260px; border-radius: var(--r-shell, 30px); }
+.sk-panel { display: block; height: 220px; border-radius: var(--r-shell, 30px); }
+.sk-stat { display: block; height: 300px; border-radius: var(--r-shell, 30px); }
+[data-async].loaded > * { animation: regionIn .45s var(--out) backwards; }
+@keyframes regionIn { from { opacity: 0; transform: translateY(6px); } }
+[data-needs-data][inert] { opacity: .55; pointer-events: none; transition: opacity .35s var(--ease); }
+.async-err { display: grid; justify-items: center; text-align: center; gap: .6rem; padding: 3.5rem 1.5rem; border-radius: var(--r-shell); box-shadow: inset 0 0 0 1.5px var(--hair-2); }
+.async-err h3 { font-size: 1.4rem; } .async-err p { color: var(--muted); max-width: 38ch; margin-bottom: .6rem; }
+@media (prefers-reduced-motion: reduce) { .async-skel, [data-async].loaded > * { animation: none; } .skeleton::after { animation: none; } }

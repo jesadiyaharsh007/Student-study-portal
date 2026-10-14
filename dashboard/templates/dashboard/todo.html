@@ -11,26 +11,15 @@
         {% include 'dashboard/partials/ring.html' with pct=pct size="96px" %}
       </header>
 
-      <form class="quick-add" method="post" action="{% url 'todo' %}" data-ajax="add" data-target="#todo-list" autocomplete="off">
+      <form class="quick-add" method="post" action="{% url 'todo' %}" data-ajax="add" data-target="#todo-list" data-needs-data autocomplete="off">
         {% csrf_token %}
         <label class="input-icon u-flex-1">{% icon "plus" %}{{ form.title }}<span class="sr">New task</span></label>
         <button class="btn btn-ink" type="submit"><span>Add task</span><span class="btn-ico">{% icon "arrow-up-right" %}</span></button>
       </form>
 
-      <div class="toolbar">
-        <div class="seg" data-filter-for="todo-list" role="group" aria-label="Filter tasks">
-          <button type="button" data-filter="all" aria-pressed="true">All</button>
-          <button type="button" data-filter="pending" aria-pressed="false">Open</button>
-          <button type="button" data-filter="done" aria-pressed="false">Done</button>
-        </div>
-        <span class="count"><span data-bind="done">{{ done }}</span> of <span data-bind="total">{{ total }}</span> done</span>
+      <div data-async aria-busy="{% if loading %}true{% else %}false{% endif %}">
+        {% if loading %}{% include "dashboard/partials/skeleton.html" with kind="list" %}{% else %}{% include "dashboard/partials/todo_data.html" %}{% endif %}
       </div>
-
-      <ul class="items" id="todo-list" data-list data-filterable {% if not todos %}hidden{% endif %}>
-        {% for t in todos %}{% include 'dashboard/partials/todo_item.html' %}{% endfor %}
-      </ul>
-      <div class="empty" data-nomatch-for="todo-list" hidden><h3>Nothing here</h3><p>No tasks match this filter.</p></div>
-      <div class="empty" data-empty {% if todos %}hidden{% endif %}><h3>All caught up</h3><p>You have no tasks. Add one above and press Enter.</p></div>
     </div>
 
     <aside class="todo-aside" aria-hidden="true">

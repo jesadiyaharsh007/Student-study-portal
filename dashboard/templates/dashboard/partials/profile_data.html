@@ -1,0 +1,56 @@
+{% load ui %}  <div class="dash">
+    <div>
+      <section class="bz focus"><div class="core focus-core">
+        <div class="photo scrim">{% photo "homework" "" "(min-width:1000px) 55vw, 100vw" True "60% 50%" %}</div>
+        <div class="in focus-in">
+          {% if homework %}
+          {% with next=homework.0 %}
+          <small>Next up</small>
+          <h2>{{ next.title }}</h2>
+          <div class="row wrap-r u-gap-1rem"><span class="due" data-due="{{ next.due|date:'Y-m-d' }}">{% icon "clock" "ic-sm" %}<span>{{ next.due|date:"M j" }}</span></span><span class="tag tag-on-photo">{{ next.subject }}</span></div>
+          {% endwith %}
+          <a class="btn btn-ink" href="{% url 'homework' %}"><span>All homework</span><span class="btn-ico">{% icon "arrow-up-right" %}</span></a>
+          {% else %}
+          <small>Nothing due</small>
+          <h2>You are clear for now.</h2>
+          <a class="btn btn-ink" href="{% url 'homework' %}"><span>Add homework</span><span class="btn-ico">{% icon "plus" %}</span></a>
+          {% endif %}
+        </div>
+      </div></section>
+
+      <section class="bz panel-card"><div class="core" data-scope>
+        <header><h2>Open to-dos</h2><a class="btn btn-soft btn-sm no-ico" href="{% url 'todo' %}">Manage</a></header>
+        <ul class="items" data-list data-remove-on-done data-key="todo" {% if not todos %}hidden{% endif %}>
+          {% for t in todos %}{% include 'dashboard/partials/todo_item.html' %}{% endfor %}
+        </ul>
+        <div class="empty u-padding-2p2rem-1rem" data-empty {% if todos %}hidden{% endif %}><h3>All clear</h3><p>No open to-dos. Add one when something comes up.</p></div>
+      </div></section>
+
+      <section class="bz panel-card"><div class="core" data-scope>
+        <header><h2>Upcoming homework</h2><a class="btn btn-soft btn-sm no-ico" href="{% url 'homework' %}">Manage</a></header>
+        <ul class="items" data-list data-remove-on-done data-key="homework" {% if not homework %}hidden{% endif %}>
+          {% for h in homework %}{% include 'dashboard/partials/homework_item.html' %}{% endfor %}
+        </ul>
+        <div class="empty u-padding-2p2rem-1rem" data-empty {% if homework %}hidden{% endif %}><h3>No homework due</h3><p>Enjoy it while it lasts.</p></div>
+      </div></section>
+    </div>
+
+    <div>
+      <section class="bz stat-card"><div class="core">
+        {% include 'dashboard/partials/ring.html' with pct=progress size="150px" ring_id="overall-ring" total=tasks_total %}
+        <p>{% if tasks_total %}<span data-stat="done" data-count-to="{{ tasks_done }}">{{ tasks_done }}</span> of {{ tasks_total }} task{{ tasks_total|pluralize }} finished.{% else %}No tasks yet. Add one to start your streak.{% endif %}</p>
+        <div class="nums">
+          <a href="{% url 'todo' %}"><span>Open to-dos</span><b data-stat="todo-pending" data-count-to="{{ todo_pending }}">{{ todo_pending }}</b></a>
+          <a href="{% url 'homework' %}"><span>Homework due</span><b data-stat="homework-pending" data-count-to="{{ homework_pending }}">{{ homework_pending }}</b></a>
+          <a href="{% url 'notes' %}"><span>Notes saved</span><b data-count-to="{{ notes_count }}">{{ notes_count }}</b></a>
+        </div>
+      </div></section>
+
+      <section class="bz panel-card"><div class="core">
+        <header><h2>Jump to</h2></header>
+        <div class="quick-links">
+          {% for t in tools %}<a href="{{ t.url }}">{% icon t.icon %}{{ t.label }}{% icon "arrow-up-right" "ic-sm" %}</a>{% endfor %}
+        </div>
+      </div></section>
+    </div>
+  </div>

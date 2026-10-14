@@ -1,0 +1,29 @@
+{% load ui %}{% if notes %}
+  <div class="toolbar">
+    <label class="input-icon">{% icon "search" %}<input class="input" type="search" placeholder="Search your notes" data-for="notes-list" aria-label="Search notes"></label>
+    <div class="tags" data-filter-for="notes-list">
+      <button class="tag btn-like active" type="button" data-filter="all" aria-pressed="true">All</button>
+      {% for s in subjects %}<button class="tag btn-like" type="button" data-filter="{{ s }}" aria-pressed="false">{{ s }}</button>{% endfor %}
+    </div>
+  </div>
+  <div class="notes-grid" id="notes-list" data-list data-filterable>
+    {% for n in notes %}
+    <article class="note bz" data-cat="{{ n.subject }}" data-search="{{ n.title|lower }} {{ n.description|lower|truncatechars:300 }}" style="--i:{{ forloop.counter0 }}"><div class="core">
+      <span class="tag">{{ n.subject }}</span>
+      <h3><a href="{% url 'notes-detail' n.id %}">{{ n.title }}</a></h3>
+      <p class="clamp-3">{{ n.description }}</p>
+      <div class="foot">
+        <span class="mono">{{ n.description|wordcount }} word{{ n.description|wordcount|pluralize }}</span>
+        <form method="post" action="{% url 'delete-note' n.id %}" data-ajax="delete" data-confirm="Delete this note?" data-confirm-text="&ldquo;{{ n.title|truncatechars:40 }}&rdquo; will be removed for good." data-done-msg="Note deleted."><button class="del" type="submit" aria-label="Delete note">{% icon "trash" %}</button></form>
+      </div>
+    </div></article>
+    {% endfor %}
+  </div>
+  <div class="empty" data-nomatch-for="notes-list" hidden><h3>No matching notes</h3><p>Try a different search or subject.</p></div>
+{% endif %}
+
+  <div class="empty" data-empty {% if notes %}hidden{% endif %}>
+    <div class="photo">{% photo "notes" "" "150px" %}</div>
+    <h3>Your notebook is empty</h3><p>Write your first note: lecture highlights, formulas, anything worth remembering.</p>
+    <button class="btn btn-ink" type="button" data-open="note-dialog"><span>Create a note</span><span class="btn-ico">{% icon "plus" %}</span></button>
+  </div>
