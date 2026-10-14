@@ -12,11 +12,13 @@ site's session (signing in to one never signs you out of the other).
 """
 import hashlib
 import secrets
+import threading
 from dataclasses import dataclass
 from datetime import timedelta
 
 from django.contrib.auth.models import User
 from django.core import signing
+from django.db import DatabaseError, connection
 from django.utils import timezone
 
 from ..models import AdminSession
@@ -40,6 +42,31 @@ class Result:
     session: AdminSession | None = None
     set_cookies: tuple | None = None  # (access, refresh, session) when tokens were (re)issued
     clear: bool = False               # cookies are no good: remove them
+
+
+_schema_lock = threading.Lock()
+_TABLE = AdminSession._meta.db_table
+
+
+def ensure_schema():
+    """Create the console's table on first use if the database has not been migrated yet.
+
+    Makes the console work out of the box on a fresh checkout or a freshly deployed database,
+    with no manual `migrate` step. Returns True when the table is there.
+    """
+    with _schema_lock:
+        try:
+            if _TABLE in connection.introspection.table_names():
+                return True
+            from django.core.management import call_command
+
+            call_command("migrate", "dashboard", interactive=False, verbosity=0)
+        except Exception:  # another instance may be creating it at the same moment
+            pass
+        try:
+            return _TABLE in connection.introspection.table_names()
+        except DatabaseError:
+            return False
 
 
 def _fingerprint(user):
@@ -111,7 +138,10 @@ def _refresh_row(request):
         data = signing.loads(raw, salt=_REFRESH_SALT, max_age=REFRESH_TTL + 60)
     except signing.BadSignature:
         return None
-    return AdminSession.objects.select_related("user").filter(jti=data.get("j"), user_id=data.get("u")).first()
+    try:
+        return AdminSession.objects.select_related("user").filter(jti=data.get("j"), user_id=data.get("u")).first()
+    except DatabaseError:  # table not created yet: treat as signed out; sign-in will create it
+        return None
 
 
 def authenticate(request):

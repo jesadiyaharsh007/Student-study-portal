@@ -48,9 +48,15 @@ def login_view(request):
             user = authenticate(request, username=match.username if match else ident, password=password) if ident and password else None
             if user and user.is_staff and user.is_active:
                 try:
-                    access, refresh, _session = tokens.start_session(request, user)
+                    try:
+                        access, refresh, _session = tokens.start_session(request, user)
+                    except DatabaseError:
+                        # first use on a database without the console table: create it, then retry once
+                        if not tokens.ensure_schema():
+                            raise
+                        access, refresh, _session = tokens.start_session(request, user)
                 except DatabaseError:
-                    error, status = "The console is not fully set up yet: the database needs its latest migration (python manage.py migrate).", 503
+                    error, status = "The console could not set up its sign-in table. Please try again in a moment.", 503
                 else:
                     clear_failures(ip, ident)
                     response = redirect(_safe_next(request))

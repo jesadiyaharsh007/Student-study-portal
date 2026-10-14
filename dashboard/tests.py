@@ -404,3 +404,33 @@ class ConsoleTests(TestCase):
         res = self.client.get('/console/')
         self.assertIn('no-store', res['Cache-Control'])
         self.assertIn('noindex', res['X-Robots-Tag'])
+
+    def test_missing_console_table_is_created_on_first_sign_in(self):
+        from unittest import mock
+        from django.db import DatabaseError
+        from .console import tokens
+        real = tokens.start_session
+        calls = {'n': 0}
+
+        def flaky(request, user, origin=None):
+            calls['n'] += 1
+            if calls['n'] == 1:
+                raise DatabaseError('no such table: dashboard_adminsession')
+            return real(request, user, origin)
+
+        with mock.patch.object(tokens, 'start_session', side_effect=flaky),                 mock.patch.object(tokens, 'ensure_schema', return_value=True) as heal:
+            res = self.signin()
+        self.assertEqual(res.status_code, 302)
+        self.assertEqual(calls['n'], 2)
+        heal.assert_called_once()
+        self.assertEqual(self.client.get('/console/').status_code, 200)
+
+    def test_sign_in_reports_a_friendly_error_if_the_table_cannot_be_created(self):
+        from unittest import mock
+        from django.db import DatabaseError
+        from .console import tokens
+        with mock.patch.object(tokens, 'start_session', side_effect=DatabaseError('boom')),                 mock.patch.object(tokens, 'ensure_schema', return_value=False):
+            res = self.signin()
+        self.assertEqual(res.status_code, 503)
+        self.assertContains(res, 'could not set up', status_code=503)
+        self.assertNotContains(res, 'migrate', status_code=503)
