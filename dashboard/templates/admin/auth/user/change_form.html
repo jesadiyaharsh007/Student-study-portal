@@ -1,0 +1,100 @@
+{% extends "admin/change_form.html" %}
+{% load i18n admin_urls ui %}
+
+{% block bodyclass %}{{ block.super }} sd-userform{% endblock %}
+{% block content_title %}{% endblock %}
+{% block content_subtitle %}{% endblock %}
+{% block object-tools %}{% endblock %}
+
+{% block content %}
+{% with form=adminform.form act=sd_activity %}
+<div id="content-main" class="sd-page">
+<form method="post" id="user_form" novalidate>{% csrf_token %}
+  {% if form.errors %}<div class="sd-alert">{% icon "alert-circle" %}<span>Some fields need your attention. They are marked below.</span></div>{% endif %}
+  {% for e in form.non_field_errors %}<div class="sd-alert">{% icon "alert-circle" %}<span>{{ e }}</span></div>{% endfor %}
+
+  <header class="sd-profile">
+    <span class="avatar sd-av-xl">{{ original.username|initial }}</span>
+    <div class="sd-profile-main">
+      <h1>{{ original.username }}</h1>
+      <p>{% if original.get_full_name %}{{ original.get_full_name }} &middot; {% endif %}{{ original.email|default:"No email on file" }}</p>
+      <div class="sd-profile-pills">
+        {% if original.is_superuser %}<span class="sd-pill sd-bad">Admin</span>{% elif original.is_staff %}<span class="sd-pill sd-warn">Staff</span>{% else %}<span class="sd-pill sd-muted">Student</span>{% endif %}
+        {% if original.is_active %}<span class="sd-pill sd-ok">Active</span>{% else %}<span class="sd-pill sd-bad">Disabled</span>{% endif %}
+      </div>
+    </div>
+    <dl class="sd-profile-meta">
+      <div><dt>Joined</dt><dd>{{ original.date_joined|date:"M j, Y" }}</dd></div>
+      <div><dt>Last login</dt><dd>{% if original.last_login %}{{ original.last_login|timesince }} ago{% else %}Never{% endif %}</dd></div>
+    </dl>
+  </header>
+
+  {% if act %}
+  <div class="sd-mini-stats">
+    <a href="{% url 'admin:dashboard_notes_changelist' %}?q={{ original.username|urlencode }}"><b>{{ act.n_notes }}</b><span>{{ act.n_notes|pluralize:"note,notes" }}</span></a>
+    <a href="{% url 'admin:dashboard_homework_changelist' %}?q={{ original.username|urlencode }}"><b>{{ act.n_homework }}</b><span>homework</span></a>
+    <a href="{% url 'admin:dashboard_todo_changelist' %}?q={{ original.username|urlencode }}"><b>{{ act.n_todos }}</b><span>{{ act.n_todos|pluralize:"to-do,to-dos" }}</span></a>
+  </div>
+  {% endif %}
+
+  <div class="sd-cols">
+    <div class="sd-col-main">
+      <section class="sd-panel">
+        <h2>Account</h2>
+        <p class="sd-sub">How this student appears and signs in.</p>
+        <div class="sd-fields">
+          <div class="sd-span2">{% include "admin/includes/sd_field.html" with field=form.username %}</div>
+          {% include "admin/includes/sd_field.html" with field=form.first_name %}
+          {% include "admin/includes/sd_field.html" with field=form.last_name %}
+          <div class="sd-span2">{% include "admin/includes/sd_field.html" with field=form.email %}</div>
+        </div>
+        <div class="sd-pwrow">
+          <div><b>Password</b><small>Stored securely, so nobody can read it. Set a new one if they are locked out.</small></div>
+          <a class="button" href="{% url 'admin:auth_user_password_change' original.pk %}">Reset password</a>
+        </div>
+      </section>
+
+      <section class="sd-panel">
+        <h2>Access</h2>
+        <p class="sd-sub">What this account is allowed to do.</p>
+        <label class="sd-switchrow"><span><b>Active</b><small>Can log in to the student site. Turn off to block them without deleting anything.</small></span>{{ form.is_active }}</label>
+        <label class="sd-switchrow"><span><b>Staff</b><small>Can open this admin. Give it only to people who manage the portal.</small></span>{{ form.is_staff }}</label>
+        <label class="sd-switchrow"><span><b>Administrator</b><small>Full control, including other accounts. Use sparingly.</small></span>{{ form.is_superuser }}</label>
+      </section>
+    </div>
+
+    <aside class="sd-col-side">
+      {% if act %}
+      <section class="sd-panel">
+        <h2>Recent activity</h2>
+        {% if act.homework or act.todos or act.notes %}
+        <ul class="sd-recent2">
+          {% for h in act.homework %}<li><span class="glyph sd-g-{% if h.is_finished %}ok{% else %}warn{% endif %}">{% icon "clipboard" %}</span><a href="{% url 'admin:dashboard_homework_change' h.pk %}">{{ h.title }}<small>Homework &middot; {% if h.is_finished %}done{% else %}due {{ h.due|date:"M j" }}{% endif %}</small></a></li>{% endfor %}
+          {% for t in act.todos %}<li><span class="glyph sd-g-{% if t.is_finished %}ok{% else %}info{% endif %}">{% icon "checks" %}</span><a href="{% url 'admin:dashboard_todo_change' t.pk %}">{{ t.title }}<small>To-do &middot; {% if t.is_finished %}done{% else %}open{% endif %}</small></a></li>{% endfor %}
+          {% for n in act.notes %}<li><span class="glyph sd-g-muted">{% icon "note" %}</span><a href="{% url 'admin:dashboard_notes_change' n.pk %}">{{ n.title }}<small>Note &middot; {{ n.subject }}</small></a></li>{% endfor %}
+        </ul>
+        {% else %}<p class="sd-sub">Nothing yet. Their notes, homework and to-dos will show up here.</p>{% endif %}
+      </section>
+      {% endif %}
+
+      <section class="sd-panel sd-danger">
+        <h2>Danger zone</h2>
+        <p class="sd-sub">Deleting removes this account and all of their notes, homework and to-dos. It cannot be undone. To only stop them signing in, turn off <b>Active</b> instead.</p>
+        {% url opts|admin_urlname:'delete' original.pk|admin_urlquote as delete_url %}
+        <div class="sd-danger-actions">
+          <a class="button sd-btn-danger" href="{% add_preserved_filters delete_url %}">Delete student</a>
+          <a class="sd-link-quiet" href="{% url opts|admin_urlname:'history' original.pk|admin_urlquote %}">View change history</a>
+        </div>
+      </section>
+    </aside>
+  </div>
+
+  <div class="sd-savebar">
+    <span class="sd-savebar-note">Changes apply as soon as you save.</span>
+    <a class="button sd-btn-quiet" href="{% url opts|admin_urlname:'changelist' %}">Cancel</a>
+    <input type="submit" name="_save" value="Save changes" class="default">
+  </div>
+</form>
+</div>
+{% endwith %}
+{% endblock %}

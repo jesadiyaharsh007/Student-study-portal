@@ -267,6 +267,17 @@ class StudentAdmin(DjangoUserAdmin):
 
     def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
         title = "Edit student" if object_id else "Add student"
+        extra_context = dict(extra_context or {})
+        if object_id and str(object_id).isdigit():
+            uid = int(object_id)
+            extra_context["sd_activity"] = {
+                "notes": list(Notes.objects.filter(user_id=uid).order_by("-id").only("id", "title", "subject")[:4]),
+                "homework": list(Homework.objects.filter(user_id=uid).order_by("is_finished", "due").only("id", "title", "due", "is_finished")[:4]),
+                "todos": list(Todo.objects.filter(user_id=uid).order_by("is_finished", "-id").only("id", "title", "is_finished")[:4]),
+                "n_notes": Notes.objects.filter(user_id=uid).count(),
+                "n_homework": Homework.objects.filter(user_id=uid).count(),
+                "n_todos": Todo.objects.filter(user_id=uid).count(),
+            }
         return super().changeform_view(request, object_id, form_url, {"sd_hint": self.form_hint if object_id else "Choose a username and password. You can set their details and access after saving.", "title": title, **(extra_context or {})})
 
     def get_queryset(self, request):

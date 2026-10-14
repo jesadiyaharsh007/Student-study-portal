@@ -297,3 +297,38 @@ class AdminPanelTests(TestCase):
         self.assertEqual(self.client.get('/admin/dashboard/homework/?state=open').status_code, 200)
         self.assertEqual(self.client.get('/admin/auth/user/?account=disabled').status_code, 200)
         self.assertEqual(self.client.get('/admin/auth/user/?role=staff').status_code, 200)
+
+    def test_custom_student_form_renders_and_saves(self):
+        self.client.login(username='boss', password='Admin-pass-123')
+        url = f'/admin/auth/user/{self.student.pk}/change/'
+        page = self.client.get(url)
+        self.assertContains(page, 'sd-profile')
+        self.assertContains(page, 'Recent activity')
+        self.assertContains(page, 'Danger zone')
+        self.assertContains(page, 'sd-savebar')
+        res = self.client.post(url, {
+            'username': 'stu', 'first_name': 'Asha', 'last_name': 'Patel', 'email': 'asha@example.com',
+            'is_staff': 'on',  # is_active left off: the account gets disabled
+            '_save': 'Save changes',
+        })
+        self.assertEqual(res.status_code, 302)
+        self.student.refresh_from_db()
+        self.assertEqual((self.student.first_name, self.student.email), ('Asha', 'asha@example.com'))
+        self.assertTrue(self.student.is_staff)
+        self.assertFalse(self.student.is_active)
+
+    def test_custom_student_form_shows_errors(self):
+        self.client.login(username='boss', password='Admin-pass-123')
+        res = self.client.post(f'/admin/auth/user/{self.student.pk}/change/', {'username': '', '_save': 'Save changes'})
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, 'sd-alert')
+        self.assertContains(res, 'sd-err')
+
+    def test_custom_add_student_form(self):
+        self.client.login(username='boss', password='Admin-pass-123')
+        self.assertContains(self.client.get('/admin/auth/user/add/'), 'Add a student')
+        res = self.client.post('/admin/auth/user/add/', {
+            'username': 'newkid', 'password1': 'Strong-pass-98765', 'password2': 'Strong-pass-98765', 'usable_password': 'true', '_save': 'Create student',
+        })
+        self.assertEqual(res.status_code, 302)
+        self.assertTrue(User.objects.filter(username='newkid').exists())

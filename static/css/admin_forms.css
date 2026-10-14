@@ -1,0 +1,102 @@
+/* ==========================================================================
+   Custom admin screens (student edit / add): profile header, panels, switches, save bar.
+   ========================================================================== */
+
+.sd-page { max-width: 1100px; display: grid; gap: 1.4rem; }
+.sd-page.sd-narrow { max-width: 640px; }
+.sd-admin .sd-page h1, .sd-admin #content .sd-page h1 { font-size: clamp(1.6rem, 3vw, 2.1rem); letter-spacing: -.045em; font-weight: 550; margin: 0; line-height: 1.1; }
+
+.sd-alert { display: flex; gap: .7rem; align-items: center; padding: .85rem 1.1rem; border-radius: 16px; background: var(--message-error-bg); color: var(--bad); font-weight: 550; box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--bad) 25%, transparent); }
+
+/* ---- profile header ---- */
+.sd-profile { display: flex; align-items: center; gap: 1.3rem; flex-wrap: wrap; padding: 1.5rem 1.7rem; background: var(--core); border-radius: var(--r-core); box-shadow: var(--sd-bezel); }
+.sd-av-xl.avatar { width: 76px; height: 76px; font-size: 1.9rem; }
+.sd-profile-main { flex: 1 1 260px; min-width: 0; display: grid; gap: .35rem; }
+.sd-profile-main p { margin: 0; padding: 0; color: var(--muted); }
+.sd-profile-pills { display: flex; gap: .4rem; flex-wrap: wrap; margin-top: .2rem; }
+.sd-profile-meta { display: flex; gap: 2rem; margin: 0; }
+.sd-profile-meta div { display: grid; gap: .1rem; }
+.sd-profile-meta dt { font-size: .7rem; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+.sd-profile-meta dd { margin: 0; font-weight: 550; }
+.sd-profile-new .glyph { width: 56px; height: 56px; border-radius: 18px; }
+
+.sd-mini-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+.sd-admin .sd-mini-stats a:link, .sd-admin .sd-mini-stats a:visited { display: flex; align-items: baseline; gap: .6rem; padding: 1rem 1.3rem; background: var(--core); border-radius: var(--r-core); box-shadow: var(--sd-bezel); color: var(--ink); transition: transform .5s var(--spring); }
+.sd-mini-stats a:hover { transform: translateY(-3px); }
+.sd-mini-stats b { font-size: 1.9rem; font-weight: 500; letter-spacing: -.05em; line-height: 1; }
+.sd-mini-stats span { color: var(--muted); font-weight: 500; }
+
+/* ---- layout ---- */
+.sd-cols { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 1.4rem; align-items: start; }
+.sd-col-main, .sd-col-side { display: grid; gap: 1.4rem; min-width: 0; }
+@media (max-width: 900px) { .sd-cols { grid-template-columns: minmax(0, 1fr); } .sd-mini-stats { grid-template-columns: 1fr; } }
+
+.sd-panel { background: var(--core); border-radius: var(--r-core); box-shadow: var(--sd-bezel); padding: 1.5rem 1.7rem; display: grid; gap: 1rem; align-content: start; }
+.sd-admin .sd-panel h2 { margin: 0; padding: 0; font-size: 1.15rem; font-weight: 600; letter-spacing: -.02em; text-transform: none; color: var(--ink); }
+.sd-sub { margin: -.5rem 0 0; padding: 0; color: var(--muted); font-size: .92rem; }
+.sd-admin .sd-panel p { padding: 0; }
+
+/* ---- fields ---- */
+.sd-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem 1.1rem; }
+.sd-span2 { grid-column: 1 / -1; }
+@media (max-width: 640px) { .sd-fields { grid-template-columns: 1fr; } }
+.sd-field { display: grid; gap: .4rem; }
+.sd-field label { font-size: .85rem; font-weight: 600; color: var(--ink); }
+.sd-admin .sd-field input[type="text"], .sd-admin .sd-field input[type="email"], .sd-admin .sd-field input[type="password"] { width: 100%; box-sizing: border-box; }
+.sd-field.invalid input { box-shadow: inset 0 0 0 1.5px var(--bad); }
+.sd-err { color: var(--bad); font-size: .85rem; font-weight: 550; }
+.sd-hintline { color: var(--muted); font-size: .82rem; }
+.sd-hintline ul { margin: .3rem 0 0; padding-left: 1.1rem; list-style: disc; }
+.sd-hintline li { list-style: disc; }
+
+.sd-pwrow { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; padding-top: 1rem; border-top: 1px solid var(--hair); }
+.sd-pwrow > div { display: grid; gap: .15rem; min-width: 0; flex: 1 1 220px; }
+.sd-pwrow small, .sd-switchrow small { color: var(--muted); font-size: .84rem; font-weight: 400; }
+.sd-admin .sd-pwrow a.button:link, .sd-admin .sd-pwrow a.button:visited { background: var(--sunk); color: var(--ink); box-shadow: inset 0 0 0 1px var(--hair-2); }
+.sd-admin .sd-pwrow a.button:hover { background: var(--accent); color: var(--accent-ink); }
+
+/* ---- switches ---- */
+.sd-switchrow { display: flex; align-items: center; justify-content: space-between; gap: 1.2rem; padding: .9rem 0; border-top: 1px solid var(--hair); cursor: pointer; }
+.sd-switchrow:first-of-type { border-top: 0; }
+.sd-switchrow > span { display: grid; gap: .15rem; }
+.sd-switchrow b { font-weight: 600; }
+.sd-admin .sd-switchrow input[type="checkbox"] {
+  appearance: none; -webkit-appearance: none; flex: none; width: 2.9rem; height: 1.65rem; border-radius: 99px; background: var(--sunk); box-shadow: inset 0 0 0 1.5px var(--hair-2);
+  position: relative; cursor: pointer; transition: background .3s var(--ease), box-shadow .3s;
+}
+.sd-admin .sd-switchrow input[type="checkbox"]::after {
+  content: ""; position: absolute; left: 3px; top: 3px; width: calc(1.65rem - 6px); height: calc(1.65rem - 6px); border-radius: 50%; border: 0; background: var(--muted);
+  transform: none; transition: transform .4s var(--spring), background .3s;
+}
+.sd-admin .sd-switchrow input[type="checkbox"]:checked { background: var(--accent); box-shadow: none; }
+.sd-admin .sd-switchrow input[type="checkbox"]:checked::after { left: 3px; top: 3px; width: calc(1.65rem - 6px); height: calc(1.65rem - 6px); border: 0; background: #fff; transform: translateX(1.25rem); }
+.sd-admin .sd-switchrow input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* ---- side panels ---- */
+.sd-recent2 { list-style: none; margin: 0; padding: 0; display: grid; gap: .2rem; }
+.sd-recent2 li { display: flex; align-items: center; gap: .8rem; list-style: none; padding: .45rem 0; border: 0; }
+.sd-admin .sd-recent2 a:link, .sd-admin .sd-recent2 a:visited { display: grid; gap: .05rem; min-width: 0; font-weight: 550; color: var(--ink); overflow-wrap: anywhere; }
+.sd-recent2 a:hover { color: var(--accent-text); }
+.sd-recent2 small { color: var(--muted); font-weight: 400; font-size: .8rem; }
+.sd-recent2 .glyph { width: 38px; height: 38px; border-radius: 12px; flex: none; }
+.sd-danger { box-shadow: var(--sd-bezel), inset 0 0 0 1px color-mix(in oklab, var(--bad) 22%, transparent); }
+.sd-admin .sd-danger h2 { color: var(--bad); }
+.sd-danger-actions { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.sd-admin a.sd-btn-danger:link, .sd-admin a.sd-btn-danger:visited { background: var(--bad); color: #fff; }
+.sd-admin a.sd-btn-danger:hover { background: color-mix(in oklab, var(--bad) 80%, #000); color: #fff; }
+.sd-admin a.sd-link-quiet:link, .sd-admin a.sd-link-quiet:visited { color: var(--muted); font-size: .88rem; font-weight: 550; }
+.sd-admin a.sd-link-quiet:hover { color: var(--ink); }
+
+/* ---- sticky save bar ---- */
+.sd-savebar {
+  position: sticky; bottom: 1rem; z-index: 20; display: flex; align-items: center; justify-content: flex-end; gap: .7rem; flex-wrap: wrap;
+  padding: .7rem .8rem .7rem 1.4rem; background: color-mix(in oklab, var(--core) 85%, transparent); backdrop-filter: blur(16px) saturate(150%); -webkit-backdrop-filter: blur(16px) saturate(150%);
+  border-radius: 99px; box-shadow: 0 0 0 1px var(--hair-2), 0 24px 40px -22px rgb(0 0 0 / .45);
+}
+.sd-savebar-note { margin-right: auto; color: var(--muted); font-size: .88rem; }
+.sd-admin a.sd-btn-quiet:link, .sd-admin a.sd-btn-quiet:visited { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1px var(--hair-2); }
+.sd-admin a.sd-btn-quiet:hover { background: var(--sunk); color: var(--ink); }
+.sd-admin .sd-savebar input[type="submit"] { background: var(--accent); color: var(--accent-ink); }
+.sd-admin .sd-savebar input[type="submit"]:hover { background: var(--accent-text); color: #fff; }
+.sd-page > form { display: grid; gap: 1.4rem; }
+.sd-admin.sd-userform.change-form #content-main > form > div, .sd-admin.sd-userform #content-main > form > header, .sd-admin.sd-userform #content-main > form > section { max-width: none; }

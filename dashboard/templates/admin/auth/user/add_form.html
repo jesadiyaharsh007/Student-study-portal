@@ -1,0 +1,41 @@
+{% extends "admin/change_form.html" %}
+{% load i18n admin_urls ui %}
+
+{% block bodyclass %}{{ block.super }} sd-userform{% endblock %}
+{% block content_title %}{% endblock %}
+{% block content_subtitle %}{% endblock %}
+{% block object-tools %}{% endblock %}
+
+{% block content %}
+{% with form=adminform.form %}
+<div id="content-main" class="sd-page sd-narrow">
+<form method="post" id="user_form" novalidate>{% csrf_token %}
+  {% if form.errors %}<div class="sd-alert">{% icon "alert-circle" %}<span>Some fields need your attention. They are marked below.</span></div>{% endif %}
+  {% for e in form.non_field_errors %}<div class="sd-alert">{% icon "alert-circle" %}<span>{{ e }}</span></div>{% endfor %}
+
+  <header class="sd-profile sd-profile-new">
+    <span class="glyph sd-g-info">{% icon "user-plus" %}</span>
+    <div class="sd-profile-main">
+      <h1>Add a student</h1>
+      <p>Choose a username and a password. You can add their details and set access after saving.</p>
+    </div>
+  </header>
+
+  <section class="sd-panel">
+    <h2>Sign-in details</h2>
+    <div class="sd-fields">
+      {% for field in form.visible_fields %}
+      <div class="sd-span2">{% include "admin/includes/sd_field.html" with field=field %}</div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <div class="sd-savebar">
+    <span class="sd-savebar-note">They can log in as soon as you create the account.</span>
+    <a class="button sd-btn-quiet" href="{% url opts|admin_urlname:'changelist' %}">Cancel</a>
+    <input type="submit" name="_save" value="Create student" class="default">
+  </div>
+</form>
+</div>
+{% endwith %}
+{% endblock %}
