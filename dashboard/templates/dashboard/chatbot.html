@@ -52,7 +52,7 @@
     <form class="composer" id="chat-form" method="post" action="{% url 'chatbot' %}">
       {% csrf_token %}
       <div class="composer-box">
-        <textarea name="prompt" rows="1" placeholder="Ask your question..." maxlength="2000" data-autosize required aria-label="Your question"></textarea>
+        <textarea name="prompt" rows="1" placeholder="Ask your question..." maxlength="2000" data-autosize required aria-label="Your question" data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false"></textarea>
         <button class="composer-send" type="submit" aria-label="Send question" title="Send question">{% icon "arrow-up" %}</button>
       </div>
     </form>
