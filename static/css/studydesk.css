@@ -69,9 +69,9 @@
 
 /* ------------------------------------------------------------------ base */
 *, *::before, *::after { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; scroll-behavior: smooth; scroll-padding-top: 110px; }
+html { font-size: 90%; -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; scroll-behavior: smooth; scroll-padding-top: 110px; }
 body {
-  margin: 0; min-height: 100dvh; font: 400 16px/1.6 var(--font); color: var(--ink); background: var(--bg);
+  margin: 0; min-height: 100dvh; font: 400 1rem/1.6 var(--font); color: var(--ink); background: var(--bg);
   -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; overflow-x: clip;
 }
 body::after { /* film grain: fixed, inert, painted once */
@@ -542,43 +542,57 @@ dialog.closing::backdrop { animation: fade .25s reverse forwards; }
 .conv-out b { display: block; font-size: clamp(1.5rem, 3.6vw, 2.5rem); letter-spacing: -.05em; font-weight: 500; overflow-wrap: anywhere; }
 .conv-out b.bump { animation: bump .5s var(--spring); } .conv-out small { color: var(--muted); font-family: var(--mono); }
 
-/* chat */
-.chat { height: calc(100dvh - var(--nav-h) - 100px); min-height: 520px; }
-.chat > .core { display: grid; grid-template-rows: auto 1fr auto; min-height: 0; }
-.chat-head { display: flex; gap: .9rem; align-items: center; padding: 1rem 1.3rem; box-shadow: 0 1px 0 var(--hair); }
+/* chat: full-width, ChatGPT/Claude style. Empty = centered composer; once chatting it docks to the bottom. */
+main:has(.chat) { padding-bottom: 1rem; }
+body:has(.chat) .footer { display: none; }
+.chat { position: relative; display: flex; flex-direction: column; height: calc(100dvh - var(--nav-h) - 56px - 2rem); min-height: 440px; max-width: 780px; margin-inline: auto; }
+.chat-new { position: absolute; top: 0; right: 0; z-index: 2; }
 .chat-log {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   min-width: 0;
-  max-width: 100%;
-  padding: 1.4rem;
+  padding: 3.4rem .25rem 1.5rem;
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 1.6rem;
   scroll-behavior: smooth;
   overscroll-behavior: contain;
 }
+.chat-dock { padding: .5rem 0 .25rem; background: var(--bg); }
+.chat-hero { display: none; flex-direction: column; align-items: center; text-align: center; gap: 1rem; margin-bottom: 1.6rem; }
+.chat-hero h2 { font-size: clamp(1.7rem, 3.6vw, 2.5rem); letter-spacing: -.045em; font-weight: 500; line-height: 1.1; }
+.chat-logo { width: 52px; height: 52px; border-radius: 50%; }
+.chat-logo .ic { width: 1.6rem; height: 1.6rem; }
+.chat .suggest { display: none; }
+.chat.is-empty { justify-content: center; }
+.chat.is-empty .chat-log { display: none; }
+.chat.is-empty .chat-dock { background: none; padding: 0; }
+.chat.is-empty .chat-hero { display: flex; animation: fade-up .7s var(--ease); }
+.chat.is-empty .suggest { display: flex; flex-wrap: wrap; justify-content: center; gap: .55rem; margin-top: 1.1rem; }
 .msg {
   display: flex;
   gap: .75rem;
-  max-width: min(780px, 94%);
+  max-width: 100%;
   width: 100%;
   min-width: 0;
-  animation: fade-up .7s var(--ease);
+  animation: fade-up .5s var(--ease);
 }
 .msg.user {
   align-self: flex-end;
   flex-direction: row-reverse;
-  max-width: min(640px, 88%);
+  max-width: min(600px, 88%);
 }
+.msg.user .av { display: none; }
 .msg .av {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   display: grid;
   place-items: center;
   flex: none;
-  background: var(--sunk);
+  background: var(--core);
   color: var(--ink);
   box-shadow: 0 1px 3px rgb(0 0 0 / .08);
 }
@@ -592,19 +606,19 @@ dialog.closing::backdrop { animation: fade .25s reverse forwards; }
 .bubble {
   min-width: 0;
   max-width: 100%;
-  padding: 1.1rem 1.35rem;
-  border-radius: 22px 22px 22px 6px;
-  background: var(--sunk);
+  padding: .15rem 0 0;
+  border-radius: 0;
+  background: none;
   color: var(--ink);
   overflow-wrap: break-word;
   word-break: break-word;
   line-height: 1.72;
   position: relative;
   font-size: .98rem;
-  box-shadow: 0 1px 3px rgb(0 0 0 / .04);
 }
 .msg.user .bubble {
-  border-radius: 22px 22px 6px 22px;
+  padding: .75rem 1.15rem;
+  border-radius: 22px;
   background: var(--ink);
   color: var(--bg);
   white-space: pre-wrap;
@@ -862,16 +876,7 @@ dialog.closing::backdrop { animation: fade .25s reverse forwards; }
   border-color: color-mix(in oklab, var(--ok) 30%, transparent);
 }
 
-.typing .bubble {
-  display: inline-flex;
-  align-items: center;
-  padding: .75rem 1.15rem;
-  min-height: 38px;
-  width: fit-content;
-  border-radius: 18px;
-  background: var(--sunk);
-  box-shadow: inset 0 0 0 1px var(--hair);
-}
+.typing .bubble { display: inline-flex; align-items: center; min-height: 32px; width: fit-content; padding: 0; white-space: nowrap; }
 /* Lexi's logo: breathes, with a soft spinning halo while she works */
 .lexi-orb { position: relative; isolation: isolate; animation: orbFloat 1.8s ease-in-out infinite; }
 .lexi-orb::before {
@@ -886,7 +891,6 @@ dialog.closing::backdrop { animation: fade .25s reverse forwards; }
 @keyframes orbFloat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
 @keyframes orbTilt { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(6deg) translateY(-1px); } }
 .think-text { display: inline-flex; align-items: center; gap: 2px; font-size: .92rem; font-weight: 500; white-space: nowrap; min-width: 12.5em; }
-.typing .bubble { white-space: nowrap; }
 .think-word {
   color: var(--muted);
   animation: thinkPulse 1.6s ease-in-out infinite;
@@ -903,13 +907,11 @@ dialog.closing::backdrop { animation: fade .25s reverse forwards; }
   .lexi-orb, .lexi-orb .ic, .think-word, .think-dots i { animation: none; }
   .lexi-orb::before { animation: none; }
 }
-.chat-empty { margin: auto; max-width: 560px; padding: 1rem; }
-.chat-empty h2 { font-size: clamp(2rem, 4.4vw, 3.2rem); letter-spacing: -.05em; font-weight: 500; margin: 1rem 0 .6rem; } .chat-empty p { color: var(--muted); }
-.suggest { display: grid; gap: .5rem; margin-top: 1.6rem; }
-.suggest button { display: flex; align-items: center; justify-content: space-between; gap: 1rem; text-align: left; padding: .85rem 1.1rem; border-radius: 99px; background: var(--sunk); box-shadow: inset 0 0 0 1px var(--hair); font-weight: 500; transition: background .5s var(--ease), transform .6s var(--ease), box-shadow .4s; }
+.suggest { display: grid; gap: .5rem; }
+.suggest button { display: flex; align-items: center; justify-content: space-between; gap: 1rem; text-align: left; padding: .6rem 1rem; border-radius: 99px; background: var(--core); box-shadow: inset 0 0 0 1px var(--hair); font-weight: 500; transition: background .5s var(--ease), transform .6s var(--ease), box-shadow .4s; }
 
-.composer { padding: .85rem 1.15rem; box-shadow: 0 -1px 0 var(--hair); background: var(--core); }
-.composer-box { display: flex; align-items: center; gap: .55rem; background: var(--sunk); border-radius: 28px; padding: .35rem .45rem .35rem 1.25rem; box-shadow: inset 0 0 0 1px var(--hair); transition: box-shadow .35s var(--ease), background .35s var(--ease); }
+.composer { padding: 0; }
+.composer-box { display: flex; align-items: center; gap: .55rem; background: var(--core); border-radius: 28px; padding: .4rem .5rem .4rem 1.3rem; box-shadow: inset 0 0 0 1px var(--hair), 0 6px 24px rgb(0 0 0 / .06); transition: box-shadow .35s var(--ease), background .35s var(--ease); }
 .composer.multiline .composer-box { align-items: flex-end; }
 .composer.multiline .composer-send { margin-bottom: 2px; }
 .composer-box:focus-within { background: var(--core); box-shadow: inset 0 0 0 1.5px var(--ink), 0 0 0 4px var(--accent-soft); }

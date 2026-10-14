@@ -7,12 +7,8 @@
 {% endblock %}
 {% block content %}
 <div class="wrap-n">
-  <section class="bz chat" id="chat" data-user="{{ user.pk }}"><div class="core">
-    <header class="chat-head">
-      <span class="glyph">{% icon "cap" %}</span>
-      <div class="u-flex-1"><b class="chat-title">Lexi</b><small class="muted">Explanations, examples and practice questions.</small></div>
-      <button class="btn btn-line btn-sm no-ico" id="chat-clear" type="button" {% if not chat_history %}hidden{% endif %}>New chat</button>
-    </header>
+  <section class="chat{% if not chat_history %} is-empty{% endif %}" id="chat" data-user="{{ user.pk }}">
+    <button class="btn btn-line btn-sm no-ico chat-new" id="chat-clear" type="button" {% if not chat_history %}hidden{% endif %}>New chat</button>
 
     <div class="chat-log" id="chat-log" aria-live="polite">
       {% for m in chat_history %}
@@ -23,27 +19,30 @@
       {% endif %}
       {% endfor %}
       {% if error %}<div class="form-alert">{% icon "alert-circle" %}{{ error }}</div>{% endif %}
-      {% if not chat_history %}
-      <div class="chat-empty" id="chat-empty">
-        <h2>What are we learning today?</h2>
-        <p>Pick a starter or type your own question below.</p>
-        <div class="suggest">
-          <button type="button" data-suggest="Explain photosynthesis in simple terms"><span>Explain photosynthesis in simple terms</span>{% icon "arrow-up-right" "ic-sm" %}</button>
-          <button type="button" data-suggest="How do I solve 2x + 5 = 15? Show each step."><span>How do I solve 2x + 5 = 15?</span>{% icon "arrow-up-right" "ic-sm" %}</button>
-          <button type="button" data-suggest="Give me 5 quiz questions about the French Revolution"><span>Quiz me on the French Revolution</span>{% icon "arrow-up-right" "ic-sm" %}</button>
-        </div>
-      </div>
-      {% endif %}
     </div>
 
-    <form class="composer" id="chat-form" method="post" action="{% url 'chatbot' %}">
-      {% csrf_token %}
-      <div class="composer-box">
-        <textarea name="prompt" rows="1" placeholder="Ask your question..." maxlength="2000" data-autosize required aria-label="Your question" data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false"></textarea>
-        <button class="composer-send" type="submit" aria-label="Send question" title="Send question">{% icon "arrow-up" %}</button>
+    <div class="chat-dock" id="chat-dock">
+      <div class="chat-hero" id="chat-empty">
+        <span class="glyph chat-logo">{% icon "cap" %}</span>
+        <h2>What are we learning today?</h2>
       </div>
-    </form>
-  </div></section>
+
+      <form class="composer" id="chat-form" method="post" action="{% url 'chatbot' %}">
+        {% csrf_token %}
+        <div class="composer-box">
+          <textarea name="prompt" rows="1" placeholder="Ask Lexi anything..." maxlength="2000" data-autosize required aria-label="Your question" data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false"></textarea>
+          <button class="composer-send" type="submit" aria-label="Send question" title="Send question">{% icon "arrow-up" %}</button>
+        </div>
+      </form>
+
+      <div class="suggest" id="chat-suggest">
+        <button type="button" data-suggest="Explain photosynthesis in simple terms"><span>Explain photosynthesis</span>{% icon "arrow-up-right" "ic-sm" %}</button>
+        <button type="button" data-suggest="How do I solve 2x + 5 = 15? Show each step."><span>Solve 2x + 5 = 15</span>{% icon "arrow-up-right" "ic-sm" %}</button>
+        <button type="button" data-suggest="Give me 5 quiz questions about the French Revolution"><span>Quiz me on the French Revolution</span>{% icon "arrow-up-right" "ic-sm" %}</button>
+      </div>
+    </div>
+  </section>
+  <script>try{var h=JSON.parse(localStorage.getItem('lexi-chat-{{ user.pk }}')||'[]');if(h.length)document.getElementById('chat').classList.remove('is-empty')}catch(e){}</script>
 </div>
 {% endblock %}
 {% block scripts %}

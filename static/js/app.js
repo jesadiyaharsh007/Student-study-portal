@@ -539,6 +539,7 @@
   $$('textarea[data-autosize]').forEach(t => {
     const fit = () => { t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 150) + 'px'; };
     on(t, 'input', fit); fit();
+    addEventListener('load', fit); document.fonts?.ready.then(fit); new ResizeObserver(() => { if (!t.value) fit(); }).observe(t.parentElement);
   });
   $$('[data-copy]').forEach(b => on(b, 'click', async () => {
     try { await navigator.clipboard.writeText(b.dataset.copy); toast('success', 'Copied to clipboard.'); } catch (e) { toast('warning', 'Copy is not available here.'); }
@@ -850,8 +851,20 @@
       }
     };
 
+    // First message: the centered composer glides down to the bottom (FLIP animation).
+    const dock = $('#chat-dock');
+    const leaveEmpty = () => {
+      if (!chat.classList.contains('is-empty')) return;
+      const first = dock.getBoundingClientRect();
+      chat.classList.remove('is-empty');
+      const dy = first.top - dock.getBoundingClientRect().top;
+      if (dy && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        dock.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 650, easing: 'cubic-bezier(.22,1,.36,1)' });
+      }
+    };
+
     const addMsg = (role, text) => {
-      $('#chat-empty')?.remove();
+      leaveEmpty();
       $('#chat-clear')?.removeAttribute('hidden');
       const m = document.createElement('div');
       m.className = 'msg ' + (role === 'user' ? 'user' : 'bot tone-pink');
