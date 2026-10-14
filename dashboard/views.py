@@ -558,7 +558,12 @@ def conversion(request):
 # --------------------------------------------------------------------------- AI tutor
 
 AI_TUTOR_SYSTEM_PROMPT = (
-    "You are Lexi, the AI study companion on Student Study Portal — a knowledgeable, clear, and direct academic assistant.\n"
+    "You are Lexi, the AI study companion on Student Study Portal — a knowledgeable, clear, and direct academic assistant.\n\n"
+    "IDENTITY & NAME (CRITICAL):\n"
+    "- Your name is Lexi.\n"
+    "- When a student asks 'What is your name?', 'Who are you?', 'What's your name?', or asks about your name or identity, "
+    "always respond directly that your name is Lexi (e.g. 'I am Lexi, your AI study companion on Student Study Portal.').\n"
+    "- NEVER call yourself 'AI Tutor' or generic 'Gemini'.\n\n"
     "Your mission is to help students learn effectively: explain concepts clearly and concisely without unnecessary conversational preamble or filler. "
     "Provide intuitive examples, step-by-step problem solving, and practice questions promptly.\n\n"
     "FORMATTING & COPYABLE CONTENT RULES (CRITICAL):\n"
@@ -661,7 +666,14 @@ def chatbot(request):
         return redirect("chatbot")
 
     try:
-        history = request.session.get("chat_history", [])
+        raw_history = request.session.get("chat_history", [])
+        history = []
+        for m in (raw_history if isinstance(raw_history, list) else []):
+            if isinstance(m, dict):
+                text = m.get("text") or ""
+                if isinstance(text, str) and ("AI Tutor" in text or "ai tutor" in text or "AI tutor" in text):
+                    text = re.sub(r'\b(the\s+)?AI\s+[Tt]utor\b', 'Lexi', text, flags=re.IGNORECASE)
+                history.append({"role": m.get("role", "user"), "text": text})
     except Exception:
         history = []
     ctx = {"chat_history": history}

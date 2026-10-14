@@ -145,8 +145,10 @@ class ViewTests(TestCase):
         res_clear = self.client.post(reverse('chatbot'), {'clear': '1'})
         self.assertEqual(res_clear.status_code, 302)
 
-        # Verify system prompt has security guardrails and multi-line rules
+        # Verify system prompt has security guardrails, identity rules, and multi-line rules
         from .views import AI_TUTOR_SYSTEM_PROMPT
+        self.assertIn("You are Lexi", AI_TUTOR_SYSTEM_PROMPT)
+        self.assertIn("Your name is Lexi", AI_TUTOR_SYSTEM_PROMPT)
         self.assertIn("STRICT SECURITY & PRIVACY GUARDRAILS", AI_TUTOR_SYSTEM_PROMPT)
         self.assertIn("CONFIDENTIAL PLATFORM CODE", AI_TUTOR_SYSTEM_PROMPT)
         self.assertIn("MULTI-LINE PROMPTS & CODE", AI_TUTOR_SYSTEM_PROMPT)
