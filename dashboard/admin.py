@@ -66,6 +66,19 @@ class DueFilter(admin.SimpleListFilter):
         return queryset
 
 
+class HintMixin:
+    """Shows a one-line "what is this page for" hint under the title (rendered by admin/base_site.html)."""
+
+    list_hint = ""
+    form_hint = ""
+
+    def changelist_view(self, request, extra_context=None):
+        return super().changelist_view(request, {"sd_hint": self.list_hint, **(extra_context or {})})
+
+    def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
+        return super().changeform_view(request, object_id, form_url, {"sd_hint": self.form_hint, **(extra_context or {})})
+
+
 class FinishActionsMixin:
     @admin.action(description="Mark selected as done")
     def mark_done(self, request, queryset):
@@ -81,7 +94,10 @@ class FinishActionsMixin:
 # --------------------------------------------------------------------------- models
 
 @admin.register(Notes)
-class NotesAdmin(admin.ModelAdmin):
+class NotesAdmin(HintMixin, admin.ModelAdmin):
+    list_hint = "Notes students have written. Search by title, text or student, filter by subject, and select rows to export them as CSV."
+    form_hint = "Edit a note on a student's behalf. Changes appear on their Notes page straight away."
+    search_help_text = "Search title, note text or student username."
     list_display = ("title", "user", "subject_pill", "words")
     list_display_links = ("title",)
     list_filter = ("subject", "user")
@@ -110,7 +126,10 @@ class NotesAdmin(admin.ModelAdmin):
 
 
 @admin.register(Homework)
-class HomeworkAdmin(FinishActionsMixin, admin.ModelAdmin):
+class HomeworkAdmin(HintMixin, FinishActionsMixin, admin.ModelAdmin):
+    list_hint = "Assignments with deadlines. Use the Deadline filter for overdue or due today, tick \"Is finished\" to update from the list, or select rows for bulk actions."
+    form_hint = "Changing the due date or finished state updates the student's Homework page and progress ring."
+    search_help_text = "Search title, description or student username."
     list_display = ("title", "user", "subject_pill", "due", "state", "is_finished")
     list_display_links = ("title",)
     list_editable = ("is_finished",)
@@ -149,7 +168,10 @@ class HomeworkAdmin(FinishActionsMixin, admin.ModelAdmin):
 
 
 @admin.register(Todo)
-class TodoAdmin(FinishActionsMixin, admin.ModelAdmin):
+class TodoAdmin(HintMixin, FinishActionsMixin, admin.ModelAdmin):
+    list_hint = "Quick tasks. Tick \"Is finished\" in the list to update them, or select rows to mark done or export."
+    form_hint = "A to-do has just a title and a finished state."
+    search_help_text = "Search task title or student username."
     list_display = ("title", "user", "is_finished")
     list_display_links = ("title",)
     list_editable = ("is_finished",)
@@ -171,8 +193,11 @@ admin.site.unregister(User)
 
 
 @admin.register(User)
-class StudentAdmin(DjangoUserAdmin):
-    list_display = ("username", "email", "full_name", "role", "active_pill", "notes_n", "homework_n", "todos_n", "date_joined", "last_login")
+class StudentAdmin(HintMixin, DjangoUserAdmin):
+    list_hint = "Everyone who can sign in. Counts show how much each student has created. Disabled accounts cannot log in but keep their data."
+    form_hint = "Set a student's details and access. Use Active to allow or block login, and Staff only for people who should reach this admin."
+    search_help_text = "Search username, email or name."
+    list_display = ("username", "email", "role", "active_pill", "notes_n", "homework_n", "todos_n", "date_joined", "last_login")
     list_filter = ("is_staff", "is_active", "is_superuser", "date_joined")
     search_fields = ("username", "email", "first_name", "last_name")
     date_hierarchy = "date_joined"

@@ -248,3 +248,34 @@ class AdminPanelTests(TestCase):
         self.admin.refresh_from_db(); self.student.refresh_from_db()
         self.assertTrue(self.admin.is_active)
         self.assertFalse(self.student.is_active)
+
+    def test_login_page_uses_site_layout(self):
+        res = self.client.get('/admin/login/')
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, 'id="login-form"')
+        self.assertContains(res, 'auth-form')
+        self.assertContains(res, 'data-buddies')
+        self.assertContains(res, 'Manage students')
+        bad = self.client.post('/admin/login/', {'username': 'boss', 'password': 'wrong'})
+        self.assertEqual(bad.status_code, 200)
+        self.assertContains(bad, 'form-alert')
+        ok = self.client.post('/admin/login/?next=/admin/', {'username': 'boss', 'password': 'Admin-pass-123', 'next': '/admin/'})
+        self.assertEqual(ok.status_code, 302)
+
+    def test_shell_has_nav_palette_and_guidance(self):
+        self.client.login(username='boss', password='Admin-pass-123')
+        res = self.client.get('/admin/')
+        self.assertContains(res, 'nav-pill')
+        self.assertContains(res, 'id="palette"')
+        self.assertContains(res, 'Needs your attention')
+        self.assertContains(res, 'Quick actions')
+        self.assertContains(res, 'How this admin works')
+        self.assertEqual([a['text'] for a in res.context['ov_attention']][:1], ['homework overdue'])
+        hw = self.client.get('/admin/dashboard/homework/')
+        self.assertContains(hw, 'sd-hint')
+        self.assertContains(hw, 'Deadline filter')
+
+    def test_messages_become_toasts(self):
+        self.client.login(username='boss', password='Admin-pass-123')
+        res = self.client.post('/admin/dashboard/homework/', {'action': 'mark_done', '_selected_action': [self.hw_late.pk]}, follow=True)
+        self.assertContains(res, 'class="toast success"')

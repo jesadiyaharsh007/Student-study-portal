@@ -1,9 +1,48 @@
 {% extends "admin/index.html" %}
-{% load i18n %}
+{% load i18n ui log %}
+
+{% block content_title %}
+<h1><span data-greet>Welcome back</span>, {{ user.username }}.</h1>
+<p class="sd-lead">Here is what is happening across the portal today.</p>
+{% endblock %}
+{% block content_subtitle %}{% endblock %}
 
 {% block content %}
 {% if ov_users %}
 <section class="sd-overview" aria-label="Overview">
+
+  <div class="sd-grid sd-grid-top">
+    <div class="sd-card sd-attention">
+      <span class="sd-label">Needs your attention</span>
+      {% if ov_attention %}
+      <ul class="sd-todo">
+        {% for a in ov_attention %}
+        <li>
+          <a href="{% url a.url %}{{ a.query }}">
+            <span class="glyph sd-g-{{ a.tone }}">{% icon a.icon %}</span>
+            <span class="sd-todo-text"><b>{{ a.count }} {{ a.text }}</b><small>{{ a.hint }}</small></span>
+            {% icon "arrow-up-right" "ic-sm" %}
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="sd-allclear"><span class="glyph sd-g-ok">{% icon "check-circle" %}</span><div><b>All clear</b><small>No overdue homework and no disabled accounts.</small></div></div>
+      {% endif %}
+    </div>
+
+    <div class="sd-card">
+      <span class="sd-label">Quick actions</span>
+      <div class="sd-actions">
+        <a class="sd-act" href="{% url 'admin:auth_user_add' %}">{% icon "user-plus" %}<span>Add student</span></a>
+        <a class="sd-act" href="{% url 'admin:dashboard_notes_add' %}">{% icon "note" %}<span>Add note</span></a>
+        <a class="sd-act" href="{% url 'admin:dashboard_homework_add' %}">{% icon "clipboard" %}<span>Add homework</span></a>
+        <a class="sd-act" href="{% url 'admin:dashboard_todo_add' %}">{% icon "checks" %}<span>Add to-do</span></a>
+      </div>
+      <small class="sd-tip">Tip: press <span class="kbd">Ctrl K</span> anywhere to jump to a section or start a task.</small>
+    </div>
+  </div>
+
   <div class="sd-stats">
     <a class="sd-card sd-stat" href="{% url 'admin:auth_user_changelist' %}">
       <span class="sd-label">Students</span>
@@ -18,7 +57,7 @@
     <a class="sd-card sd-stat" href="{% url 'admin:dashboard_homework_changelist' %}?is_finished__exact=0">
       <span class="sd-label">Homework open</span>
       <b class="sd-num">{{ ov_hw.open }}</b>
-      <small>{% if ov_hw.overdue %}<span class="sd-bad">{{ ov_hw.overdue }} overdue</span>{% else %}nothing overdue{% endif %}</small>
+      <small>{% if ov_hw.overdue %}<span class="sd-badtext">{{ ov_hw.overdue }} overdue</span>{% else %}nothing overdue{% endif %}</small>
     </a>
     <a class="sd-card sd-stat" href="{% url 'admin:dashboard_todo_changelist' %}?is_finished__exact=0">
       <span class="sd-label">To-dos open</span>
@@ -42,7 +81,7 @@
         <li><span>{{ s.name }}</span><i style="--w: {{ s.pct }}%"></i><b>{{ s.count }}</b></li>
         {% endfor %}
       </ul>
-      {% else %}<p class="sd-empty">No notes or homework yet.</p>{% endif %}
+      {% else %}<p class="sd-empty">No notes or homework yet. They will show up here as students add them.</p>{% endif %}
     </div>
 
     <div class="sd-card">
@@ -50,7 +89,7 @@
       <ul class="sd-people">
         {% for u in ov_recent %}
         <li>
-          <span class="sd-avatar">{{ u.username|slice:":1"|upper }}</span>
+          <span class="avatar">{{ u.username|initial }}</span>
           <a href="{% url 'admin:auth_user_change' u.pk %}">{{ u.username }}</a>
           <small>{{ u.date_joined|timesince }} ago</small>
         </li>
@@ -58,7 +97,40 @@
       </ul>
     </div>
   </div>
+
+  <div class="sd-card">
+    <span class="sd-label">Your recent changes</span>
+    {% get_admin_log 6 as admin_log for_user user %}
+    {% if admin_log %}
+    <ul class="sd-recent">
+      {% for entry in admin_log %}
+      <li>
+        <span class="glyph sd-g-{% if entry.is_deletion %}bad{% elif entry.is_addition %}ok{% else %}info{% endif %}">{% if entry.is_deletion %}{% icon "trash" %}{% elif entry.is_addition %}{% icon "plus" %}{% else %}{% icon "pencil" %}{% endif %}</span>
+        <span class="sd-recent-text">
+          {% if entry.is_deletion or not entry.get_admin_url %}<b>{{ entry.object_repr }}</b>{% else %}<a href="{{ entry.get_admin_url }}">{{ entry.object_repr }}</a>{% endif %}
+          <small>{% if entry.is_addition %}Added{% elif entry.is_change %}Changed{% else %}Deleted{% endif %}{% if entry.content_type %} {{ entry.content_type.name }}{% endif %}</small>
+        </span>
+        <small>{{ entry.action_time|timesince }} ago</small>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}<p class="sd-empty">Nothing yet. Edits you make in this admin will be listed here so you can jump back to them.</p>{% endif %}
+  </div>
+
+  <details class="sd-card sd-help">
+    <summary><span class="sd-label">How this admin works</span></summary>
+    <ul>
+      <li><b>Find anything fast.</b> Use search on any list, the filters on the right, or <span class="kbd">Ctrl K</span> to jump.</li>
+      <li><b>Change many at once.</b> Tick rows, choose an action (mark done, disable accounts, export CSV) and press Run.</li>
+      <li><b>Quick edits.</b> The "Is finished" checkbox in Homework and To-dos saves from the list; press Save at the bottom.</li>
+      <li><b>Disabling is safe.</b> A disabled student cannot log in, but their notes and tasks are kept. Re-activate any time.</li>
+    </ul>
+  </details>
 </section>
 {% endif %}
+
+<h2 class="sd-section">All data</h2>
 {{ block.super }}
 {% endblock %}
+
+{% block sidebar %}{% endblock %}

@@ -1,0 +1,48 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static ui %}
+
+{% block title %}Admin log in | {{ site_title|default:_('Django site admin') }}{% endblock %}
+{% block bodyclass %}{{ block.super }} login{% endblock %}
+{% block nav-breadcrumbs %}{% endblock %}
+{% block content_title %}{% endblock %}
+{% block content_subtitle %}{% endblock %}
+
+{% block content %}
+<div class="wrap">
+  <div class="auth">
+    <div class="bz"><div class="core auth-photo buddy-panel" data-buddies data-state="idle" data-mood="neutral">
+      {% include 'dashboard/partials/buddies.html' %}
+      <div class="cap"><h2>Keep the portal running smoothly.</h2><p>Students, notes and deadlines, all in one place.</p></div>
+    </div></div>
+
+    <section class="auth-form">
+      <div><h1>Admin log in</h1><p class="muted u-margin-top-p7rem">Use your staff account to manage the portal.</p></div>
+
+      {% if user.is_authenticated %}
+      <div class="form-alert">{% icon "alert-circle" %}<div>You are signed in as <b>{{ user.username }}</b>, but that account is not allowed in the admin. Sign in with a staff account, or <a class="link" href="{{ site_url|default:'/' }}">go back to the student site</a>.</div></div>
+      {% endif %}
+
+      <form action="{{ app_path }}" method="post" id="login-form" class="form-grid" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ next }}">
+        {% if form.non_field_errors %}<div class="form-alert">{% icon "alert-circle" %}<div>{% for e in form.non_field_errors %}{{ e }} {% endfor %}</div></div>{% endif %}
+        {% include 'dashboard/partials/field.html' with field=form.username icon="user" %}
+        {% include 'dashboard/partials/field.html' with field=form.password icon="lock" password=True %}
+        <button class="btn btn-ink btn-block" type="submit"><span>Log in</span><span class="btn-ico">{% icon "arrow-up-right" %}</span></button>
+      </form>
+
+      <ul class="sd-can">
+        <li>{% icon "user" %}<span><b>Manage students</b> Review accounts, activity and access.</span></li>
+        <li>{% icon "clipboard" %}<span><b>Track deadlines</b> Spot overdue homework before it piles up.</span></li>
+        <li>{% icon "file" %}<span><b>Export data</b> Download notes, homework and to-dos as CSV.</span></li>
+      </ul>
+
+      <p class="auth-foot">Not an administrator? <a class="link" href="{{ site_url|default:'/' }}">Go to the student site</a>.</p>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block footer %}
+<script src="{% static 'js/app.js' %}?v=6.2" defer></script>
+{% endblock %}
