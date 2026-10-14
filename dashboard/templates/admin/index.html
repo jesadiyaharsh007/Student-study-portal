@@ -35,9 +35,9 @@
       <span class="sd-label">Quick actions</span>
       <div class="sd-actions">
         <a class="sd-act" href="{% url 'admin:auth_user_add' %}">{% icon "user-plus" %}<span>Add student</span></a>
-        <a class="sd-act" href="{% url 'admin:dashboard_notes_add' %}">{% icon "note" %}<span>Add note</span></a>
-        <a class="sd-act" href="{% url 'admin:dashboard_homework_add' %}">{% icon "clipboard" %}<span>Add homework</span></a>
-        <a class="sd-act" href="{% url 'admin:dashboard_todo_add' %}">{% icon "checks" %}<span>Add to-do</span></a>
+        <a class="sd-act" href="{% url 'admin:dashboard_homework_changelist' %}?deadline=overdue">{% icon "alert" %}<span>Overdue homework</span></a>
+        <a class="sd-act" href="{% url 'admin:auth_user_changelist' %}?account=disabled">{% icon "lock" %}<span>Disabled accounts</span></a>
+        <a class="sd-act" href="{{ site_url|default:'/' }}">{% icon "home" %}<span>Student site</span></a>
       </div>
       <small class="sd-tip">Tip: press <span class="kbd">Ctrl K</span> anywhere to jump to a section or start a task.</small>
     </div>
@@ -54,12 +54,12 @@
       <b class="sd-num">{{ ov_notes }}</b>
       <small>across all subjects</small>
     </a>
-    <a class="sd-card sd-stat" href="{% url 'admin:dashboard_homework_changelist' %}?is_finished__exact=0">
+    <a class="sd-card sd-stat" href="{% url 'admin:dashboard_homework_changelist' %}?state=open">
       <span class="sd-label">Homework open</span>
       <b class="sd-num">{{ ov_hw.open }}</b>
       <small>{% if ov_hw.overdue %}<span class="sd-badtext">{{ ov_hw.overdue }} overdue</span>{% else %}nothing overdue{% endif %}</small>
     </a>
-    <a class="sd-card sd-stat" href="{% url 'admin:dashboard_todo_changelist' %}?is_finished__exact=0">
+    <a class="sd-card sd-stat" href="{% url 'admin:dashboard_todo_changelist' %}?state=open">
       <span class="sd-label">To-dos open</span>
       <b class="sd-num">{{ ov_todo.open }}</b>
       <small>{{ ov_todo.done }} finished</small>
@@ -129,8 +129,6 @@
 </section>
 {% endif %}
 
-<h2 class="sd-section">All data</h2>
-{{ block.super }}
 {% endblock %}
 
 {% block sidebar %}{% endblock %}

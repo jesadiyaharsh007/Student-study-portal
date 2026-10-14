@@ -211,7 +211,7 @@ class AdminPanelTests(TestCase):
         for url in ('/admin/auth/user/', '/admin/dashboard/notes/', '/admin/dashboard/homework/', '/admin/dashboard/todo/',
                     '/admin/dashboard/homework/?deadline=overdue', '/admin/dashboard/homework/?deadline=week',
                     '/admin/dashboard/notes/?q=cmd', f'/admin/dashboard/notes/{self.note.pk}/change/',
-                    f'/admin/dashboard/homework/{self.hw_ok.pk}/change/', '/admin/dashboard/todo/add/',
+                    f'/admin/dashboard/homework/{self.hw_ok.pk}/change/', '/admin/auth/user/add/',
                     f'/admin/auth/user/{self.student.pk}/change/'):
             self.assertEqual(self.client.get(url).status_code, 200, url)
 
@@ -273,9 +273,27 @@ class AdminPanelTests(TestCase):
         self.assertEqual([a['text'] for a in res.context['ov_attention']][:1], ['homework overdue'])
         hw = self.client.get('/admin/dashboard/homework/')
         self.assertContains(hw, 'sd-hint')
-        self.assertContains(hw, 'Deadline filter')
+        self.assertContains(hw, 'Filter by deadline')
 
     def test_messages_become_toasts(self):
         self.client.login(username='boss', password='Admin-pass-123')
         res = self.client.post('/admin/dashboard/homework/', {'action': 'mark_done', '_selected_action': [self.hw_late.pk]}, follow=True)
         self.assertContains(res, 'class="toast success"')
+
+    def test_admin_is_narrowed_to_what_is_needed(self):
+        self.client.login(username='boss', password='Admin-pass-123')
+        # students create content on the site, so the admin has no "Add" for it
+        for url in ('/admin/dashboard/notes/add/', '/admin/dashboard/homework/add/', '/admin/dashboard/todo/add/'):
+            self.assertEqual(self.client.get(url).status_code, 403, url)
+        # no groups, no permission pickers, no duplicate save buttons
+        self.assertEqual(self.client.get('/admin/auth/group/').status_code, 404)
+        form = self.client.get(f'/admin/auth/user/{self.student.pk}/change/')
+        self.assertNotContains(form, 'user_permissions')
+        self.assertNotContains(form, 'groups')
+        self.assertContains(form, 'name="_save"')
+        # overview no longer repeats the full app list
+        self.assertNotContains(self.client.get('/admin/'), 'All data')
+        # filters use readable names instead of raw field lookups
+        self.assertEqual(self.client.get('/admin/dashboard/homework/?state=open').status_code, 200)
+        self.assertEqual(self.client.get('/admin/auth/user/?account=disabled').status_code, 200)
+        self.assertEqual(self.client.get('/admin/auth/user/?role=staff').status_code, 200)

@@ -25,7 +25,7 @@ class Notes(models.Model):
         return self.title
     
     class Meta:
-        verbose_name = "notes"
+        verbose_name = "note"
         verbose_name_plural = "notes"
 
 class Homework(models.Model):
@@ -35,6 +35,10 @@ class Homework(models.Model):
     description = models.TextField(default='')
     due = models.DateTimeField(default=timezone.now)
     is_finished = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name = "homework"
+        verbose_name_plural = "homework"
 
     def __str__(self):
         return self.title
@@ -46,3 +50,7 @@ class Todo(models.Model):
 
     def __str__(self):
         return self.title
+
+    class Meta:
+        verbose_name = "to-do"
+        verbose_name_plural = "to-dos"

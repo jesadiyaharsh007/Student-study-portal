@@ -69,9 +69,9 @@ class StudyAdminSite(admin.AdminSite):
         if hw["today"]:
             attention.append({"tone": "warn", "icon": "clock", "count": hw["today"], "text": "homework due today", "hint": "Still open and due before midnight.", "url": "admin:dashboard_homework_changelist", "query": "?deadline=today"})
         if users["disabled"]:
-            attention.append({"tone": "muted", "icon": "lock", "count": users["disabled"], "text": "disabled accounts", "hint": "These students cannot log in.", "url": "admin:auth_user_changelist", "query": "?is_active__exact=0"})
+            attention.append({"tone": "muted", "icon": "lock", "count": users["disabled"], "text": "disabled accounts", "hint": "These students cannot log in.", "url": "admin:auth_user_changelist", "query": "?account=disabled"})
         if users["week"]:
-            attention.append({"tone": "info", "icon": "user-plus", "count": users["week"], "text": "new students this week", "hint": "Welcome them and check their accounts.", "url": "admin:auth_user_changelist", "query": "?date_joined__gte=" + week_ago.strftime("%Y-%m-%d")})
+            attention.append({"tone": "info", "icon": "user-plus", "count": users["week"], "text": "new students this week", "hint": "Welcome them and check their accounts.", "url": "admin:auth_user_changelist", "query": "?role=student"})
 
         return {
             "ov_attention": attention,

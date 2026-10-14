@@ -1,0 +1,55 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static admin_filters ui %}
+
+{% block extrahead %}
+    {{ block.super }}
+    <script src="{% static 'admin/js/cancel.js' %}" async></script>
+{% endblock %}
+
+{% block bodyclass %}{{ block.super }} app-{{ opts.app_label }} model-{{ opts.model_name }} delete-confirmation{% endblock %}
+
+{% block breadcrumbs %}
+<ol class="breadcrumbs">
+  <li><a href="{% url 'admin:index' %}">Overview</a></li>
+  <li><a href="{% url opts|admin_urlname:'changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a></li>
+  <li aria-current="page">Delete</li>
+</ol>
+{% endblock %}
+
+{% block content_title %}<h1>Delete {{ object_name }}?</h1>{% endblock %}
+{% block content_subtitle %}{% endblock %}
+
+{% block content %}
+<div class="sd-confirm">
+  <span class="glyph sd-g-bad">{% icon "trash" %}</span>
+  {% if perms_lacking %}
+    <h2>You can't delete this</h2>
+    <p>Deleting “{{ escaped_object }}” would also delete items your account is not allowed to delete:</p>
+    <ul class="sd-affected" id="deleted-objects">{{ perms_lacking|truncated_unordered_list:delete_confirmation_max_display }}</ul>
+    <a role="button" href="#" class="button cancel-link">Go back</a>
+  {% elif protected %}
+    <h2>This item is protected</h2>
+    <p>“{{ escaped_object }}” can't be deleted while these related items exist:</p>
+    <ul class="sd-affected" id="deleted-objects">{{ protected|truncated_unordered_list:delete_confirmation_max_display }}</ul>
+    <a role="button" href="#" class="button cancel-link">Go back</a>
+  {% else %}
+    <h2>Delete “{{ escaped_object }}”?</h2>
+    <p>This can't be undone.{% if model_count|length > 1 %} Related items will be removed too.{% endif %}</p>
+    <div class="sd-chips">{% for model_name, object_count in model_count %}<span class="sd-pill sd-muted">{{ model_name|capfirst }}: {{ object_count }}</span>{% endfor %}</div>
+    {% if delete_confirmation_max_display is None or delete_confirmation_max_display > 0 %}
+    <details class="sd-affected-box"><summary>See everything that will be deleted</summary>
+      <ul class="sd-affected" id="deleted-objects">{{ deleted_objects|truncated_unordered_list:delete_confirmation_max_display }}</ul>
+    </details>
+    {% endif %}
+    <form method="post">{% csrf_token %}
+      <div class="sd-confirm-actions">
+        <input type="hidden" name="post" value="yes">
+        {% if is_popup %}<input type="hidden" name="{{ is_popup_var }}" value="1">{% endif %}
+        {% if to_field %}<input type="hidden" name="{{ to_field_var }}" value="{{ to_field }}">{% endif %}
+        <input type="submit" value="Yes, delete it">
+        <a role="button" href="#" class="button cancel-link">No, take me back</a>
+      </div>
+    </form>
+  {% endif %}
+</div>
+{% endblock %}
