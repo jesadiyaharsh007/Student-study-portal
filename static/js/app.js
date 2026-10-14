@@ -892,27 +892,30 @@
       ta.dispatchEvent(new Event('input'));
       const t = document.createElement('div');
       t.className = 'msg bot typing tone-pink';
-      t.innerHTML = '<div class="av"><svg class="ic"><use href="#i-bot"/></svg></div><div class="bubble"><div class="typing-dots"><i></i><i></i><i></i></div><span class="typing-status">Thinking...</span></div>';
+      t.innerHTML = `
+        <div class="av"><svg class="ic" aria-hidden="true"><use href="#i-bot"/></svg></div>
+        <div class="bubble" role="status" aria-label="Lexi is thinking...">
+          <div class="claude-loader" aria-hidden="true">
+            <span class="claude-spark-icon">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12,2a1.5,1.5,0,0,1,1.5,1.5v3.5a1.5,1.5,0,0,1-3,0V3.5A1.5,1.5,0,0,1,12,2Zm0,13a1.5,1.5,0,0,1,1.5,1.5v3.5a1.5,1.5,0,0,1-3,0V16.5A1.5,1.5,0,0,1,12,15ZM2,12A1.5,1.5,0,0,1,3.5,10.5H7a1.5,1.5,0,0,1,0,3H3.5A1.5,1.5,0,0,1,2,12Zm15,0a1.5,1.5,0,0,1,1.5-1.5h3.5a1.5,1.5,0,0,1,0,3H18.5A1.5,1.5,0,0,1,17,12ZM4.93,4.93a1.5,1.5,0,0,1,2.12,0l2.47,2.48a1.5,1.5,0,0,1-2.12,2.12L4.93,7.05A1.5,1.5,0,0,1,4.93,4.93Zm11.67,11.67a1.5,1.5,0,0,1,2.12,0l2.48,2.47a1.5,1.5,0,0,1-2.12,2.12l-2.48-2.47A1.5,1.5,0,0,1,16.6,16.6ZM4.93,19.07a1.5,1.5,0,0,1,0-2.12l2.47-2.48a1.5,1.5,0,0,1,2.12,2.12L7.05,19.07A1.5,1.5,0,0,1,4.93,19.07Zm11.67-11.67a1.5,1.5,0,0,1,0-2.12l2.48-2.48a1.5,1.5,0,0,1,2.12,2.12L19.07,7.4A1.5,1.5,0,0,1,16.6,7.4Z"/>
+              </svg>
+            </span>
+            <span class="claude-wave">
+              <i></i><i></i><i></i>
+            </span>
+          </div>
+        </div>
+      `;
       log.append(t); log.scrollTop = log.scrollHeight;
-      const statusEl = $('.typing-status', t);
-      const phases = ['Analyzing question...', 'Connecting concepts...', 'Drafting explanation...'];
-      let phaseIdx = 0;
-      const statusTimer = setInterval(() => {
-        if (statusEl && phaseIdx < phases.length) {
-          statusEl.textContent = phases[phaseIdx++];
-          log.scrollTop = log.scrollHeight;
-        }
-      }, 2000);
       try {
         const fd = new FormData(); fd.append('prompt', text);
         const r = await fetch(url, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrf() }, credentials: 'same-origin' });
         const d = await r.json().catch(() => ({}));
-        clearInterval(statusTimer);
         t.remove();
         if (d.ok) addMsg('bot', d.reply);
         else { toast('danger', d.error || 'Lexi is unavailable right now.'); }
       } catch (e) {
-        clearInterval(statusTimer);
         t.remove();
         toast('danger', 'You appear to be offline.');
       }

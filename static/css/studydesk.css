@@ -865,12 +865,92 @@ dialog.closing::backdrop { animation: fade .25s reverse forwards; }
   border-color: color-mix(in oklab, var(--ok) 30%, transparent);
 }
 
-.typing .bubble { display: flex; align-items: center; gap: .7rem; padding: .85rem 1.2rem; }
-.typing-dots { display: inline-flex; gap: 5px; align-items: center; }
-.typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); animation: bounce 1.2s var(--ease) infinite; }
-.typing i:nth-child(2) { animation-delay: .15s; }
-.typing i:nth-child(3) { animation-delay: .3s; }
-.typing-status { font-size: .84rem; color: var(--muted); font-weight: 500; font-family: inherit; }
+.typing .bubble {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: .65rem 1rem;
+  min-height: 38px;
+  width: fit-content;
+  border-radius: 18px;
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 1px var(--hair);
+}
+.claude-loader {
+  display: inline-flex;
+  align-items: center;
+  gap: .65rem;
+  line-height: 1;
+}
+.claude-spark-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  color: var(--accent);
+  transform-origin: center center;
+  animation: claudeSpin 2.4s cubic-bezier(.4, 0, .2, 1) infinite;
+  will-change: transform, opacity;
+}
+.claude-spark-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+@keyframes claudeSpin {
+  0% {
+    transform: rotate(0deg) scale(.92);
+    opacity: .75;
+    filter: drop-shadow(0 0 0px transparent);
+  }
+  50% {
+    transform: rotate(180deg) scale(1.1);
+    opacity: 1;
+    filter: drop-shadow(0 0 6px var(--accent-soft));
+  }
+  100% {
+    transform: rotate(360deg) scale(.92);
+    opacity: .75;
+    filter: drop-shadow(0 0 0px transparent);
+  }
+}
+.claude-wave {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.claude-wave i {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--muted);
+  opacity: .35;
+  transform: scale(.8);
+  animation: claudePulse 1.3s cubic-bezier(.45, .05, .55, .95) infinite;
+  will-change: transform, opacity, background-color;
+}
+.claude-wave i:nth-child(1) { animation-delay: 0s; }
+.claude-wave i:nth-child(2) { animation-delay: .18s; }
+.claude-wave i:nth-child(3) { animation-delay: .36s; }
+@keyframes claudePulse {
+  0%, 100% {
+    transform: scale(.8);
+    opacity: .35;
+    background: var(--muted);
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 1;
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--accent-soft);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .claude-spark-icon { animation: none; opacity: 1; }
+  .claude-wave i { animation: none; opacity: .7; }
+}
 .chat-empty { margin: auto; max-width: 560px; padding: 1rem; }
 .chat-empty h2 { font-size: clamp(2rem, 4.4vw, 3.2rem); letter-spacing: -.05em; font-weight: 500; margin: 1rem 0 .6rem; } .chat-empty p { color: var(--muted); }
 .suggest { display: grid; gap: .5rem; margin-top: 1.6rem; }

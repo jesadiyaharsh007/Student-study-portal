@@ -31,7 +31,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400;500&display=swap">
-  <link rel="stylesheet" href="{% static 'css/studydesk.css' %}?v=6.1">
+  <link rel="stylesheet" href="{% static 'css/studydesk.css' %}?v=6.2">
   {% block head %}{% endblock %}
 </head>
 <body{% if user.is_authenticated %} data-csrf="{{ csrf_token }}" data-initial="{{ user.username|initial }}"{% endif %}>
@@ -148,7 +148,7 @@
     </div></div></div>
   </dialog>
 
-  <script src="{% static 'js/app.js' %}?v=5.4" defer></script>
+  <script src="{% static 'js/app.js' %}?v=5.5" defer></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>
