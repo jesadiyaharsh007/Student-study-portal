@@ -1,142 +1,69 @@
-{% extends 'dashboard/base.html' %} {% load static %}
-{% load crispy_forms_tags%}
+{% extends 'dashboard/base.html' %}
+{% load ui %}
+{% block title %}Dashboard{% endblock %}
+{% block robots %}noindex,nofollow{% endblock %}
 {% block content %}
-<section>
-    <div class="container">
-        <!-- User Profile Overview Card -->
-        <div class="card mb-4 border-0 shadow-sm" style="border-radius: 1rem; background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);">
-            <div class="card-body p-4">
-                <div class="row align-items-center">
-                    <div class="col-md-8 text-center text-md-left mb-3 mb-md-0">
-                        <div class="d-flex flex-column flex-md-row align-items-center">
-                            <div class="user-avatar-large mr-md-3 mb-2 mb-md-0" style="width: 64px; height: 64px; font-size: 1.75rem;">
-                                {% if user.username %}{{ user.username|slice:":1"|upper }}{% else %}U{% endif %}
-                            </div>
-                            <div>
-                                <div class="d-flex align-items-center justify-content-center justify-content-md-start">
-                                    <h3 class="font-weight-bold mb-0 text-dark">{{ user.username }}</h3>
-                                    <span class="badge badge-success-soft ml-2"><i class="fas fa-check-circle mr-1"></i>Logged in</span>
-                                    {% if user.is_staff %}
-                                    <span class="badge badge-primary ml-1">Admin</span>
-                                    {% endif %}
-                                </div>
-                                <p class="text-muted mb-0 small mt-1">
-                                    {% if user.email %}
-                                    <i class="fas fa-envelope mr-1 text-primary"></i> {{ user.email }}
-                                    {% else %}
-                                    <i class="fas fa-user-graduate mr-1 text-primary"></i> Student Portal Member
-                                    {% endif %}
-                                    <span class="mx-2">•</span>
-                                    <span><i class="fas fa-tasks mr-1 text-warning"></i> {{ todos|length }} Pending To-Dos</span>
-                                    <span class="mx-2">•</span>
-                                    <span><i class="fas fa-book mr-1 text-info"></i> {{ homework|length }} Pending Homeworks</span>
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-4 text-center text-md-right">
-                        <a href="{% url 'logout' %}" class="btn btn-outline-danger px-4">
-                            <i class="fas fa-sign-out-alt mr-1"></i> Logout
-                        </a>
-                    </div>
-                </div>
-            </div>
+<div class="wrap">
+  <header class="dash-head">
+    <h1><span data-greet>Welcome back</span>,<br>{{ user.username }}.</h1>
+    <div class="clock"><b data-clock>--:--</b><span data-date></span></div>
+  </header>
+
+  <div class="dash">
+    <div>
+      <section class="bz focus"><div class="core focus-core">
+        <div class="photo scrim">{% photo "homework" "" "(min-width:1000px) 55vw, 100vw" True "60% 50%" %}</div>
+        <div class="in focus-in">
+          {% if homework %}
+          {% with next=homework.0 %}
+          <small>Next up</small>
+          <h2>{{ next.title }}</h2>
+          <div class="row wrap-r u-gap-1rem"><span class="due" data-due="{{ next.due|date:'Y-m-d' }}">{% icon "clock" "ic-sm" %}<span>{{ next.due|date:"M j" }}</span></span><span class="tag tag-on-photo">{{ next.subject }}</span></div>
+          {% endwith %}
+          <a class="btn btn-ink" href="{% url 'homework' %}"><span>All homework</span><span class="btn-ico">{% icon "arrow-up-right" %}</span></a>
+          {% else %}
+          <small>Nothing due</small>
+          <h2>You are clear for now.</h2>
+          <a class="btn btn-ink" href="{% url 'homework' %}"><span>Add homework</span><span class="btn-ico">{% icon "plus" %}</span></a>
+          {% endif %}
         </div>
+      </div></section>
 
-        <h2 class="text-center mb-3">Due ToDos</h2>
-        <table class="table table-striped table-bordered table-hover table-dark">
-            <thead>
-                <tr>
-                    <th scope="col">#</th>
-                    <th scope="col">Title</th>
-                    <th scope="col">Status</th>
-                    <th scope="col">Delete</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for todo in todos %}
-                <tr>
-                    <th scope="row">{{ forloop.counter }}</th>
-                    <td>{{ todo.title }}</td>
-                    <td>
-                        <a href="{% url 'update-todo' todo.id %}">
-                            <div class="form-check">
-                                {% if todo.is_finished %}
-                                <input class="form-check-input" type="checkbox" value="" checked
-                                    onchange="window.location.href=`{% url 'update-todo' todo.id %}`">
-                                {% else %}
-                                <input class="form-check-input" type="checkbox" value=""
-                                    onchange="window.location.href=`{% url 'update-todo' todo.id %}`">
-                                {% endif %}
-                                <label class="form-check-label text-light" for="flexCheckDefault">
-                                    Mark as Completed
-                                </label>
-                            </div>
-                        </a>
-                    </td>
+      <section class="bz panel-card"><div class="core" data-scope>
+        <header><h2>Open to-dos</h2><a class="btn btn-soft btn-sm no-ico" href="{% url 'todo' %}">Manage</a></header>
+        <ul class="items" data-list data-remove-on-done data-key="todo" {% if not todos %}hidden{% endif %}>
+          {% for t in todos %}{% include 'dashboard/partials/todo_item.html' %}{% endfor %}
+        </ul>
+        <div class="empty u-padding-2p2rem-1rem" data-empty {% if todos %}hidden{% endif %}><h3>All clear</h3><p>No open to-dos. Add one when something comes up.</p></div>
+      </div></section>
 
-                    <td><a href="{% url 'delete-todo' todo.id %}"><i class="fa fa-trash fa-2x"></i></a></td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-
-        {% if todos_done %}
-        <h3>All To dos are completed!!!!</h3>
-        {% endif %}
-
-        <a href="{% url 'todo' %}" class="btn btn-danger">To Do</a>
-        <br><br>
-        <h2>Due Homeworks</h2>
-        <table class="table table-striped table-bordered table-hover table-dark">
-            <thead>
-                <tr>
-                    <th scope="col">#</th>
-                    <th scope="col">Subject</th>
-                    <th scope="col">Title</th>
-                    <th scope="col">Description</th>
-                    <th scope="col">Due</th>
-                    <th scope="col">Status</th>
-                    <th scope="col">Delete</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for hw in homework %}
-                <tr>
-                    <th scope="row">{{ forloop.counter }}</th>
-                    <td>{{ hw.subject }}</td>
-                    <td>{{ hw.title }}</td>
-                    <td>{{ hw.description }}</td>
-                    <td>{{ hw.due }}</td>
-
-                    <td>
-                        <a href="{% url 'update-homework' hw.id %}">
-                            <div class="form-check">
-                                {% if hw.is_finished %}
-                                <input class="form-check-input" type="checkbox" value="" checked
-                                    onchange="window.location.href=`{% url 'update-homework' hw.id %}`">
-                                {% else %}
-                                <input class="form-check-input" type="checkbox" value=""
-                                    onchange="window.location.href=`{% url 'update-homework' hw.id %}`">
-                                {% endif %}
-                                <label class="form-check-label text-light" for="flexCheckDefault">
-                                    Mark as Completed
-                                </label>
-                            </div>
-                        </a>
-                    </td>
-                    <td><a href="{% url 'delete-homework' hw.id %}"><i class="fa fa-trash fa-2x"></i></a></td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-
-        {% if homework_done %}
-        <h3>All Homeworks are completed!!!!</h3>
-        {% endif %}
-
-        <a href="{% url 'homework' %}" class="btn btn-danger">Homeworks</a>
+      <section class="bz panel-card"><div class="core" data-scope>
+        <header><h2>Upcoming homework</h2><a class="btn btn-soft btn-sm no-ico" href="{% url 'homework' %}">Manage</a></header>
+        <ul class="items" data-list data-remove-on-done data-key="homework" {% if not homework %}hidden{% endif %}>
+          {% for h in homework %}{% include 'dashboard/partials/homework_item.html' %}{% endfor %}
+        </ul>
+        <div class="empty u-padding-2p2rem-1rem" data-empty {% if homework %}hidden{% endif %}><h3>No homework due</h3><p>Enjoy it while it lasts.</p></div>
+      </div></section>
     </div>
-</section>
 
-{% endblock content %}
+    <div>
+      <section class="bz stat-card"><div class="core">
+        {% include 'dashboard/partials/ring.html' with pct=progress size="150px" ring_id="overall-ring" total=tasks_total %}
+        <p>{% if tasks_total %}<span data-stat="done" data-count-to="{{ tasks_done }}">{{ tasks_done }}</span> of {{ tasks_total }} task{{ tasks_total|pluralize }} finished.{% else %}No tasks yet. Add one to start your streak.{% endif %}</p>
+        <div class="nums">
+          <a href="{% url 'todo' %}"><span>Open to-dos</span><b data-stat="todo-pending" data-count-to="{{ todo_pending }}">{{ todo_pending }}</b></a>
+          <a href="{% url 'homework' %}"><span>Homework due</span><b data-stat="homework-pending" data-count-to="{{ homework_pending }}">{{ homework_pending }}</b></a>
+          <a href="{% url 'notes' %}"><span>Notes saved</span><b data-count-to="{{ notes_count }}">{{ notes_count }}</b></a>
+        </div>
+      </div></section>
+
+      <section class="bz panel-card"><div class="core">
+        <header><h2>Jump to</h2></header>
+        <div class="quick-links">
+          {% for t in tools %}<a href="{{ t.url }}">{% icon t.icon %}{{ t.label }}{% icon "arrow-up-right" "ic-sm" %}</a>{% endfor %}
+        </div>
+      </div></section>
+    </div>
+  </div>
+</div>
+{% endblock %}

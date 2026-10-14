@@ -1,129 +1,102 @@
 {% extends 'dashboard/base.html' %}
-{% load static %}
+{% load ui %}
+{% block title %}Study smarter{% endblock %}
 {% block content %}
-
-<section class="hero-section">
-  <h1 class="hero-title">Your Ultimate Academic Companion</h1>
-  <p class="hero-subtitle">Organize your notes, track assignments, and access a world of knowledge—all in one place.</p>
-  {% if not user.is_authenticated %}
-  <a href="{% url 'register' %}" class="btn btn-primary btn-lg">Get Started Today</a>
-  {% else %}
-  <a href="{% url 'profile' %}" class="btn btn-primary btn-lg">Go to Dashboard</a>
-  {% endif %}
-</section>
-
-
-<section class="container mt-5">
-  <div class="row mb-4">
-    <div class="col-12 text-center mb-4">
-      <h3 class="font-weight-bold text-dark">Explore Our Tools</h3>
-      <p class="text-muted">Everything you need to study effectively.</p>
+<div class="wrap">
+  <section class="hero">
+    <div>
+      <span class="eyebrow">Student Study Portal</span>
+      <h1 class="display">One desk for the whole semester.</h1>
+      <p class="lead">Notes, homework, tasks and research in a single quiet workspace, made for students who prefer less noise.</p>
+      <div class="hero-cta">
+        {% if user.is_authenticated %}
+        <a href="{% url 'profile' %}" class="btn btn-ink"><span>Open dashboard</span><span class="btn-ico">{% icon "arrow-up-right" %}</span></a>
+        <a href="{% url 'chatbot' %}" class="btn btn-line no-ico">Ask the tutor</a>
+        {% else %}
+        <a href="{% url 'register' %}" class="btn btn-ink"><span>Start studying</span><span class="btn-ico">{% icon "arrow-up-right" %}</span></a>
+        <a href="{% url 'login' %}" class="btn btn-line no-ico">Log in</a>
+        {% endif %}
+      </div>
     </div>
-  </div>
+    <div class="cascade" aria-hidden="true">
+      <div class="bz c1"><div class="core"><div class="photo u-border-radius-0">{% photo "todo" "" "(min-width:1000px) 40vw, 90vw" True %}</div></div></div>
+      <div class="bz c2"><div class="core"><div class="photo u-border-radius-0">{% photo "homework" "" "(min-width:1000px) 20vw, 40vw" True "70% 60%" %}</div></div></div>
+    </div>
+  </section>
 
-  <div class="row g-4 mb-4">
+  <section class="section u-padding-top-2rem">
+    <div class="section-head reveal">
+      <h2 class="h2">Nine tools. One calm workspace.</h2>
+      <p>Everything a study session needs, a click apart.</p>
+    </div>
+    <div class="bento">
+      <a href="{% url 'notes' %}" class="bz hov t t-side c7 reveal"><div class="core">
+        <div class="photo">{% photo "notes" "A notebook with a fountain pen" "(min-width:1000px) 30vw, 90vw" %}</div>
+        <div class="tcopy"><div><h3>Notes</h3><p>Write once, find it in a second. Filed by subject.</p></div><span class="go">{% icon "arrow-up-right" %}</span></div>
+      </div></a>
+      <a href="{% url 'homework' %}" class="bz hov t t-over c5 reveal" style="--d:1"><div class="core">
+        <div class="photo scrim">{% photo "homework" "A laptop, coffee and notepad on a wooden desk" "(min-width:1000px) 40vw, 90vw" %}</div>
+        <div class="tcopy"><div><h3>Homework</h3><p>Deadlines with live countdowns.</p></div><span class="go">{% icon "arrow-up-right" %}</span></div>
+      </div></a>
+      <a href="{% url 'todo' %}" class="bz hov t t-top c4 reveal"><div class="core">
+        <div class="photo">{% photo "todo" "A letterboard reading things to do today" "(min-width:1000px) 30vw, 90vw" "40% 60%" %}</div>
+        <div class="tcopy"><div><h3>To-do</h3><p>Tick it off, feel it.</p></div><span class="go">{% icon "arrow-up-right" %}</span></div>
+      </div></a>
+      <a href="{% url 'chatbot' %}" class="bz hov t t-ink c4 reveal" style="--d:1"><div class="core">
+        {% icon "bot" "ic-bg" %}
+        <div class="big">Ask<em>.</em></div>
+        <div class="tcopy"><div><h3>AI Tutor</h3><p>Clear explanations on demand.</p></div><span class="go">{% icon "arrow-up-right" %}</span></div>
+      </div></a>
+      <a href="{% url 'dictionary' %}" class="bz hov t t-over c4 reveal" style="--d:2"><div class="core">
+        <div class="photo scrim">{% photo "dictionary" "Close-up of dictionary entries" "(min-width:1000px) 30vw, 90vw" %}</div>
+        <div class="tcopy"><div><h3>Dictionary</h3><p>Meaning, sound, synonyms.</p></div><span class="go">{% icon "arrow-up-right" %}</span></div>
+      </div></a>
+      <a href="{% url 'books' %}" class="bz hov t t-over c5 reveal"><div class="core">
+        <div class="photo scrim">{% photo "books" "A library aisle lit by hanging bulbs" "(min-width:1000px) 40vw, 90vw" "30% 50%" %}</div>
+        <div class="tcopy"><div><h3>Books</h3><p>Search a library of millions.</p></div><span class="go">{% icon "arrow-up-right" %}</span></div>
+      </div></a>
+      <a href="{% url 'wiki' %}" class="bz hov t t-top c7 reveal" style="--d:1"><div class="core">
+        <div class="photo u-min-height-200px">{% photo "wiki" "A Wikipedia article in a browser window" "(min-width:1000px) 50vw, 90vw" False "50% 0%" %}</div>
+        <div class="tcopy"><div><h3>Wikipedia</h3><p>Fast, trustworthy summaries.</p></div><span class="go">{% icon "arrow-up-right" %}</span></div>
+      </div></a>
+      <a href="{% url 'youtube' %}" class="bz hov t t-side c6 reveal"><div class="core">
+        <div class="photo">{% photo "youtube" "The YouTube home screen" "(min-width:1000px) 25vw, 90vw" %}</div>
+        <div class="tcopy"><div><h3>Videos</h3><p>Lessons without the rabbit hole.</p></div><span class="go">{% icon "arrow-up-right" %}</span></div>
+      </div></a>
+      <a href="{% url 'conversion' %}" class="bz hov t t-over c6 reveal" style="--d:1"><div class="core ink-on-yellow">
+        <div class="photo">{% photo "conversion" "A wooden ruler against a yellow background" "(min-width:1000px) 50vw, 90vw" %}</div>
+        <div class="tcopy ink-on-yellow"><div><h3>Converter</h3><p class="ink-2-on-yellow">Length, mass, temperature and more.</p></div><span class="go go-dark">{% icon "arrow-up-right" %}</span></div>
+      </div></a>
+    </div>
+  </section>
 
-    <div class="col-md-6 col-lg-3 mb-4">
-      <a href="{% url 'notes' %}" class="text-decoration-none">
-        <div class="card h-100">
-          <img class="card-img-top" src="{% static 'images/notes.jpg' %}" alt="Notes feature">
-          <div class="card-body">
-            <h5 class="card-title"><i class="fas fa-sticky-note text-warning mr-2"></i>Notes</h5>
-            <p class="card-text">Create and manage your study notes securely. Access them anytime, anywhere.</p>
-          </div>
+  <section class="section">
+    <div class="split">
+      <div class="bz reveal"><div class="core"><div class="photo zoom u-border-radius-0">{% photo "books" "Shelves of books" "(min-width:1000px) 40vw, 90vw" False "20% 50%" %}</div></div></div>
+      <div>
+        <h2 class="h2 reveal">Built to stay out of your way.</h2>
+        <div class="points u-margin-top-2p4rem">
+          <div class="reveal"><h3>Fast</h3><p>Pages open almost instantly, and checking off a task never reloads the page.</p></div>
+          <div class="reveal" style="--d:1"><h3>Private</h3><p>Your notes, homework and tasks belong to your account and nobody else's.</p></div>
+          <div class="reveal" style="--d:2"><h3>Everywhere</h3><p>Designed for phones first, so the library fits in your pocket.</p></div>
         </div>
-      </a>
+      </div>
     </div>
+  </section>
 
-    <div class="col-md-6 col-lg-3 mb-4">
-      <a href="{% url 'homework' %}" class="text-decoration-none">
-        <div class="card h-100">
-          <img class="card-img-top" src="{% static 'images/homework.jpg' %}" alt="Homework tracking">
-          <div class="card-body">
-            <h5 class="card-title"><i class="fas fa-book text-primary mr-2"></i>Homework</h5>
-            <p class="card-text">Track your assignments with deadlines. Stay on top of your due dates easily.</p>
-          </div>
-        </div>
-      </a>
+  <section class="reveal">
+    <div class="cta">
+      <div class="photo scrim">{% photo "homework" "" "100vw" False "40% 50%" %}</div>
+      <div class="in">
+        {% if user.is_authenticated %}
+        <h2>Welcome back, {{ user.username }}.</h2>
+        <a class="btn btn-ink" href="{% url 'profile' %}"><span>Continue studying</span><span class="btn-ico">{% icon "arrow-up-right" %}</span></a>
+        {% else %}
+        <h2>Make this your best semester yet.</h2>
+        <a class="btn btn-ink" href="{% url 'register' %}"><span>Create your account</span><span class="btn-ico">{% icon "arrow-up-right" %}</span></a>
+        {% endif %}
+      </div>
     </div>
-
-
-    <div class="col-md-6 col-lg-3 mb-4">
-      <a href="{% url 'youtube' %}" class="text-decoration-none">
-        <div class="card h-100">
-          <img class="card-img-top" src="{% static 'images/youtube.jpg' %}" alt="YouTube search">
-          <div class="card-body">
-            <h5 class="card-title"><i class="fab fa-youtube text-danger mr-2"></i>YouTube</h5>
-            <p class="card-text">Search and watch educational videos directly from the portal without distractions.</p>
-          </div>
-        </div>
-      </a>
-    </div>
-
-    <div class="col-md-6 col-lg-3 mb-4">
-      <a href="{% url 'todo' %}" class="text-decoration-none">
-        <div class="card h-100">
-          <img class="card-img-top" src="{% static 'images/todo.jpg' %}" alt="To do list">
-          <div class="card-body">
-            <h5 class="card-title"><i class="fas fa-check-square text-success mr-2"></i>To-Do</h5>
-            <p class="card-text">Manage your daily tasks and strike them off as you complete your goals.</p>
-          </div>
-        </div>
-      </a>
-    </div>
-  </div>
-
-  <div class="row g-4 mb-5">
-
-    <div class="col-md-6 col-lg-3 mb-4">
-      <a href="{% url 'books' %}" class="text-decoration-none">
-        <div class="card h-100">
-          <img class="card-img-top" src="{% static 'images/books.jpg' %}" alt="Books library">
-          <div class="card-body">
-            <h5 class="card-title"><i class="fas fa-book-open text-info mr-2"></i>Books</h5>
-            <p class="card-text">Browse and search for books. Access a vast library of knowledge instantly.</p>
-          </div>
-        </div>
-      </a>
-    </div>
-
-    <div class="col-md-6 col-lg-3 mb-4">
-      <a href="{% url 'dictionary' %}" class="text-decoration-none">
-        <div class="card h-100">
-          <img class="card-img-top" src="{% static 'images/dictionary.jpg' %}" alt="Dictionary tool">
-          <div class="card-body">
-            <h5 class="card-title"><i class="fas fa-spell-check text-secondary mr-2"></i>Dictionary</h5>
-            <p class="card-text">Find definitions, synonyms, and pronunciation for any word on the go.</p>
-          </div>
-        </div>
-      </a>
-    </div>
-
-
-    <div class="col-md-6 col-lg-3 mb-4">
-      <a href="{% url 'wiki' %}" class="text-decoration-none">
-        <div class="card h-100">
-          <img class="card-img-top" src="{% static 'images/wiki.jpg' %}" alt="Wikipedia search">
-          <div class="card-body">
-            <h5 class="card-title"><i class="fab fa-wikipedia-w text-dark mr-2"></i>Wikipedia</h5>
-            <p class="card-text">Quickly search Wikipedia for research, assignments, and fast facts.</p>
-          </div>
-        </div>
-      </a>
-    </div>
-
-
-    <div class="col-md-6 col-lg-3 mb-4">
-      <a href="{% url 'conversion' %}" class="text-decoration-none">
-        <div class="card h-100">
-          <img class="card-img-top" src="{% static 'images/conversion.jpg' %}" alt="Unit conversion">
-          <div class="card-body">
-            <h5 class="card-title"><i class="fas fa-calculator text-muted mr-2"></i>Conversion</h5>
-            <p class="card-text">Convert length and mass measurements quickly with our handy calculator.</p>
-          </div>
-        </div>
-      </a>
-    </div>
-  </div>
-</section>
-{% endblock content %}
+  </section>
+</div>
+{% endblock %}

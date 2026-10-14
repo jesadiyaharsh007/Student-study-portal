@@ -1,0 +1,21 @@
+{% extends 'dashboard/base.html' %}
+{% load ui %}
+{% block title %}Page not found{% endblock %}
+{% block robots %}noindex,nofollow{% endblock %}
+{% block content %}
+<div class="wrap">
+  <section class="bz"><div class="core err">
+    <div class="photo scrim">{% photo "books" "A library aisle lit by hanging bulbs" "100vw" True "35% 50%" %}</div>
+    <div class="in">
+      <div class="err-code" aria-hidden="true">404</div>
+      <h1>This shelf is empty.</h1>
+      <p>We could not find the page you were looking for. It may have moved, or the link has a typo.</p>
+      <span class="err-path" title="{{ request.path }}">{{ request.path }}</span>
+      <div class="row wrap-r">
+        <a class="btn btn-ink" href="{% url 'home' %}"><span>Back home</span><span class="btn-ico">{% icon "arrow-up-right" %}</span></a>
+        <button class="btn btn-line no-ico" type="button" data-palette>Search the portal</button>
+      </div>
+    </div>
+  </div></section>
+</div>
+{% endblock %}

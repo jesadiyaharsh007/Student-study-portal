@@ -1,51 +1,46 @@
 {% extends 'dashboard/base.html' %}
-{% load static %}
-{% load crispy_forms_tags %}
+{% load ui %}
+{% block title %}Video lessons{% endblock %}
+{% block robots %}noindex,nofollow{% endblock %}
 {% block content %}
-<section class='text-center container'>
-    <h2>Search Videos in Youtube</h2>
-    <p>search videos and select any video to open in youtube</p>
-    <div class="col-md-6 mx-auto">
-        <form action="" method="post">
-            {% csrf_token %}
-            <fieldset class="form-group">
-                {{form|crispy}}
-            </fieldset>
-            <div class="form-group">
-                <input class="btn btn-danger" type="submit" value="Submit">
-            </div>
-        </form>
-    </div><br>
+<div class="wrap" data-skeleton-wrap>
+  <header class="head-split head-split-media">
+    <div class="bz"><div class="core"><div class="photo u-border-radius-0">{% photo "youtube" "The YouTube home screen" "(min-width:1000px) 25vw, 90vw" True %}</div></div></div>
+    <div>
+      <h1 class="display display-lg">Video<br>lessons</h1>
+      <p class="lead u-margin-1p1rem-0-1p8rem">Search for explanations, tutorials and lectures.</p>
+      <form class="searchbar" method="get" action="{% url 'youtube' %}" role="search" data-skeleton>
+        <label class="input-icon">{% icon "search" %}<input class="input" type="search" name="q" value="{{ q }}" placeholder="binary search explained" maxlength="100" required autocomplete="off" {% if not q %}data-focus-on-load{% endif %} aria-label="Search videos"></label>
+        <button class="btn btn-ink no-ico" type="submit">Search</button>
+      </form>
+    </div>
+  </header>
 
-    {% for result in results %}
-    <a href="{{result.link}}" target="_blank">
-        <div class="card">
-            <div class="card-header">
-                <div class="row">
-                    <div class="col-md-5">
-                        <img class="img-fluid" src="{{result.thumbnail}}" alt="">
+  <div class="results grid results-skel" aria-hidden="true">
+    {% for i in "123456" %}<div class="bz"><div class="core"><div class="skeleton skel-thumb"></div><div class="skel-info"><div class="skeleton u-height-16px"></div><div class="skeleton u-height-12px-width-55pc"></div></div></div></div>{% endfor %}
+  </div>
 
-                    </div>
-                    <div class="col-md-7">
-                        <h3 class="p-0 m-0">{{result.title}}</h3>
-                        <b>
-                            <u>
-                                <h5 class="p-0 m-0">{{result.channel}}</h5>
-                            </u>
-                        </b>
-                        <h6 class="p-0 m-1">{{result.description}}</h6>
-                        <b>
-                            <h6 class="ml-0 mt-3">Duration:{{result.duration}}</h6>
-                            <h6 class="ml-0 mt-1">Views:{{result.views}}</h6>
-                            <h6 class="ml-0 mt-1">Published At:{{result.published}}</h6>
-                        </b>
-                    </div>
-                </div>
-            </div>
+  <div class="results-live">
+  {% if error %}
+    <div class="notice">{% icon "alert" %}<div><b>Could not reach YouTube</b>{{ error }}</div></div>
+  {% elif results %}
+    <div class="results grid">
+      {% for r in results %}
+      <a class="bz hov vid" href="{{ r.link }}" target="_blank" rel="noopener noreferrer" style="--i:{{ forloop.counter0 }}"><div class="core">
+        <div class="photo"><img src="{{ r.thumbnail }}" alt="" loading="lazy" decoding="async"><span class="play"><span>{% icon "play" %}</span></span>{% if r.duration %}<span class="dur">{{ r.duration }}</span>{% endif %}</div>
+        <div class="info">
+          <h3 class="clamp-2">{{ r.title }}</h3>
+          <div class="sub"><b>{{ r.channel }}</b></div>
+          <div class="sub"><span>{{ r.views }}</span><span>{{ r.published }}</span></div>
         </div>
-    </a>
-    {% endfor %}
-    <br>
-</section>
-
-{% endblock content %}
+      </div></a>
+      {% endfor %}
+    </div>
+  {% elif q %}
+    <div class="empty u-margin-top-2p4rem"><h3>No videos found</h3><p>Nothing matched &ldquo;{{ q }}&rdquo;. Try different keywords.</p></div>
+  {% else %}
+    <div class="empty u-margin-top-2p4rem"><div class="photo">{% photo "youtube" "" "150px" %}</div><h3>Find a lesson</h3><p>Type a topic above and we will bring back the best matches.</p></div>
+  {% endif %}
+  </div>
+</div>
+{% endblock %}

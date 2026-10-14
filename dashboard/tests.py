@@ -122,8 +122,32 @@ class ViewTests(TestCase):
             'due': '2026-10-15',
             'is_finished': False
         })
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)
         
         hw = Homework.objects.filter(title='Containerization Assignment').first()
         self.assertIsNotNone(hw)
         self.assertEqual(hw.subject, 'Docker')
+
+    def test_chatbot_page_and_system_prompt(self):
+        # Must redirect unauthenticated users
+        res_anon = self.client.get(reverse('chatbot'))
+        self.assertEqual(res_anon.status_code, 302)
+
+        # Authenticated access
+        self.client.login(username='teststudent', password='password123')
+        res = self.client.get(reverse('chatbot'))
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, 'AI Tutor')
+        self.assertContains(res, 'composer-send')
+        self.assertContains(res, 'arrow-up')
+
+        # Clear chat history via post
+        res_clear = self.client.post(reverse('chatbot'), {'clear': '1'})
+        self.assertEqual(res_clear.status_code, 302)
+
+        # Verify system prompt has security guardrails and multi-line rules
+        from .views import AI_TUTOR_SYSTEM_PROMPT
+        self.assertIn("STRICT SECURITY & PRIVACY GUARDRAILS", AI_TUTOR_SYSTEM_PROMPT)
+        self.assertIn("CONFIDENTIAL PLATFORM CODE", AI_TUTOR_SYSTEM_PROMPT)
+        self.assertIn("MULTI-LINE PROMPTS & CODE", AI_TUTOR_SYSTEM_PROMPT)
+

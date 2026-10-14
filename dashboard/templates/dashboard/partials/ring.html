@@ -1,0 +1,4 @@
+<div class="ring" style="--size:{{ size|default:'120px' }}" data-pct="{{ pct }}"{% if ring_id %} id="{{ ring_id }}" data-total="{{ total }}"{% endif %}>
+  <svg viewBox="0 0 44 44" aria-hidden="true"><circle class="bg" cx="22" cy="22" r="18"/><circle class="fg" cx="22" cy="22" r="18" pathLength="100"/></svg>
+  <div class="num"><span><span data-ring-num>{{ pct }}</span><small>%</small></span></div>
+</div>

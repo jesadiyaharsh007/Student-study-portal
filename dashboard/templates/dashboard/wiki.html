@@ -1,41 +1,37 @@
 {% extends 'dashboard/base.html' %}
-{% load static %}
+{% load ui %}
+{% block title %}Wikipedia{% endblock %}
+{% block robots %}noindex,nofollow{% endblock %}
 {% block content %}
-
-<section class='text-center container'>
-    <h2>Search articles in wikipedia</h2>
-    <p>just enter the search query to obtain the results</p><b>Enter without any space</b>
-    <form action="" method="post">
-        {% csrf_token %}
-        {{form}}
-        <input class="btn btn-danger" type="submit" value="Submit">
-    </form><br>
-
-    {% if title %}
-    <div class="container">
-        <div class="content-section p-0 mt-5">
-            <a href="{{ link }}" class="p-0 m-0" target="_blank">
-                <div class="custom-header">
-                    <h2>{{ title }}</h2>
-                    <h6>{{ link }}</h6>
-                </div>
-            </a>
-
-            <hr class="p-0 m-0">
-            <p class="description m-5 p-5">
-                {{ details }}
-            </p>
-            <hr>
-        </div>
+<div class="wrap" data-skeleton-wrap>
+  <header class="head-split">
+    <div>
+      <h1 class="display display-lg">Look it up.</h1>
+      <p class="lead u-margin-1p1rem-0-1p8rem">A clear summary of almost any topic, in seconds.</p>
+      <form class="searchbar" method="get" action="{% url 'wiki' %}" role="search" data-skeleton>
+        <label class="input-icon">{% icon "search" %}<input class="input" type="search" name="q" value="{{ q }}" placeholder="Photosynthesis" maxlength="100" required autocomplete="off" {% if not q %}data-focus-on-load{% endif %} aria-label="Topic"></label>
+        <button class="btn btn-ink no-ico" type="submit">Search</button>
+      </form>
     </div>
-    {% elif error %}
-    <div class="container">
-        <div class="alert alert-danger mt-5">
-            {{ error }}
-        </div>
-    </div>
-    {% endif %}
+    <div class="bz tilt"><div class="core"><div class="photo photo-43">{% photo "wiki" "A Wikipedia article in a browser window" "(min-width:1000px) 35vw, 90vw" True "50% 0%" %}</div></div></div>
+  </header>
 
-</section>
+  <div class="results-skel" aria-hidden="true"><div class="bz"><div class="core u-padding-2rem"><div class="skeleton u-height-48px-width-50pc"></div><div class="skeleton u-height-14px-margin-top-1p4rem"></div><div class="skeleton u-height-14px-margin-top-p6rem"></div><div class="skeleton u-height-14px-margin-top-p6rem-width-70pc"></div></div></div></div>
 
-{% endblock content %}
+  <div class="results-live">
+  {% if title %}
+    <article class="bz wiki-card"><div class="core">
+      <span class="tag">Wikipedia</span>
+      <h2>{{ title }}</h2>
+      <p class="summary">{{ details }}</p>
+      <div class="row wrap-r u-margin-top-2rem">
+        <a class="btn btn-ink" href="{{ link }}" target="_blank" rel="noopener noreferrer"><span>Read full article</span><span class="btn-ico">{% icon "arrow-up-right" %}</span></a>
+        <button class="btn btn-line no-ico" type="button" data-copy="{{ details }}">Copy summary</button>
+      </div>
+    </div></article>
+  {% elif error %}
+    <div class="notice">{% icon "alert" %}<div><b>No result</b>{{ error }}</div></div>
+  {% endif %}
+  </div>
+</div>
+{% endblock %}

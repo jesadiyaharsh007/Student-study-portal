@@ -1,10 +1,23 @@
 {% extends 'dashboard/base.html' %}
+{% load ui %}
+{% block title %}{% if done %}Signed out{% else %}Log out{% endif %}{% endblock %}
+{% block robots %}noindex,nofollow{% endblock %}
 {% block content %}
-<div class="border-top pt-3 text-center">
-  <h2>You are logged Out</h2>
-
-  <small class="text-muted"
-    ><a class="btn btn-danger" href="{% url 'login' %}">Log In Again</a>
-  </small>
+<div class="wrap-n">
+  <div class="bz center-card"><div class="core">
+    {% if done %}
+    <div class="done-mark">{% icon "check" %}</div>
+    <h1 class="h2">You are signed out.</h1>
+    <p class="muted u-margin-p8rem-0-1p8rem">See you next time. Keep up the great work.</p>
+    <div class="row u-justify-content-center"><a class="btn btn-ink" href="{% url 'login' %}"><span>Log in again</span><span class="btn-ico">{% icon "arrow-up-right" %}</span></a><a class="btn btn-line no-ico" href="{% url 'home' %}">Home</a></div>
+    {% else %}
+    <h1 class="h2">Log out?</h1>
+    <p class="muted u-margin-p8rem-0-1p8rem">You will need to sign in again to see your tasks and notes.</p>
+    <form method="post" class="row u-justify-content-center">{% csrf_token %}
+      <button class="btn btn-danger no-ico" type="submit">Yes, log me out</button>
+      <a class="btn btn-line no-ico" href="{% url 'profile' %}">Stay</a>
+    </form>
+    {% endif %}
+  </div></div>
 </div>
-{% endblock content %}
+{% endblock %}

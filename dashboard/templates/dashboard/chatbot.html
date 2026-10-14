@@ -1,72 +1,61 @@
 {% extends 'dashboard/base.html' %}
-{% load static %}
-
+{% load static ui %}
+{% block title %}AI Tutor{% endblock %}
+{% block robots %}noindex,nofollow{% endblock %}
+{% block head %}
+<!-- KaTeX for beautiful math formulas ($$...$$ and $...$) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
+<!-- Marked for modern GitHub Flavored Markdown (tables, headings, lists, code) -->
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" crossorigin="anonymous"></script>
+<script>
+  if (!window.katex) {
+    document.write('<link rel="stylesheet" href="{% static "vendor/katex.min.css" %}">');
+    document.write('<script src="{% static "vendor/katex.min.js" %}"><\/script>');
+  }
+  if (!window.marked) {
+    document.write('<script src="{% static "vendor/marked.min.js" %}"><\/script>');
+  }
+</script>
+{% endblock %}
 {% block content %}
-<section class="text-center container mb-4">
-    <h2><i class="fas fa-robot text-primary mr-2"></i>AI Tutor</h2>
-    <p class="text-muted">Ask me any educational questions! I can explain concepts, solve problems, and help you study better.</p>
-</section>
+<div class="wrap-n">
+  <section class="bz chat" id="chat"><div class="core">
+    <header class="chat-head">
+      <span class="glyph">{% icon "bot" %}</span>
+      <div class="u-flex-1"><b class="chat-title">AI Tutor</b><small class="muted">Explanations, examples and practice questions.</small></div>
+      <button class="btn btn-line btn-sm no-ico" id="chat-clear" type="button" {% if not chat_history %}hidden{% endif %}>New chat</button>
+    </header>
 
-<div class="container">
-    <div class="row justify-content-center">
-        <div class="col-md-8">
-            <div class="card shadow-sm mb-4">
-                <div class="card-body bg-light" style="max-height: 60vh; overflow-y: auto;">
-                    {% if chat_history %}
-                        {% for msg in chat_history %}
-                            {% if msg.role == 'user' %}
-                            <div class="mb-3">
-                                <div class="d-flex justify-content-end mb-2">
-                                    <div class="bg-primary text-white p-3 rounded" style="max-width: 80%;">
-                                        <strong>You:</strong><br>
-                                        {{ msg.text }}
-                                    </div>
-                                </div>
-                            </div>
-                            {% else %}
-                            <div class="mb-3">
-                                <div class="d-flex justify-content-start">
-                                    <div class="bg-white border p-3 rounded shadow-sm" style="max-width: 90%;">
-                                        <strong><i class="fas fa-robot text-primary mr-1"></i> AI Tutor:</strong><br>
-                                        <div class="mt-2 text-justify">
-                                            {{ msg.text|linebreaks }}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            {% endif %}
-                        {% endfor %}
-                    {% endif %}
-
-                    {% if error %}
-                    <div class="alert alert-danger">
-                        <i class="fas fa-exclamation-triangle mr-2"></i>{{ error }}
-                    </div>
-                    {% endif %}
-                    
-                    {% if not chat_history and not error %}
-                    <div class="text-center text-muted my-5">
-                        <i class="fas fa-magic fa-3x mb-3 text-secondary"></i>
-                        <h5>How can I help you learn today?</h5>
-                        <p>Try asking "Explain photosynthesis" or "How do I solve 2x + 5 = 15?"</p>
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-
-            <form method="POST" action="{% url 'chatbot' %}">
-                {% csrf_token %}
-                <div class="input-group mb-3 shadow-sm">
-                    <input type="text" name="prompt" class="form-control form-control-lg" placeholder="Ask your question here..." required autocomplete="off">
-                    <div class="input-group-append">
-                        <button class="btn btn-primary px-4" type="submit"><i class="fas fa-paper-plane mr-2"></i>Ask</button>
-                    </div>
-                </div>
-                <div class="text-right">
-                    <a href="{% url 'chatbot' %}?clear=true" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash-alt mr-1"></i>Clear Chat</a>
-                </div>
-            </form>
+    <div class="chat-log" id="chat-log" aria-live="polite">
+      {% for m in chat_history %}
+      {% if m.role == 'user' %}
+      <div class="msg user"><div class="av">{{ user.username|initial }}</div><div class="bubble">{{ m.text }}</div></div>
+      {% else %}
+      <div class="msg bot"><div class="av">{% icon "bot" %}</div><div class="bubble" data-md>{{ m.text }}</div></div>
+      {% endif %}
+      {% endfor %}
+      {% if error %}<div class="form-alert">{% icon "alert-circle" %}{{ error }}</div>{% endif %}
+      {% if not chat_history %}
+      <div class="chat-empty" id="chat-empty">
+        <h2>What are we learning today?</h2>
+        <p>Pick a starter or type your own question below.</p>
+        <div class="suggest">
+          <button type="button" data-suggest="Explain photosynthesis in simple terms"><span>Explain photosynthesis in simple terms</span>{% icon "arrow-up-right" "ic-sm" %}</button>
+          <button type="button" data-suggest="How do I solve 2x + 5 = 15? Show each step."><span>How do I solve 2x + 5 = 15?</span>{% icon "arrow-up-right" "ic-sm" %}</button>
+          <button type="button" data-suggest="Give me 5 quiz questions about the French Revolution"><span>Quiz me on the French Revolution</span>{% icon "arrow-up-right" "ic-sm" %}</button>
         </div>
+      </div>
+      {% endif %}
     </div>
+
+    <form class="composer" id="chat-form" method="post" action="{% url 'chatbot' %}">
+      {% csrf_token %}
+      <div class="composer-box">
+        <textarea name="prompt" rows="1" placeholder="Ask your question..." maxlength="2000" data-autosize required aria-label="Your question"></textarea>
+        <button class="composer-send" type="submit" aria-label="Send question" title="Send question">{% icon "arrow-up" %}</button>
+      </div>
+    </form>
+  </div></section>
 </div>
-{% endblock content %}
+{% endblock %}

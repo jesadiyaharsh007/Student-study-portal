@@ -1,55 +1,48 @@
 {% extends 'dashboard/base.html' %}
-{% load static %}
+{% load ui %}
+{% block title %}Books{% endblock %}
+{% block robots %}noindex,nofollow{% endblock %}
 {% block content %}
+<div class="wrap" data-skeleton-wrap>
+  <section class="bz"><div class="core hero-search">
+    <div class="photo scrim-flat">{% photo "books" "A library aisle lit by hanging bulbs" "100vw" True "30% 45%" %}</div>
+    <h1>Find your next read.</h1>
+    <p>Search millions of books, authors and subjects from the Open Library.</p>
+    <form class="searchbar" method="get" action="{% url 'books' %}" role="search" data-skeleton>
+      <label class="input-icon">{% icon "search" %}<input class="input" type="search" name="q" value="{% if not recommended %}{{ q }}{% endif %}" placeholder="Title, author or subject" maxlength="100" required autocomplete="off" aria-label="Search books"></label>
+      <button class="btn btn-ink no-ico" type="submit">Search</button>
+    </form>
+  </div></section>
 
-<section class='text-center container'>
-    <h2>Search books and browse your favorite</h2>
-    <p>just enter the search query to obtain the results</p><b></b>
-    <form action="" method="post">
-        {% csrf_token %}
-        {{form}}
-        <input class="btn btn-danger" type="submit" value="Submit">
-    </form><br>
+  <div class="results grid results-skel" aria-hidden="true">
+    {% for i in "123456" %}<div class="bz"><div class="core book"><div class="cover skeleton"></div><div class="stack skel-stack"><div class="skeleton u-height-16px"></div><div class="skeleton u-height-12px-width-60pc"></div></div></div></div>{% endfor %}
+  </div>
 
-    {% for result in results %}
-    <a href="{{result.preview}}" target="_blank">
-        <div class="card">
-            <div class="card-header">
-                <div class="row">
-                    <div class="col-md-3">
-                        <img class="img-fluid" src="{{result.thumbnail}}" alt="">
-
-                    </div>
-                    <div class="col-md-9">
-                        <h3 class="p-0 m-0">{{result.title}}</h3>
-                        <b>
-                            <u>
-                                <h5 class="p-0 m-0">{{result.subtitle}}</h5>
-                            </u>
-                        </b>
-                        {% if result.description %}
-                        <h6 class="p-0 m-1">{{result.description}}</h6>
-                        {% endif %}
-                        <b>
-                            <h6 class="ml-0 mt-3">Category:
-                                {% for category in result.categories %}
-                                {{category}}
-                                {% endfor %}
-                            </h6>
-                            {% if result.count %}
-                            <h6 class="ml-0 mt-1">Pages: {{result.count}}</h6>
-                            {% endif %}
-                            {% if result.rating %}
-                            <h6 class="ml-0 mt-1">Rating: {{result.rating}}</h6>
-                            {% endif %}
-                        </b>
-                    </div>
-                </div>
-            </div>
+  <div class="results-live">
+  {% if recommended and subject %}<div class="reco">{% icon "sparkles" %}Picked for your {{ subject }} homework</div>{% endif %}
+  {% if error %}
+    <div class="notice">{% icon "alert" %}<div><b>Library unavailable</b>{{ error }}</div></div>
+  {% elif results %}
+    <div class="results grid{% if recommended %} after-reco{% endif %}">
+      {% for b in results %}
+      <a class="bz hov" href="{{ b.link }}" target="_blank" rel="noopener noreferrer"><div class="core book" style="--i:{{ forloop.counter0 }}">
+        <div class="cover">{% if b.thumbnail %}<img src="{{ b.thumbnail }}" alt="" loading="lazy" decoding="async" width="96" height="144">{% else %}{% icon "book-open" "ic-lg" %}{% endif %}</div>
+        <div>
+          <h3 class="clamp-2">{{ b.title }}</h3>
+          {% if b.authors %}<div class="sub clamp-2">{{ b.authors }}</div>{% endif %}
+          <div class="row wrap-r book-meta">
+            {% if b.rating %}<span class="stars">{% icon "star" %}{{ b.rating }}</span>{% endif %}
+            {% if b.year %}<span>{{ b.year }}</span>{% endif %}
+            {% if b.pages %}<span>{{ b.pages }} pages</span>{% endif %}
+          </div>
+          {% if b.categories %}<div class="tags u-margin-top-p7rem">{% for c in b.categories %}<span class="tag">{{ c|truncatechars:20 }}</span>{% endfor %}</div>{% endif %}
         </div>
-    </a>
-    <br>
-    {% endfor %}
-</section>
-
-{% endblock content %}
+      </div></a>
+      {% endfor %}
+    </div>
+  {% elif q and not recommended %}
+    <div class="empty u-margin-top-2p4rem"><h3>No books found</h3><p>Nothing matched &ldquo;{{ q }}&rdquo;. Try a broader search.</p></div>
+  {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,69 +1,44 @@
 {% extends 'dashboard/base.html' %}
-{% load static %}
+{% load ui %}
+{% block title %}About{% endblock %}
 {% block content %}
-
-<div class="container mt-5">
-    <div class="row justify-content-center">
-        <div class="col-md-10">
-            <div class="card shadow-sm border-0 rounded-lg">
-                <div class="card-body p-5">
-                    <div class="text-center mb-5">
-                        <i class="fas fa-graduation-cap fa-4x text-primary mb-3"></i>
-                        <h2 class="font-weight-bold">About Student Study Portal</h2>
-                        <p class="text-muted lead">Empowering students to achieve their academic goals.</p>
-                    </div>
-
-                    <div class="row mb-5">
-                        <div class="col-md-6 mb-4">
-                            <h4 class="font-weight-bold text-dark"><i class="fas fa-bullseye text-primary mr-2"></i>Our Mission</h4>
-                            <p class="text-secondary">Our mission is to provide students with a centralized, easy-to-use platform to manage their academic life. We believe that with the right tools, every student can reach their full potential and organize their studies effectively.</p>
-                        </div>
-                        <div class="col-md-6 mb-4">
-                            <h4 class="font-weight-bold text-dark"><i class="fas fa-lightbulb text-warning mr-2"></i>What We Offer</h4>
-                            <p class="text-secondary">The Student Study Portal brings together essential tools like note-taking, homework tracking, dictionary access, Wikipedia search, and curated educational videos—all in one distraction-free environment.</p>
-                        </div>
-                    </div>
-
-                    <hr class="mb-5">
-
-                    <h3 class="text-center font-weight-bold mb-4">Core Features</h3>
-                    
-                    <div class="row g-4">
-                        <div class="col-md-4 text-center mb-4">
-                            <div class="p-3 bg-light rounded shadow-sm h-100">
-                                <i class="fas fa-tasks fa-2x text-success mb-3"></i>
-                                <h5>Task Management</h5>
-                                <p class="small text-muted mb-0">Keep track of your homework and daily to-dos efficiently.</p>
-                            </div>
-                        </div>
-                        <div class="col-md-4 text-center mb-4">
-                            <div class="p-3 bg-light rounded shadow-sm h-100">
-                                <i class="fas fa-book-reader fa-2x text-info mb-3"></i>
-                                <h5>Study Resources</h5>
-                                <p class="small text-muted mb-0">Access dictionary, Wikipedia, and book searches instantly.</p>
-                            </div>
-                        </div>
-                        <div class="col-md-4 text-center mb-4">
-                            <div class="p-3 bg-light rounded shadow-sm h-100">
-                                <i class="fas fa-shield-alt fa-2x text-secondary mb-3"></i>
-                                <h5>Secure & Private</h5>
-                                <p class="small text-muted mb-0">Your notes and data are safely stored in your personal account.</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="text-center mt-5">
-                        {% if not user.is_authenticated %}
-                            <p class="text-muted mb-3">Ready to transform your study habits?</p>
-                            <a href="{% url 'register' %}" class="btn btn-primary btn-lg px-5">Join Now</a>
-                        {% else %}
-                            <a href="{% url 'home' %}" class="btn btn-primary btn-lg px-5">Back to Dashboard</a>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-        </div>
+<div class="wrap">
+  <section class="about-hero">
+    <div>
+      <h1 class="reveal">A calmer way to get through your degree.</h1>
+      <p class="lead reveal about-lead">Student Study Portal gathers note taking, deadlines, research and an AI tutor in one place, without the noise.</p>
     </div>
-</div>
+    <div class="about-imgs reveal">
+      <div class="bz"><div class="core"><div class="photo flat">{% photo "homework" "A desk with a laptop and coffee" "(min-width:1000px) 25vw, 60vw" True "70% 50%" %}</div></div></div>
+      <div class="bz"><div class="core"><div class="photo flat">{% photo "notes" "A notebook and fountain pen" "(min-width:1000px) 18vw, 40vw" True %}</div></div></div>
+    </div>
+  </section>
 
-{% endblock content %}
+  <section class="section about-values">
+    <div class="split split-even">
+      <h2 class="h2 reveal">What you get</h2>
+      <div class="points">
+        <div class="reveal"><h3>Stay on top of it</h3><p>Homework and to-dos with live countdowns, so deadlines never sneak up on you.</p></div>
+        <div class="reveal"><h3>Research faster</h3><p>Dictionary, Wikipedia, open books and educational videos within a tap.</p></div>
+        <div class="reveal"><h3>Private by default</h3><p>Notes and tasks belong to your account. Nobody else can see or change them.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section about-faq">
+    <div class="wrap-n">
+      <h2 class="h2 reveal">Questions</h2>
+      <div class="qa reveal">
+        <div><h3>Is it free to use?</h3><p>Yes. Create an account and use every tool at no cost.</p></div>
+        <div><h3>Does it work on my phone?</h3><p>Yes. The portal is designed for phones first and needs no install.</p></div>
+        <div><h3>Can I use dark mode?</h3><p>Use the sun and moon button in the top bar. The portal also follows your device setting by default.</p></div>
+        <div><h3>Is there a quick way to move around?</h3><p>Press <span class="kbd">Ctrl</span> <span class="kbd">K</span> or <span class="kbd">/</span> anywhere to open the quick jump palette.</p></div>
+      </div>
+      <div class="about-cta">
+        {% if user.is_authenticated %}<a class="btn btn-ink" href="{% url 'profile' %}"><span>Open dashboard</span><span class="btn-ico">{% icon "arrow-up-right" %}</span></a>
+        {% else %}<a class="btn btn-ink" href="{% url 'register' %}"><span>Start studying</span><span class="btn-ico">{% icon "arrow-up-right" %}</span></a>{% endif %}
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}

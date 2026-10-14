@@ -1,52 +1,84 @@
 {% extends 'dashboard/base.html' %}
-{% load static %}
-{% load crispy_forms_tags %}
+{% load ui %}
+{% block title %}Unit converter{% endblock %}
+{% block robots %}noindex,nofollow{% endblock %}
 {% block content %}
-<div class="container text-center">
-    <h2>Conversion</h2>
-    <form method="POST">
-        {% csrf_token %}
-        <div class="form-group">
-            <legend class="border-bottom mb-4">Select Conversion Type</legend>
-            {{form|crispy}}
-            <button class="btn btn-outline-info" type="submit">
-                Select
-            </button>
-        </div>
+<div class="wrap">
+  <div class="conv-layout">
+    <div class="bz"><div class="core conv-photo">
+      <div class="photo">{% photo "conversion" "A wooden ruler against a yellow background" "(min-width:1000px) 35vw, 90vw" True %}</div>
+      <div class="cap">Measure<br>anything.</div>
+    </div></div>
 
-        {% if input %}
-        <fieldset class="form-group">
-            <legend class="border-bottom mb-4">Convert Values</legend>
-            <div class="row">
-                <div class="col-md-6">
-                    {{ m_form.measure1|as_crispy_field }}
-                </div>
-                <div class="col-md-6">
-                    {{ m_form.measure2|as_crispy_field }}
-                </div>
-            </div>
-            <div class="row mt-3">
-                <div class="col-md-12">
-                    {{ m_form.input|as_crispy_field }}
-                </div>
-            </div>
-        </fieldset>
-        
-        {% if answer %}
-        <fieldset class="form-group">
-            <div class="alert alert-success">
-                <h4>{{ answer }}</h4>
-            </div>
-        </fieldset>
-        {% endif %}
-        
-        <div class="form-group">
-            <button class="btn btn-outline-info" type="submit">
-                Convert
-            </button>
+    <div class="bz conv"><div class="core">
+      <div><h1 class="h2">Unit converter</h1><p class="muted u-margin-top-p6rem">Results appear as you type. Nothing leaves your device.</p></div>
+      <div class="seg u-justify-self-start" id="conv-tabs" role="group" aria-label="Measurement type"></div>
+      <div class="conv-row">
+        <div class="stack u-gap-p8rem">
+          <div class="field"><label for="c-from">From</label><select class="input" id="c-from"></select></div>
+          <div class="field"><label for="c-val">Value</label><input class="input big" id="c-val" type="number" inputmode="decimal" value="1" step="any" autofocus></div>
         </div>
-        {% endif %}
-    </form>
+        <button class="swap" id="c-swap" type="button" aria-label="Swap units">{% icon "swap" %}</button>
+        <div class="stack u-gap-p8rem">
+          <div class="field"><label for="c-to">To</label><select class="input" id="c-to"></select></div>
+          <div class="field"><label for="c-out">Result</label><input class="input big" id="c-out" readonly aria-live="polite"></div>
+        </div>
+      </div>
+      <div class="conv-out"><b id="c-line">0</b><small id="c-formula"></small></div>
+      <button class="btn btn-line no-ico u-justify-self-start" id="c-copy" type="button">Copy result</button>
+    </div></div>
+  </div>
 </div>
+{% endblock %}
 
-{% endblock content %}
+{% block scripts %}
+<script>
+(() => {
+  const U = {
+    Length: { u: { millimetre: .001, centimetre: .01, metre: 1, kilometre: 1000, inch: .0254, foot: .3048, yard: .9144, mile: 1609.344 } },
+    Mass: { u: { milligram: 1e-6, gram: .001, kilogram: 1, tonne: 1000, ounce: .028349523125, pound: .45359237 } },
+    Temperature: { temp: true, u: { celsius: 0, fahrenheit: 0, kelvin: 0 } },
+    Volume: { u: { millilitre: .001, litre: 1, 'cup (US)': .2365882365, 'gallon (US)': 3.785411784, 'fluid ounce (US)': .0295735296 } },
+    Speed: { u: { 'metre/second': 1, 'kilometre/hour': 1 / 3.6, 'mile/hour': .44704, knot: .5144444444 } },
+  };
+  const DEF = { Length: ['metre', 'foot'], Mass: ['kilogram', 'pound'], Temperature: ['celsius', 'fahrenheit'], Volume: ['litre', 'gallon (US)'], Speed: ['kilometre/hour', 'mile/hour'] };
+  const $ = id => document.getElementById(id);
+  const tabs = $('conv-tabs'), from = $('c-from'), to = $('c-to'), val = $('c-val'), out = $('c-out'), line = $('c-line'), formula = $('c-formula');
+  let cat = 'Length';
+
+  const toK = (v, u) => u === 'celsius' ? v + 273.15 : u === 'fahrenheit' ? (v - 32) * 5 / 9 + 273.15 : v;
+  const fromK = (k, u) => u === 'celsius' ? k - 273.15 : u === 'fahrenheit' ? (k - 273.15) * 9 / 5 + 32 : k;
+  const conv = (v, a, b) => U[cat].temp ? fromK(toK(v, a), b) : v * U[cat].u[a] / U[cat].u[b];
+  const fmt = n => Number.isFinite(n) ? (Math.abs(n) > 0 && (Math.abs(n) < 1e-6 || Math.abs(n) >= 1e12) ? n.toExponential(4) : n.toLocaleString(undefined, { maximumSignificantDigits: 9 })) : '-';
+  const sym = { celsius: '°C', fahrenheit: '°F', kelvin: 'K' };
+
+  function fill(sel, pick) { sel.innerHTML = Object.keys(U[cat].u).map(k => `<option>${k}</option>`).join(''); sel.selectedIndex = pick; }
+  function run(animate = true) {
+    const v = parseFloat(val.value);
+    if (Number.isNaN(v)) { out.value = ''; line.textContent = '-'; formula.textContent = 'Enter a number to convert'; return; }
+    const r = conv(v, from.value, to.value);
+    out.value = fmt(r);
+    const s = u => sym[u] || u;
+    line.textContent = `${fmt(v)} ${s(from.value)} = ${fmt(r)} ${s(to.value)}`;
+    formula.textContent = `1 ${s(from.value)} = ${fmt(conv(1, from.value, to.value))} ${s(to.value)}`;
+    if (animate) { line.classList.remove('bump'); void line.offsetWidth; line.classList.add('bump'); }
+  }
+  function setCat(c) {
+    cat = c;
+    [...tabs.children].forEach(b => b.setAttribute('aria-pressed', String(b.textContent === c)));
+    const keys = Object.keys(U[c].u), d = DEF[c];
+    fill(from, keys.indexOf(d[0])); fill(to, keys.indexOf(d[1]));
+    run();
+  }
+  tabs.innerHTML = Object.keys(U).map(k => `<button type="button" aria-pressed="false">${k}</button>`).join('');
+  tabs.addEventListener('click', e => { if (e.target.tagName === 'BUTTON') setCat(e.target.textContent); });
+  [from, to, val].forEach(el => el.addEventListener('input', () => run()));
+  $('c-swap').addEventListener('click', e => {
+    e.currentTarget.classList.toggle('spun');
+    [from.value, to.value] = [to.value, from.value]; run();
+  });
+  $('c-copy').addEventListener('click', () => { if (out.value) { navigator.clipboard.writeText(out.value).then(() => toast('success', 'Result copied.')).catch(() => toast('warning', 'Copy is not available here.')); } });
+  setCat('Length');
+})();
+</script>
+{% endblock %}

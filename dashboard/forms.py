@@ -1,38 +1,58 @@
+import datetime
+
 from django import forms
-from .models import Notes, Homework, Todo
-from django.contrib.auth.models import User
-from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
 from django.contrib.auth import authenticate
+from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
+from django.contrib.auth.models import User
+
+from .models import Homework, Notes, Todo
+
+
+class DateInput(forms.DateInput):
+    input_type = "date"
+
+
+def _style(form, placeholders=None):
+    """Give every widget the portal's input styling (kept out of the templates)."""
+    placeholders = placeholders or {}
+    for name, field in form.fields.items():
+        widget = field.widget
+        if isinstance(widget, forms.CheckboxInput):
+            continue
+        widget.attrs["class"] = (widget.attrs.get("class", "") + " input").strip()
+        if name in placeholders:
+            widget.attrs["placeholder"] = placeholders[name]
+
 
 class StudentLoginForm(AuthenticationForm):
     username = forms.CharField(
-        label="Username or Email",
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter Username or Email', 'autofocus': True})
+        label="Username or email",
+        widget=forms.TextInput(attrs={"autofocus": True, "autocomplete": "username"}),
     )
     password = forms.CharField(
         label="Password",
         strip=False,
-        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': 'Enter Password'})
+        widget=forms.PasswordInput(attrs={"autocomplete": "current-password"}),
     )
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        _style(self, {"username": "you@school.edu", "password": "Your password"})
+
     def clean(self):
-        username = self.cleaned_data.get('username')
-        password = self.cleaned_data.get('password')
+        username = self.cleaned_data.get("username")
+        password = self.cleaned_data.get("password")
 
         if username and password:
             clean_username = username.strip()
-            user_by_email = User.objects.filter(email__iexact=clean_username).first()
-            if user_by_email:
-                auth_username = user_by_email.username
-            else:
-                user_by_uname = User.objects.filter(username__iexact=clean_username).first()
-                auth_username = user_by_uname.username if user_by_uname else clean_username
+            user = User.objects.filter(email__iexact=clean_username).only("username").first() or \
+                User.objects.filter(username__iexact=clean_username).only("username").first()
+            auth_username = user.username if user else clean_username
 
             self.user_cache = authenticate(self.request, username=auth_username, password=password)
             if self.user_cache is None:
                 raise self.get_invalid_login_error()
-            else:
-                self.confirm_login_allowed(self.user_cache)
+            self.confirm_login_allowed(self.user_cache)
 
         return self.cleaned_data
 
@@ -40,64 +60,61 @@ class StudentLoginForm(AuthenticationForm):
         super().confirm_login_allowed(user)
         if user.is_staff or user.is_superuser:
             raise forms.ValidationError(
-                "This account has Administrator privileges. Admin accounts cannot log in as a student. "
-                "Please log in through the Admin Portal at /admin/.",
-                code='admin_not_allowed',
+                "Administrator accounts can't sign in as a student. Please use the Admin Portal at /admin/.",
+                code="admin_not_allowed",
             )
+
 
 class Notesform(forms.ModelForm):
     class Meta:
         model = Notes
-        fields = ['subject', 'title', 'description']
-        widgets = {
-            'subject': forms.Select(attrs={'class': 'form-control'}),
-            'title': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter Note Title'}),
-            'description': forms.Textarea(attrs={'class': 'form-control', 'placeholder': 'Enter Note Description...', 'rows': 4}),
-        }
+        fields = ["subject", "title", "description"]
+        widgets = {"description": forms.Textarea(attrs={"rows": 6})}
 
-class DateInput(forms.DateInput):
-    input_type = 'date'
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        _style(self, {"title": "e.g. Binary trees, key ideas", "description": "Write your note…"})
+
 
 class HomeworkForm(forms.ModelForm):
     class Meta:
         model = Homework
-        widgets = {
-            'due': DateInput(),
-            'subject': forms.Select(attrs={'class': 'form-control'}),
-        }
-        fields = ['subject', 'title', 'description', 'due', 'is_finished']
+        fields = ["subject", "title", "description", "due"]
+        widgets = {"due": DateInput(), "description": forms.Textarea(attrs={"rows": 3})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["due"].initial = datetime.date.today() + datetime.timedelta(days=1)
+        self.fields["description"].required = False
+        _style(self, {"title": "e.g. Chapter 4 problems", "description": "Anything worth remembering (optional)"})
+
 
 class DashboardForm(forms.Form):
-    text = forms.CharField(max_length=100,label="Enter Your Search : ")
+    text = forms.CharField(max_length=100, label="Search")
+
 
 class TodoForm(forms.ModelForm):
     class Meta:
         model = Todo
-        fields = ['title', 'is_finished']
+        fields = ["title"]
 
-class ConversionForm(forms.Form):
-    CHOICES = [('length', 'Length'), ('mass', 'Mass')]
-    measurement = forms.ChoiceField(choices=CHOICES, widget=forms.RadioSelect)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        _style(self, {"title": "Add a task and press Enter"})
 
-class ConversionLengthForm(forms.Form):
-    CHOICES = [('yard', 'Yard'), ('foot', 'Foot')]
-    measure1 = forms.ChoiceField(choices=CHOICES)
-    measure2 = forms.ChoiceField(choices=CHOICES)
-    input = forms.IntegerField(required=True)
-
-class ConversionMassForm(forms.Form):
-    CHOICES = [('pound', 'Pound'), ('kilogram', 'Kilogram')]
-    measure1 = forms.ChoiceField(choices=CHOICES)
-    measure2 = forms.ChoiceField(choices=CHOICES)
-    input = forms.IntegerField(required=True)   
 
 class UserRegistrationForm(UserCreationForm):
-    email = forms.EmailField(
-        required=False,
-        widget=forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'Enter Email (optional)'}),
-        help_text="Optional. Used for logging in and password recovery."
-    )
+    email = forms.EmailField(required=False, label="Email (optional)", help_text="Lets you sign in with your email too.")
 
     class Meta:
         model = User
-        fields = ['username', 'email']
+        fields = ["username", "email"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["password1"].help_text = ""
+        self.fields["password2"].help_text = ""
+        self.fields["username"].help_text = ""
+        _style(self, {"username": "Pick a username", "email": "you@school.edu",
+                      "password1": "Create a password", "password2": "Repeat the password"})
+        self.fields["username"].widget.attrs["autofocus"] = True

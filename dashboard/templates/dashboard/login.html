@@ -1,26 +1,26 @@
 {% extends 'dashboard/base.html' %}
-{% load crispy_forms_tags %}
+{% load ui %}
+{% block title %}Log in{% endblock %}
+{% block robots %}noindex,nofollow{% endblock %}
 {% block content %}
-<div class="container">
-  <form method="POST">
-    {% csrf_token %}
-    <fieldset class="form-group">
-      <legend class="border-bottom mb-4">Student Log In</legend>
-      {{ form|crispy }}
-    </fieldset>
-    <div class="form-group">
-      <button class="btn btn-outline-info" type="submit">
-        Sign In
-      </button>
-    </div>
-  </form>
-  <div class="border-top pt-3 d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center">
-    <small class="text-muted mb-2 mb-sm-0">Need a Student Account?
-      <a class="ml-2 font-weight-bold" href="{% url 'register' %}">Create an Account</a>
-    </small>
-    <small class="text-muted">
-      Administrator? <a class="text-primary font-weight-bold ml-1" href="/admin/"><i class="fas fa-shield-alt mr-1"></i>Admin Portal Login</a>
-    </small>
+<div class="wrap">
+  <div class="auth">
+    <div class="bz"><div class="core auth-photo buddy-panel" data-buddies data-state="idle" data-mood="neutral">
+      {% include 'dashboard/partials/buddies.html' %}
+      <div class="cap"><h2>Pick up right where you left off.</h2><p>Your tasks, notes and deadlines are waiting.</p></div>
+    </div></div>
+    <section class="auth-form">
+      <div><h1>Log in</h1><p class="muted u-margin-top-p7rem">Use your username or email.</p></div>
+      <form method="post" class="form-grid" novalidate>
+        {% csrf_token %}
+        {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+        {% if form.non_field_errors %}<div class="form-alert">{% icon "alert-circle" %}<div>{% for e in form.non_field_errors %}{{ e }}{% endfor %}</div></div>{% endif %}
+        {% include 'dashboard/partials/field.html' with field=form.username icon="user" %}
+        {% include 'dashboard/partials/field.html' with field=form.password icon="lock" password=True %}
+        <button class="btn btn-ink btn-block" type="submit"><span>Log in</span><span class="btn-ico">{% icon "arrow-right" %}</span></button>
+      </form>
+      <p class="auth-foot">New here? <a class="link" href="{% url 'register' %}">Create an account</a>. Administrator? <a class="link" href="/admin/" data-noprefetch>Admin portal</a>.</p>
+    </section>
   </div>
 </div>
-{% endblock content %}
+{% endblock %}

@@ -1,0 +1,5 @@
+{% load ui %}<li class="item{% if t.is_finished %} done{% endif %}" data-cat="{% if t.is_finished %}done{% else %}pending{% endif %}" data-search="{{ t.title|lower }}" style="--i:{{ forloop.counter0|default:0 }}">
+  <form method="post" action="{% url 'update-todo' t.id %}" data-ajax="toggle" data-done-msg="Task completed."><button class="check" type="submit" aria-pressed="{% if t.is_finished %}true{% else %}false{% endif %}" aria-label="{% if t.is_finished %}Mark as not done{% else %}Mark as done{% endif %}">{% include 'dashboard/partials/tick.html' %}</button></form>
+  <div class="body"><div class="title">{{ t.title }}</div></div>
+  <form method="post" action="{% url 'delete-todo' t.id %}" data-ajax="delete" data-confirm="Delete this task?" data-confirm-text="&ldquo;{{ t.title|truncatechars:40 }}&rdquo; will be removed for good." data-done-msg="Task deleted."><button class="del" type="submit" aria-label="Delete task">{% icon "trash" %}</button></form>
+</li>

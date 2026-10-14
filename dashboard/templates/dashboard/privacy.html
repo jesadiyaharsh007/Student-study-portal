@@ -1,0 +1,61 @@
+{% extends 'dashboard/base.html' %}
+{% load ui %}
+{% block title %}Privacy policy (draft){% endblock %}
+{% block description %}Draft privacy policy for Student Study Portal. Not yet reviewed or approved.{% endblock %}
+{% block content %}
+<div class="wrap-n">
+  <article class="read legal">
+    <div class="notice draft" role="note">{% icon "alert" %}<div><b>DRAFT. Not legal advice and not approved for publication.</b>Everything in <span class="placeholder">[square brackets]</span> must be completed or replaced by the site owner, and the whole page should be reviewed by a qualified person before it is relied on.</div></div>
+
+    <h1>Privacy policy</h1>
+    <p class="muted">Last updated: <span class="placeholder">[DATE]</span></p>
+
+    <h2>Who runs this site</h2>
+    <p><span class="placeholder">[OPERATOR NAME OR ORGANISATION]</span>, <span class="placeholder">[POSTAL ADDRESS]</span>. Contact: <span class="placeholder">[CONTACT EMAIL]</span>.</p>
+
+    <h2>What the portal stores about you</h2>
+    <p>Based on how the portal is built today, an account holds:</p>
+    <ul>
+      <li>a username and, optionally, an email address;</li>
+      <li>your password, stored as a hash rather than in readable form;</li>
+      <li>the notes, homework entries and to-do tasks you create;</li>
+      <li>your recent AI tutor conversation (the last 30 messages), kept in your session.</li>
+    </ul>
+
+    <h2>Cookies and browser storage</h2>
+    <ul>
+      <li>A session cookie keeps you signed in.</li>
+      <li>A CSRF cookie protects forms from forgery.</li>
+      <li>Your light or dark theme choice is saved in your browser&rsquo;s local storage and is not sent to the server.</li>
+    </ul>
+    <p><span class="placeholder">[COOKIE LIFETIMES AND ANY CONSENT REQUIREMENT FOR YOUR REGION]</span></p>
+
+    <h2>Other services the portal contacts</h2>
+    <p>Some tools send what you type to other services so they can answer:</p>
+    <ul>
+      <li><b>Google Fonts:</b> your browser loads the Geist typeface from Google when a page opens.</li>
+      <li><b>YouTube search, Open Library, Wikipedia, Wiktionary, dictionaryapi.dev and Datamuse:</b> the search term or word you enter.</li>
+      <li><b>Google Gemini (AI tutor, only if configured):</b> your question and recent conversation.</li>
+      <li><b>Database hosting:</b> <span class="placeholder">[HOSTING PROVIDER AND REGION]</span>.</li>
+    </ul>
+    <p><span class="placeholder">[CONFIRM THIS LIST IS COMPLETE AND LINK EACH SERVICE&rsquo;S OWN POLICY]</span></p>
+
+    <h2>Why data is used</h2>
+    <p><span class="placeholder">[PURPOSES AND LEGAL BASIS, IF YOUR JURISDICTION REQUIRES THEM]</span></p>
+
+    <h2>How long data is kept and how to delete it</h2>
+    <p>You can delete individual notes, homework and tasks inside the portal. <span class="placeholder">[RETENTION PERIOD, ACCOUNT DELETION PROCESS AND HOW TO REQUEST IT]</span></p>
+
+    <h2>Your rights</h2>
+    <p><span class="placeholder">[RIGHTS THAT APPLY IN YOUR JURISDICTION AND HOW TO EXERCISE THEM]</span></p>
+
+    <h2>Children</h2>
+    <p><span class="placeholder">[MINIMUM AGE AND ANY PARENTAL CONSENT RULES]</span></p>
+
+    <h2>Changes to this policy</h2>
+    <p><span class="placeholder">[HOW YOU WILL ANNOUNCE CHANGES]</span></p>
+
+    <div class="read-foot"><a class="btn btn-line btn-sm no-ico" href="{% url 'terms' %}">Read the terms (draft)</a></div>
+  </article>
+</div>
+{% endblock %}

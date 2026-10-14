@@ -1,45 +1,59 @@
 {% extends 'dashboard/base.html' %}
-{% load static %}
-{% load crispy_forms_tags %}
+{% load ui %}
+{% block title %}Notes{% endblock %}
+{% block robots %}noindex,nofollow{% endblock %}
 {% block content %}
-
-{% if notes %}
-<div class="container mb-4">
-    <div class="row">
-        {% for note in notes %}
-        <div class="col-md-3 mb-4">
-            <a href="{% url 'notes-detail' note.id %}">
-                <div class="card h-100">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <span class="text-truncate mr-2 font-weight-bold">{{note.title}}</span>
-                        <span class="badge badge-primary">{{note.subject}}</span>
-                    </div>
-                    <div class="card-body">{{note.description|slice:"0:100"}}</div>
-                    <div class="card-footer mt-auto"><a href="{% url 'delete-note' note.id %}">
-                            <i class="fa fa-trash fa-2x"></i></a>
-                    </div>
-                </div>
-            </a>
-        </div>
-        {% endfor %}
+<div class="wrap" data-scope>
+  <header class="head-split">
+    <div>
+      <h1 class="display display-xl">Notes</h1>
+      <p class="lead u-margin-1p2rem-0-1p8rem">Capture ideas the moment they arrive and file them by subject.</p>
+      <button class="btn btn-ink" type="button" data-open="note-dialog"><span>New note</span><span class="btn-ico">{% icon "plus" %}</span></button>
     </div>
-</div>
-<br><br>
-{% endif %}
+    <div class="bz tilt"><div class="core"><div class="photo u-border-radius-0">{% photo "notes" "A notebook with a fountain pen" "(min-width:1000px) 30vw, 90vw" True %}</div></div></div>
+  </header>
 
-<div class="container">
-    <form method="POST">
-        {% csrf_token %}
-        <fieldset class="form-group">
-            <legend class="border-bottom mb-4">Create Notes</legend>
-            {{form|crispy}}
-        </fieldset>
-        <div class="form-group">
-            <button class="btn btn-outline-info" type="submit">
-                Create
-            </button>
-        </div>
-    </form>
+  {% if notes %}
+  <div class="toolbar">
+    <label class="input-icon">{% icon "search" %}<input class="input" type="search" placeholder="Search your notes" data-for="notes-list" aria-label="Search notes"></label>
+    <div class="tags" data-filter-for="notes-list">
+      <button class="tag btn-like active" type="button" data-filter="all" aria-pressed="true">All</button>
+      {% for s in subjects %}<button class="tag btn-like" type="button" data-filter="{{ s }}" aria-pressed="false">{{ s }}</button>{% endfor %}
+    </div>
+  </div>
+  <div class="notes-grid" id="notes-list" data-list data-filterable>
+    {% for n in notes %}
+    <article class="note bz" data-cat="{{ n.subject }}" data-search="{{ n.title|lower }} {{ n.description|lower|truncatechars:300 }}" style="--i:{{ forloop.counter0 }}"><div class="core">
+      <span class="tag">{{ n.subject }}</span>
+      <h3><a href="{% url 'notes-detail' n.id %}">{{ n.title }}</a></h3>
+      <p class="clamp-3">{{ n.description }}</p>
+      <div class="foot">
+        <span class="mono">{{ n.description|wordcount }} word{{ n.description|wordcount|pluralize }}</span>
+        <form method="post" action="{% url 'delete-note' n.id %}" data-ajax="delete" data-confirm="Delete this note?" data-confirm-text="&ldquo;{{ n.title|truncatechars:40 }}&rdquo; will be removed for good." data-done-msg="Note deleted."><button class="del" type="submit" aria-label="Delete note">{% icon "trash" %}</button></form>
+      </div>
+    </div></article>
+    {% endfor %}
+  </div>
+  <div class="empty" data-nomatch-for="notes-list" hidden><h3>No matching notes</h3><p>Try a different search or subject.</p></div>
+  {% endif %}
+
+  <div class="empty" data-empty {% if notes %}hidden{% endif %}>
+    <div class="photo">{% photo "notes" "" "150px" %}</div>
+    <h3>Your notebook is empty</h3><p>Write your first note: lecture highlights, formulas, anything worth remembering.</p>
+    <button class="btn btn-ink" type="button" data-open="note-dialog"><span>Create a note</span><span class="btn-ico">{% icon "plus" %}</span></button>
+  </div>
 </div>
 
-{% endblock content %}
+<dialog id="note-dialog" {% if open_form %}data-open-on-load{% endif %} aria-labelledby="nd-title">
+  <div class="modal"><div class="bz"><form method="post" class="core" novalidate>
+    {% csrf_token %}
+    <div class="modal-head"><h2 id="nd-title">New note</h2><button class="iconbtn" type="button" data-close aria-label="Close">{% icon "x" %}</button></div>
+    <div class="modal-body form-grid">
+      {% include 'dashboard/partials/field.html' with field=form.subject %}
+      {% include 'dashboard/partials/field.html' with field=form.title %}
+      {% include 'dashboard/partials/field.html' with field=form.description %}
+      <div class="modal-foot"><button class="btn btn-line no-ico" type="button" data-close>Cancel</button><button class="btn btn-ink" type="submit"><span>Save note</span><span class="btn-ico">{% icon "check" %}</span></button></div>
+    </div>
+  </form></div></div>
+</dialog>
+{% endblock %}

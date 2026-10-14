@@ -1,63 +1,49 @@
 {% extends 'dashboard/base.html' %}
-{% load static %}
-{% load crispy_forms_tags %}
+{% load ui %}
+{% block title %}To-do{% endblock %}
+{% block robots %}noindex,nofollow{% endblock %}
 {% block content %}
+<div class="wrap">
+  <div class="todo-layout" data-scope>
+    <div>
+      <header class="head u-margin-bottom-1p8rem">
+        <div><h1>To-do</h1><p>Small tasks, finished one tap at a time.</p></div>
+        {% include 'dashboard/partials/ring.html' with pct=0 size="96px" %}
+      </header>
 
-<div class="container">
-    {% if not todo_done %}
-    <table class="table table-striped table-bordered table-hover table-dark">
-        <thead>
-            <tr>
-                <th scope="col">#</th>
-                <th scope="col">Title</th>
-                <th scope="col">Status</th>
-                <th scope="col">Delete</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for todo in todos %}
-            <tr>
-                <th scope="row">{{forloop.counter}}</th>
-                <td>{{todo.title}}</td>
-                <td>
-                    <a href="{% url 'update-todo' todo.id %}">
-                        <div class="form-check">
-                            {% if todo.is_finished == True %}
-                            <input class="form-check-input" type="checkbox" value="" checked
-                                onchange="window.location.href=`{% url 'update-todo' todo.id %}`">
-                            {% else %}
-                            <input class="form-check-input" type="checkbox" value=""
-                                onchange="window.location.href=`{% url 'update-todo' todo.id %}`">
-                            {% endif %}
-                            <label class="form-check-label text-light" for="flexCheckDefault">
-                                Mark as Completed
-                            </label>
-                        </div>
-                    </a>
-                </td>
-
-                <td><a href="{% url 'delete-todo' todo.id %}"><i class="fa fa-trash fa-2x"></i></a></td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    {% else %}
-    <h4>All tasks have been done!! create to add more</h4>
-    {% endif %}
-</div><br><br>
-<div class="container">
-    <form method="POST">
+      <form class="quick-add" method="post" action="{% url 'todo' %}" data-ajax="add" data-target="#todo-list" autocomplete="off">
         {% csrf_token %}
-        <fieldset class="form-group">
-            <legend class="border-bottom mb-4">Create Todo</legend>
-            {{form|crispy}}
-        </fieldset>
-        <div class="form-group">
-            <button href="" class="btn btn-outline-info" type="submit">
-                Create
-            </button>
+        <label class="input-icon u-flex-1">{% icon "plus" %}{{ form.title }}<span class="sr">New task</span></label>
+        <button class="btn btn-ink" type="submit"><span>Add task</span><span class="btn-ico">{% icon "arrow-up-right" %}</span></button>
+      </form>
+
+      <div class="toolbar">
+        <div class="seg" data-filter-for="todo-list" role="group" aria-label="Filter tasks">
+          <button type="button" data-filter="all" aria-pressed="true">All</button>
+          <button type="button" data-filter="pending" aria-pressed="false">Open</button>
+          <button type="button" data-filter="done" aria-pressed="false">Done</button>
         </div>
-    </form>
+        <span class="count"><span data-bind="done">0</span> of <span data-bind="total">0</span> done</span>
+      </div>
+
+      <ul class="items" id="todo-list" data-list data-filterable {% if not todos %}hidden{% endif %}>
+        {% for t in todos %}{% include 'dashboard/partials/todo_item.html' %}{% endfor %}
+      </ul>
+      <div class="empty" data-nomatch-for="todo-list" hidden><h3>Nothing here</h3><p>No tasks match this filter.</p></div>
+      <div class="empty" data-empty {% if todos %}hidden{% endif %}><h3>All caught up</h3><p>You have no tasks. Add one above and press Enter.</p></div>
+    </div>
+
+    <aside class="todo-aside" aria-hidden="true">
+      <div class="bz"><div class="core"><div class="photo u-border-radius-0">{% photo "todo" "" "340px" False "35% 60%" %}</div></div></div>
+    </aside>
+  </div>
 </div>
 
-{% endblock content %}
+<template id="item-tpl">
+  <li class="item" data-cat="pending" data-search="__SEARCH__">
+    <form method="post" action="__TOGGLE__" data-ajax="toggle" data-done-msg="Task completed."><button class="check" type="submit" aria-pressed="false" aria-label="Mark as done">{% include 'dashboard/partials/tick.html' %}</button></form>
+    <div class="body"><div class="title">__TITLE__</div></div>
+    <form method="post" action="__DELETE__" data-ajax="delete" data-confirm="Delete this task?" data-done-msg="Task deleted."><button class="del" type="submit" aria-label="Delete task">{% icon "trash" %}</button></form>
+  </li>
+</template>
+{% endblock %}

@@ -1,0 +1,9 @@
+{% load ui %}<li class="item{% if h.is_finished %} done{% endif %}" data-cat="{% if h.is_finished %}done{% else %}pending{% endif %}" data-search="{{ h.title|lower }} {{ h.subject|lower }}" style="--i:{{ forloop.counter0|default:0 }}">
+  <form method="post" action="{% url 'update-homework' h.id %}" data-ajax="toggle" data-done-msg="Homework done. Great work."><button class="check" type="submit" aria-pressed="{% if h.is_finished %}true{% else %}false{% endif %}" aria-label="{% if h.is_finished %}Mark as not done{% else %}Mark as done{% endif %}">{% include 'dashboard/partials/tick.html' %}</button></form>
+  <div class="body">
+    <div class="title">{{ h.title }}</div>
+    <div class="meta"><span class="tag">{{ h.subject }}</span><span class="due" data-due="{{ h.due|date:'Y-m-d' }}">{% icon "clock" "ic-sm" %}<span>{{ h.due|date:"M j" }}</span></span></div>
+    {% if full and h.description %}<p class="muted clamp-2 u-margin-top-p5rem-font-size-p92rem">{{ h.description }}</p>{% endif %}
+  </div>
+  <form method="post" action="{% url 'delete-homework' h.id %}" data-ajax="delete" data-confirm="Delete this homework?" data-confirm-text="&ldquo;{{ h.title|truncatechars:40 }}&rdquo; will be removed for good." data-done-msg="Homework deleted."><button class="del" type="submit" aria-label="Delete homework">{% icon "trash" %}</button></form>
+</li>

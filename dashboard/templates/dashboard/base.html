@@ -1,185 +1,154 @@
-<!DOCTYPE html>
-{% load static %}
-
-<html lang="en">
-
+{% load static ui %}<!DOCTYPE html>
+<html lang="en" class="no-js">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="X-UA-Compatible" content="ie=edge" />
-  <title>Student Dashboard</title>
-  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
-    integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous" />
-  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css"
-    integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous" />
-  <link rel="stylesheet" href="{% static 'css/main.css' %}?v=2.3" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <title>{% block title %}Study Portal{% endblock %} | Student Study Portal</title>
+  <meta name="description" content="{% block description %}Notes, homework, tasks, an AI tutor and research tools in one quiet, fast workspace for students.{% endblock %}">
+  <meta name="robots" content="{% block robots %}index,follow{% endblock %}">
+  <meta name="color-scheme" content="light dark">
+  <link rel="canonical" href="{{ request.scheme }}://{{ request.get_host }}{{ request.path }}">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Student Study Portal">
+  <meta property="og:title" content="{% block og_title %}Student Study Portal{% endblock %}">
+  <meta property="og:description" content="Notes, homework, tasks, an AI tutor and research tools in one quiet, fast workspace for students.">
+  <meta property="og:url" content="{{ request.scheme }}://{{ request.get_host }}{{ request.path }}">
+  <meta property="og:image" content="{{ request.scheme }}://{{ request.get_host }}{% static 'images/og.jpg' %}">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="A letterboard reading things to do today beside a laptop and headphones">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="theme-color" content="#e8e9eb" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#08080a" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%230d0e10'/%3E%3Cpath d='M16 8 6 13l10 5 8-4v6h2v-7z' fill='%23fff'/%3E%3Cpath d='M10 17v3.5c0 1.6 2.7 3 6 3s6-1.4 6-3V17l-6 3z' fill='%23e5501f'/%3E%3C/svg%3E">
+  <script>
+    (function () {
+      var d = document.documentElement;
+      d.classList.remove('no-js');
+      try { var t = localStorage.getItem('theme'); if (t) d.dataset.theme = t; } catch (e) {}
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="{% static 'css/studydesk.css' %}?v=6.0">
+  {% block head %}{% endblock %}
 </head>
+<body{% if user.is_authenticated %} data-csrf="{{ csrf_token }}" data-initial="{{ user.username|initial }}"{% endif %}>
+  {% include 'dashboard/partials/icons.html' %}
+  <div id="nprog" aria-hidden="true"></div>
+  <a href="#main" class="skip">Skip to content</a>
 
-<body>
-  <header>
-    <nav class="navbar navbar-expand-lg navbar-light bg-white sticky-top shadow-sm">
-      <div class="container-fluid px-4 px-lg-5">
-        <a class="navbar-brand font-weight-bold" href="{% url 'home' %}">
-          <i class="fas fa-graduation-cap text-primary mr-2"></i>Study Portal
-        </a>
-        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent"
-          aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
-          <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse justify-content-end" id="navbarSupportedContent">
-          <ul class="navbar-nav mb-2 mb-lg-0 align-items-center">
-            <li class="nav-item">
-              <a class="nav-link" href="{% url 'home' %}"><i class="fas fa-home mr-1"></i> Home</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="{% url 'about' %}"><i class="fas fa-info-circle mr-1"></i> About Us</a>
-            </li>
-            {% if user.is_authenticated %}
-            <li class="nav-item">
-              <a class="nav-link" href="{% url 'profile' %}"><i class="fas fa-columns mr-1"></i> Dashboard</a>
-            </li>
-            <li class="nav-item dropdown">
-              <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown"
-                aria-haspopup="true" aria-expanded="false">
-                <i class="fas fa-toolbox mr-1"></i> Tools
-              </a>
-              <div class="dropdown-menu" aria-labelledby="navbarDropdown">
-                <a class="dropdown-item" href="{% url 'notes' %}"><i class="fas fa-sticky-note mr-2"></i>Notes</a>
-                <a class="dropdown-item" href="{% url 'homework' %}"><i class="fas fa-book mr-2"></i>Homework</a>
-                <a class="dropdown-item" href="{% url 'todo' %}"><i class="fas fa-check-square mr-2"></i>To-do</a>
-                <div class="dropdown-divider"></div>
-                <a class="dropdown-item" href="{% url 'dictionary' %}"><i
-                    class="fas fa-spell-check mr-2"></i>Dictionary</a>
-                <a class="dropdown-item" href="{% url 'books' %}"><i class="fas fa-book-open mr-2"></i>Books</a>
-                <a class="dropdown-item" href="{% url 'wiki' %}"><i class="fab fa-wikipedia-w mr-2"></i>Wikipedia</a>
-                <a class="dropdown-item" href="{% url 'youtube' %}"><i class="fab fa-youtube mr-2"></i>Youtube</a>
-                <a class="dropdown-item" href="{% url 'chatbot' %}"><i class="fas fa-robot mr-2"></i>AI Tutor</a>
-                <div class="dropdown-divider"></div>
-                <a class="dropdown-item" href="{% url 'conversion' %}"><i
-                    class="fas fa-calculator mr-2"></i>Conversion</a>
-              </div>
-            </li>
-            <!-- User Profile Dropdown -->
-            <li class="nav-item dropdown ml-lg-3 mt-2 mt-lg-0">
-              <a class="nav-link dropdown-toggle user-profile-btn" href="#" id="userProfileDropdown" role="button"
-                data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                <span class="user-avatar-badge mr-2">
-                  {% if user.username %}{{ user.username|slice:":1"|upper }}{% else %}U{% endif %}
-                </span>
-                <span class="user-profile-name mr-1">{{ user.username }}</span>
-                <i class="fas fa-chevron-down user-chevron"></i>
-              </a>
-              <div class="dropdown-menu dropdown-menu-right shadow-lg user-profile-menu p-0" aria-labelledby="userProfileDropdown">
-                <!-- User Profile Header Info -->
-                <div class="user-profile-header p-3">
-                  <div class="d-flex align-items-center">
-                    <div class="user-avatar-large mr-3">
-                      {% if user.username %}{{ user.username|slice:":1"|upper }}{% else %}U{% endif %}
-                    </div>
-                    <div class="user-info-text text-truncate" style="max-width: 175px;">
-                      <h6 class="mb-0 font-weight-bold text-dark text-truncate">{{ user.username }}</h6>
-                      {% if user.email %}
-                      <small class="text-muted text-truncate d-block">{{ user.email }}</small>
-                      {% elif user.is_staff %}
-                      <small class="text-muted d-block">Administrator</small>
-                      {% else %}
-                      <small class="text-muted d-block">Student Member</small>
-                      {% endif %}
-                      <span class="badge badge-success-soft mt-1">
-                        <i class="fas fa-circle mr-1" style="font-size: 6px; vertical-align: middle;"></i>Logged In
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div class="dropdown-divider my-0"></div>
-                
-                <!-- Quick Navigation Links -->
-                <div class="py-2">
-                  <a class="dropdown-item user-dropdown-item" href="{% url 'profile' %}">
-                    <i class="fas fa-columns text-primary mr-2"></i> My Dashboard
-                  </a>
-                  <a class="dropdown-item user-dropdown-item" href="{% url 'homework' %}">
-                    <i class="fas fa-book text-warning mr-2"></i> Due Homework
-                  </a>
-                  <a class="dropdown-item user-dropdown-item" href="{% url 'todo' %}">
-                    <i class="fas fa-check-circle text-success mr-2"></i> My To-dos
-                  </a>
-                  <a class="dropdown-item user-dropdown-item" href="{% url 'notes' %}">
-                    <i class="fas fa-sticky-note text-info mr-2"></i> My Notes
-                  </a>
-                  {% if user.is_staff %}
-                  <a class="dropdown-item user-dropdown-item font-weight-bold text-primary" href="/admin/" target="_blank">
-                    <i class="fas fa-shield-alt text-primary mr-2"></i> Admin Panel
-                  </a>
-                  {% endif %}
-                </div>
-                
-                <div class="dropdown-divider my-0"></div>
-                
-                <!-- Logout inside Profile section -->
-                <div class="p-2">
-                  <a class="dropdown-item user-dropdown-item logout-link font-weight-bold text-danger rounded" href="{% url 'logout' %}">
-                    <i class="fas fa-sign-out-alt mr-2 text-danger"></i> Logout
-                  </a>
-                </div>
-              </div>
-            </li>
-            {% else %}
-            <li class="nav-item">
-              <a class="nav-link" href="{% url 'register' %}">Register</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link btn btn-primary text-white px-4 ml-2" style="padding: 0.5rem 1rem !important;"
-                href="{% url 'login' %}">Login</a>
-            </li>
-            {% endif %}
-          </ul>
-        </div>
+  <header class="nav-pill">
+    <a href="{% url 'home' %}" class="brand" aria-label="Student Study Portal, home">
+      <span class="brand-mark">{% icon "cap" %}</span><span>Study Portal</span>
+    </a>
+
+    <nav class="nav-links" aria-label="Primary">
+      <a class="nav-link" href="{% url 'home' %}" {% if current == 'home' %}aria-current="page"{% endif %}>Home</a>
+      {% if user.is_authenticated %}<a class="nav-link" href="{% url 'profile' %}" {% if current == 'profile' %}aria-current="page"{% endif %}>Dashboard</a>{% endif %}
+      <div class="menu-wrap">
+        <button class="nav-link" type="button" data-menu aria-expanded="false" aria-haspopup="true" aria-controls="tools-panel">Tools {% icon "chev" "chev" %}</button>
+        <div class="panel tools-panel" id="tools-panel"><div class="panel-in">
+          {% for t in tools %}
+          <a class="tool-row" href="{{ t.url }}" {% if current == t.key %}aria-current="page"{% endif %}>
+            <span class="glyph">{% icon t.icon %}</span>
+            <span><b>{{ t.label }}</b><small>{{ t.desc }}</small></span>
+          </a>
+          {% endfor %}
+        </div></div>
       </div>
+      <a class="nav-link" href="{% url 'about' %}" {% if current == 'about' %}aria-current="page"{% endif %}>About</a>
     </nav>
+
+    <div class="nav-end">
+      <button class="search-btn" type="button" data-palette aria-label="Search and jump to">{% icon "search" "ic-sm" %}<span>Jump to</span><span class="kbd">Ctrl K</span></button>
+      <button class="iconbtn theme-btn" type="button" data-theme-toggle aria-label="Toggle dark mode"><span><svg class="ic sun"><use href="#i-sun"/></svg><svg class="ic moon"><use href="#i-moon"/></svg></span></button>
+      {% if user.is_authenticated %}
+      <div class="menu-wrap">
+        <button class="user-btn" type="button" data-menu aria-expanded="false" aria-haspopup="true" aria-controls="user-panel" aria-label="Account menu">
+          <span class="avatar">{{ user.username|initial }}</span>{% icon "chev" "chev" %}
+        </button>
+        <div class="panel user-panel" id="user-panel"><div class="panel-in">
+          <div class="user-head"><span class="avatar">{{ user.username|initial }}</span><div><b>{{ user.username }}</b><small>{% if user.email %}{{ user.email }}{% else %}Student{% endif %}</small></div></div>
+          <div class="menu-sep"></div>
+          <a class="menu-item" href="{% url 'profile' %}">{% icon "dash" %}Dashboard</a>
+          <a class="menu-item" href="{% url 'homework' %}">{% icon "clipboard" %}Homework</a>
+          <a class="menu-item" href="{% url 'todo' %}">{% icon "checks" %}To-dos</a>
+          <a class="menu-item" href="{% url 'notes' %}">{% icon "note" %}Notes</a>
+          {% if user.is_staff %}<a class="menu-item" href="/admin/" data-noprefetch>{% icon "shield" %}Admin panel</a>{% endif %}
+          <div class="menu-sep"></div>
+          <a class="menu-item danger" href="{% url 'logout' %}" data-noprefetch>{% icon "logout" %}Log out</a>
+        </div></div>
+      </div>
+      {% else %}
+      <a class="btn btn-line btn-sm no-ico" href="{% url 'login' %}">Log in</a>
+      <a class="btn btn-ink btn-sm" href="{% url 'register' %}"><span>Join free</span><span class="btn-ico">{% icon "arrow-up-right" %}</span></a>
+      {% endif %}
+      <button class="burger" type="button" data-burger aria-expanded="false" aria-controls="overlay" aria-label="Open menu"><i></i><i></i></button>
+    </div>
   </header>
 
-  <main class="container mt-4 mb-5 pb-5">
-    {% if messages %}
-    {% for msg in messages %}
-    <div class="alert alert-{{msg.tags}} alert-dismissible fade show shadow-sm" role="alert">
-      {{msg}}
-      <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-        <span aria-hidden="true">&times;</span>
-      </button>
+  <div class="overlay" id="overlay">
+    <nav class="ov-list" aria-label="Mobile">
+      <a class="ov-link" style="--i:0" href="{% url 'home' %}" {% if current == 'home' %}aria-current="page"{% endif %}>Home {% icon "arrow-up-right" %}</a>
+      {% if user.is_authenticated %}<a class="ov-link" style="--i:1" href="{% url 'profile' %}" {% if current == 'profile' %}aria-current="page"{% endif %}>Dashboard {% icon "arrow-up-right" %}</a>{% endif %}
+      <a class="ov-link" style="--i:2" href="{% url 'about' %}" {% if current == 'about' %}aria-current="page"{% endif %}>About {% icon "arrow-up-right" %}</a>
+      {% if user.is_authenticated %}<a class="ov-link" style="--i:3" href="{% url 'logout' %}" data-noprefetch>Log out {% icon "arrow-up-right" %}</a>
+      {% else %}<a class="ov-link" style="--i:3" href="{% url 'login' %}">Log in {% icon "arrow-up-right" %}</a><a class="ov-link" style="--i:4" href="{% url 'register' %}">Join free {% icon "arrow-up-right" %}</a>{% endif %}
+    </nav>
+    <div class="ov-grid">
+      {% for t in tools %}<a class="tool-row" style="--i:{{ forloop.counter0 }}" href="{{ t.url }}"><span class="glyph">{% icon t.icon %}</span><span><b>{{ t.label }}</b></span></a>{% endfor %}
     </div>
-    {% endfor %}
-    {% endif %}
+  </div>
 
-    {% block content %}
-    {% endblock content %}
-  </main>
+  <div class="toasts" id="toasts" role="status" aria-live="polite">
+    {% for msg in messages %}<div class="toast {{ msg.tags }}" data-type="{{ msg.tags }}"><span class="tm">{{ msg }}</span></div>{% endfor %}
+  </div>
 
-  <footer>
-    <div class="container">
-      <div class="row">
-        <div class="col-md-12">
-          <h5 class="font-weight-bold text-dark"><i class="fas fa-graduation-cap text-primary mr-2"></i>Student Study
-            Portal</h5>
-          <p class="mt-3">Your ultimate academic companion. Organize tasks, find resources, and study smarter.</p>
-          <div class="mt-4">
-            <a href="{% url 'home' %}" class="text-secondary mx-2">Home</a>
-            <a href="{% url 'about' %}" class="text-secondary mx-2">About Us</a>
-          </div>
-        </div>
+  <main id="main">{% block content %}{% endblock %}</main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <div class="footer-grid">
+        <div class="word">Study Portal.</div>
+        <nav aria-label="Footer"><a class="link" href="{% url 'home' %}">Home</a><a class="link" href="{% url 'about' %}">About</a><a class="link" href="{% url 'privacy' %}">Privacy</a><a class="link" href="{% url 'terms' %}">Terms</a>{% if user.is_authenticated %}<a class="link" href="{% url 'profile' %}">Dashboard</a>{% else %}<a class="link" href="{% url 'login' %}">Log in</a>{% endif %}</nav>
       </div>
     </div>
   </footer>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"
-    integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous">
-    </script>
-  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"
-    integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous">
-    </script>
-</body>
+  <dialog id="confirm" aria-labelledby="confirm-title">
+    <div class="modal"><div class="bz"><div class="core confirm">
+      <div class="glyph">{% icon "trash" %}</div>
+      <h3 id="confirm-title">Are you sure?</h3>
+      <p id="confirm-text">This can't be undone.</p>
+      <div class="modal-foot">
+        <button class="btn btn-line no-ico" type="button" data-close>Cancel</button>
+        <button class="btn btn-danger no-ico" type="button" id="confirm-ok">Delete</button>
+      </div>
+    </div></div></div>
+  </dialog>
 
+  <dialog id="palette" class="palette" aria-label="Jump to">
+    <div class="modal"><div class="bz"><div class="core">
+      <label class="pal-input">{% icon "search" %}<input id="pal-q" type="text" placeholder="Jump to a tool or page" autocomplete="off" spellcheck="false"><span class="kbd">Esc</span></label>
+      <div class="pal-list" id="pal-list" role="listbox">
+        <a class="pal-item" href="{% url 'home' %}"><span class="glyph">{% icon "home" %}</span>Home<small>Page</small></a>
+        {% if user.is_authenticated %}<a class="pal-item" href="{% url 'profile' %}"><span class="glyph">{% icon "dash" %}</span>Dashboard<small>Page</small></a>{% endif %}
+        {% for t in tools %}<a class="pal-item" href="{{ t.url }}"><span class="glyph">{% icon t.icon %}</span>{{ t.label }}<small>Tool</small></a>{% endfor %}
+        <a class="pal-item" href="{% url 'about' %}"><span class="glyph">{% icon "info" %}</span>About<small>Page</small></a>
+        <a class="pal-item" href="{% url 'privacy' %}"><span class="glyph">{% icon "shield" %}</span>Privacy policy<small>Page</small></a>
+        <a class="pal-item" href="{% url 'terms' %}"><span class="glyph">{% icon "file" %}</span>Terms of use<small>Page</small></a>
+        {% if user.is_authenticated %}<a class="pal-item" href="{% url 'logout' %}" data-noprefetch><span class="glyph">{% icon "logout" %}</span>Log out<small>Account</small></a>{% else %}
+        <a class="pal-item" href="{% url 'login' %}"><span class="glyph">{% icon "login" %}</span>Log in<small>Account</small></a>
+        <a class="pal-item" href="{% url 'register' %}"><span class="glyph">{% icon "user-plus" %}</span>Join free<small>Account</small></a>{% endif %}
+      </div>
+      <div class="pal-empty" id="pal-empty" hidden>Nothing matches. Try "notes" or "dictionary".</div>
+      <div class="pal-foot"><span><span class="kbd">Up</span> <span class="kbd">Down</span> to move</span><span><span class="kbd">Enter</span> to open</span></div>
+    </div></div></div>
+  </dialog>
+
+  <script src="{% static 'js/app.js' %}?v=5.3" defer></script>
+  {% block scripts %}{% endblock %}
+</body>
 </html>

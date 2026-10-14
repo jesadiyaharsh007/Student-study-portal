@@ -1,0 +1,40 @@
+{% extends 'dashboard/base.html' %}
+{% load ui %}
+{% block title %}Terms of use (draft){% endblock %}
+{% block description %}Draft terms of use for Student Study Portal. Not yet reviewed or approved.{% endblock %}
+{% block content %}
+<div class="wrap-n">
+  <article class="read legal">
+    <div class="notice draft" role="note">{% icon "alert" %}<div><b>DRAFT. Not legal advice and not approved for publication.</b>Every section below is a placeholder. The site owner must write the actual terms, and a qualified person should review them before this page is relied on.</div></div>
+
+    <h1>Terms of use</h1>
+    <p class="muted">Last updated: <span class="placeholder">[DATE]</span></p>
+
+    <h2>Agreement</h2>
+    <p><span class="placeholder">[WHO THE TERMS ARE BETWEEN AND WHAT COUNTS AS ACCEPTANCE]</span></p>
+
+    <h2>Your account</h2>
+    <p><span class="placeholder">[ACCOUNT RESPONSIBILITIES, SECURITY OF CREDENTIALS, ELIGIBILITY AND MINIMUM AGE]</span></p>
+
+    <h2>Acceptable use</h2>
+    <p><span class="placeholder">[RULES FOR WHAT USERS MAY AND MAY NOT DO]</span></p>
+
+    <h2>Your content</h2>
+    <p><span class="placeholder">[OWNERSHIP OF NOTES AND OTHER CONTENT, AND THE PERMISSIONS THE PORTAL NEEDS TO STORE AND DISPLAY IT]</span></p>
+
+    <h2>Third-party services and AI answers</h2>
+    <p>The portal links to or uses outside services for search, reference material and the AI tutor. <span class="placeholder">[DISCLAIMER WORDING ABOUT ACCURACY AND AVAILABILITY OF THOSE SERVICES]</span></p>
+
+    <h2>Availability and changes</h2>
+    <p><span class="placeholder">[SERVICE AVAILABILITY, CHANGES TO THE PORTAL AND TO THESE TERMS]</span></p>
+
+    <h2>Liability</h2>
+    <p><span class="placeholder">[LIABILITY AND WARRANTY WORDING, TO BE WRITTEN OR APPROVED BY A QUALIFIED PERSON]</span></p>
+
+    <h2>Governing law and contact</h2>
+    <p><span class="placeholder">[JURISDICTION]</span>. Questions: <span class="placeholder">[CONTACT EMAIL]</span>.</p>
+
+    <div class="read-foot"><a class="btn btn-line btn-sm no-ico" href="{% url 'privacy' %}">Read the privacy policy (draft)</a></div>
+  </article>
+</div>
+{% endblock %}

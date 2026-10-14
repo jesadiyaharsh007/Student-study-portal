@@ -1,0 +1,6 @@
+{% load ui %}<div class="field{% if field.errors %} invalid{% endif %}">
+  <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+  <div class="input-icon{% if not icon %} no-ic{% endif %}">{% if icon %}{% icon icon %}{% endif %}{{ field }}{% if password %}<button class="eye" type="button" aria-label="Show password">{% icon "eye" "show" %}{% icon "eye-off" "off" %}</button>{% endif %}</div>
+  {% for e in field.errors %}<div class="field-error">{% icon "alert-circle" "ic-sm" %}{{ e }}</div>{% endfor %}
+  {% if field.help_text %}<div class="hint">{{ field.help_text }}</div>{% endif %}
+</div>
