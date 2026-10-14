@@ -235,7 +235,8 @@ admin.site.unregister(User)
 class StudentAdmin(DjangoUserAdmin):
     show_facets = admin.ShowFacets.NEVER
     search_help_text = "Search username, email or name."
-    list_display = ("username", "email", "role", "active_pill", "notes_n", "homework_n", "todos_n", "date_joined")
+    list_display = ("student", "role", "active_pill", "activity", "joined")
+    list_display_links = ("student",)
     list_filter = (RoleFilter, AccountFilter)
     search_fields = ("username", "email", "first_name", "last_name")
     list_per_page = 20
@@ -274,6 +275,26 @@ class StudentAdmin(DjangoUserAdmin):
             _homework=Count("homework", distinct=True),
             _todos=Count("todo", distinct=True),
         )
+
+    @admin.display(description="Student", ordering="username")
+    def student(self, obj):
+        return format_html(
+            '<span class="sd-user"><span class="avatar">{}</span><span><b>{}</b><small>{}</small></span></span>',
+            (obj.username[:1] or "?").upper(), obj.username, obj.email or obj.get_full_name() or "No email",
+        )
+
+    @admin.display(description="Activity")
+    def activity(self, obj):
+        def chip(n, one, many):
+            return format_html('<span class="sd-chip{}">{} {}</span>', "" if n else " zero", n, one if n == 1 else many)
+        return format_html(
+            "{}{}{}",
+            chip(obj._notes, "note", "notes"), chip(obj._homework, "homework", "homework"), chip(obj._todos, "to-do", "to-dos"),
+        )
+
+    @admin.display(description="Joined", ordering="date_joined")
+    def joined(self, obj):
+        return obj.date_joined.strftime("%b %d, %Y").replace(" 0", " ")
 
     @admin.display(description="Role", ordering="is_staff")
     def role(self, obj):

@@ -126,3 +126,43 @@
 @media (max-width: 760px) { .sd-admin #changelist #toolbar, .sd-admin #changelist #changelist-search { width: 100%; } }
 .sd-admin #changelist #changelist-search input[type="text"] { width: 360px; max-width: 100%; }
 @media (max-width: 760px) { .sd-admin #changelist #changelist-search input[type="text"] { width: 100%; flex: 1; } }
+
+/* ==========================================================================
+   Table polish: aligned header + cells, no sort arrows, calmer rows, person cell
+   ========================================================================== */
+.sd-admin #changelist .results table { border-collapse: separate; border-spacing: 0; }
+.sd-admin #changelist .results thead th, .sd-admin #changelist .results tbody td, .sd-admin #changelist .results tbody th {
+  padding: .95rem 1rem; vertical-align: middle; text-align: left; border-bottom: 1px solid var(--hair);
+}
+.sd-admin #changelist .results thead th { padding-block: .8rem; background: var(--sunk); border-bottom: 1px solid var(--hair); }
+.sd-admin #changelist .results thead th .text { padding: 0; }
+.sd-admin #changelist .results thead th .text a, .sd-admin #changelist .results thead th .text > span { padding: 0; display: inline; color: var(--muted); }
+.sd-admin #changelist .results thead th .text a::after { content: none !important; }
+.sd-admin #changelist .results thead th.sorted .text a, .sd-admin #changelist .results thead th .text a:hover { color: var(--ink); }
+.sd-admin #changelist .results thead th.sorted { background: var(--sunk); }
+.sd-admin #changelist .results thead th .text a { text-decoration: none; cursor: pointer; }
+.sd-admin #changelist .results thead th:first-child, .sd-admin #changelist .results tbody td:first-child { padding-left: 1.4rem; width: 1%; }
+.sd-admin #changelist .results thead th:last-child, .sd-admin #changelist .results tbody td:last-child, .sd-admin #changelist .results tbody th:last-child { padding-right: 1.4rem; }
+.sd-admin #changelist .results tbody tr, .sd-admin #changelist .results tbody tr.row1, .sd-admin #changelist .results tbody tr.row2 { background: transparent !important; }
+.sd-admin #changelist .results tbody tr:hover td, .sd-admin #changelist .results tbody tr:hover th { background: color-mix(in oklab, var(--accent) 5%, transparent); }
+.sd-admin #changelist .results tbody tr.selected td, .sd-admin #changelist .results tbody tr.selected th { background: var(--accent-soft); }
+.sd-admin #changelist .results tbody tr:last-child td, .sd-admin #changelist .results tbody tr:last-child th { border-bottom: 0; }
+.sd-admin #changelist .results td.action-checkbox, .sd-admin #changelist .results th.action-checkbox-column { text-align: left; }
+.sd-admin #changelist .results td.action-checkbox input, .sd-admin #changelist .results th.action-checkbox-column input { display: block; }
+
+/* person cell */
+.sd-user { display: inline-flex; align-items: center; gap: .8rem; text-align: left; }
+.sd-user .avatar { width: 38px; height: 38px; font-size: .95rem; }
+.sd-user > span:last-child { display: grid; gap: .1rem; line-height: 1.25; }
+.sd-user b { font-weight: 600; font-size: .96rem; color: var(--ink); }
+.sd-user small { color: var(--muted); font-size: .82rem; font-weight: 400; }
+.sd-admin #changelist td a:hover .sd-user b { color: var(--accent-text); }
+.sd-chip { display: inline-flex; align-items: center; padding: .2rem .65rem; margin-right: .35rem; border-radius: 99px; font-size: .78rem; font-weight: 550; color: var(--ink-2); background: var(--sunk); box-shadow: inset 0 0 0 1px var(--hair); white-space: nowrap; }
+.sd-chip.zero { color: var(--muted); opacity: .7; background: transparent; }
+.sd-admin #changelist .results td.field-joined { color: var(--ink-2); white-space: nowrap; }
+
+/* footer: plain count, aligned with the table */
+.sd-admin #changelist .changelist-footer { padding: 1rem 1.4rem; border-top: 1px solid var(--hair); margin: 0; }
+.sd-admin #changelist .paginator { padding: 0; }
+.sd-admin #changelist .paginator .result-count, .sd-admin #changelist .paginator .paginator-count { background: none; padding: 0; border-radius: 0; box-shadow: none; color: var(--muted); font-weight: 500; }
+.sd-admin #changelist .paginator { background: none; }
