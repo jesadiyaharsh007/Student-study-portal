@@ -92,6 +92,17 @@ TEMPLATES = [
 WSGI_APPLICATION = 'studentstudyportal.wsgi.application'
 
 
+# Caching
+# Fast in-memory caching for templates, sessions, and tool lookups
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'study-portal-cache',
+        'TIMEOUT': 300,
+    }
+}
+
+
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 

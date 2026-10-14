@@ -1,6 +1,4 @@
 # Environment variables & secrets
-.env
-.env.*
 *.env
 !.env.example
 
@@ -28,7 +26,6 @@ Thumbs.db
 ehthumbs.db
 
 # IDE & Editor files
-.vscode/
 .idea/
 *.swp
 *~
@@ -38,3 +35,4 @@ ehthumbs.db
 scratch/
 staticfiles_build/
 
+config.bat
