@@ -892,16 +892,30 @@
       ta.dispatchEvent(new Event('input'));
       const t = document.createElement('div');
       t.className = 'msg bot typing tone-pink';
-      t.innerHTML = '<div class="av"><svg class="ic"><use href="#i-bot"/></svg></div><div class="bubble"><i></i><i></i><i></i></div>';
+      t.innerHTML = '<div class="av"><svg class="ic"><use href="#i-bot"/></svg></div><div class="bubble"><div class="typing-dots"><i></i><i></i><i></i></div><span class="typing-status">Thinking...</span></div>';
       log.append(t); log.scrollTop = log.scrollHeight;
+      const statusEl = $('.typing-status', t);
+      const phases = ['Analyzing question...', 'Connecting concepts...', 'Drafting explanation...'];
+      let phaseIdx = 0;
+      const statusTimer = setInterval(() => {
+        if (statusEl && phaseIdx < phases.length) {
+          statusEl.textContent = phases[phaseIdx++];
+          log.scrollTop = log.scrollHeight;
+        }
+      }, 2000);
       try {
         const fd = new FormData(); fd.append('prompt', text);
         const r = await fetch(url, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrf() }, credentials: 'same-origin' });
         const d = await r.json().catch(() => ({}));
+        clearInterval(statusTimer);
         t.remove();
         if (d.ok) addMsg('bot', d.reply);
         else { toast('danger', d.error || 'The tutor is unavailable right now.'); }
-      } catch (e) { t.remove(); toast('danger', 'You appear to be offline.'); }
+      } catch (e) {
+        clearInterval(statusTimer);
+        t.remove();
+        toast('danger', 'You appear to be offline.');
+      }
       busy = false;
       if (send) send.disabled = !ta.value.trim();
       ta.focus();

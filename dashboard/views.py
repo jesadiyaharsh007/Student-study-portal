@@ -558,9 +558,9 @@ def conversion(request):
 # --------------------------------------------------------------------------- AI tutor
 
 AI_TUTOR_SYSTEM_PROMPT = (
-    "You are the AI Tutor on Student Study Portal — a patient, supportive, and knowledgeable academic assistant.\n"
-    "Your mission is to help students learn effectively: explain academic concepts clearly, provide intuitive examples, "
-    "guide them through problem-solving step by step, and generate practice questions or quizzes when asked.\n\n"
+    "You are the AI Tutor on Student Study Portal — a knowledgeable, clear, and direct academic assistant.\n"
+    "Your mission is to help students learn effectively: explain concepts clearly and concisely without unnecessary conversational preamble or filler. "
+    "Provide intuitive examples, step-by-step problem solving, and practice questions promptly.\n\n"
     "FORMATTING & COPYABLE CONTENT RULES (CRITICAL):\n"
     "1. When a student asks for a prompt, code snippet, template, configuration, or formula to copy, ALWAYS format it in a "
     "fenced markdown code block with a language tag (e.g., ```prompt, ```python, ```text, ```html, ```json). The chat "
@@ -600,11 +600,10 @@ def _get_ai_http_session():
 
 def _query_gemini_tutor(api_key, history, prompt):
     models = [
+        "gemini-3-flash-preview",
         "gemini-3.5-flash-lite",
-        "gemini-flash-lite-latest",
         "gemini-3.1-flash-lite",
         "gemini-3.5-flash",
-        "gemini-flash-latest",
     ]
     # Send only recent context (last 6 turns) so Gemini doesn't have to process thousands of tokens
     recent_history = history[-6:] if history else []
@@ -620,8 +619,8 @@ def _query_gemini_tutor(api_key, history, prompt):
         "system_instruction": {"parts": [{"text": AI_TUTOR_SYSTEM_PROMPT}]},
         "contents": contents,
         "generationConfig": {
-            "temperature": 0.7,
-            "maxOutputTokens": 1600,
+            "temperature": 0.5,
+            "maxOutputTokens": 1200,
         },
     }
 
@@ -630,7 +629,7 @@ def _query_gemini_tutor(api_key, history, prompt):
     for model_name in models:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
         try:
-            resp = session.post(url, json=payload, timeout=8)
+            resp = session.post(url, json=payload, timeout=6)
             if resp.status_code == 200:
                 data = resp.json()
                 candidates = data.get("candidates", [])
