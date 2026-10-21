@@ -602,31 +602,58 @@ def _ytdlp_info(video_id: str, client: Optional[str] = None) -> Dict:
     except ImportError as exc:
         raise StreamUnavailable("yt-dlp is not installed") from exc
 
-    # Try clients in prioritized order: android/tv_embedded bypass cloud bot checks cleanly
-    clients_to_try = [client] if client else ["android", "tv_embedded", "web_embedded", "ios", "mweb", "web"]
+    import shutil
+    node_path = shutil.which("node")
+    base_opts = {
+        "quiet": True,
+        "no_warnings": True,
+        "skip_download": True,
+        "noplaylist": True,
+        "socket_timeout": 8,
+    }
+    if node_path:
+        base_opts["js_runtimes"] = {"node": {}}
+
+    # 1. Try standard default extraction first (gets full 1080p, 720p, 480p, 360p, 240p, 144p DASH sets)
+    if not client:
+        try:
+            with yt_dlp.YoutubeDL(base_opts) as ydl:
+                res = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False, process=True)
+                if res and res.get("formats"):
+                    has_dash = any(f.get("ext") == "mp4" and (f.get("vcodec") or "").startswith("avc1") and f.get("acodec") == "none" for f in res.get("formats", []))
+                    if has_dash:
+                        return res
+                    best_res = res
+                else:
+                    best_res = None
+        except Exception:
+            best_res = None
+    else:
+        best_res = None
+
+    # 2. Try specific client fallbacks in order of quality richness
+    clients_to_try = [client] if client else ["web_embedded", "tv_embedded", "ios", "mweb", "android", "web"]
     last_exc = None
     for c in clients_to_try:
-        opts = {
-            "quiet": True,
-            "no_warnings": True,
-            "skip_download": True,
-            "noplaylist": True,
-            "socket_timeout": 8,
-            "extractor_args": {
-                "youtube": {
-                    "player_client": [c],
-                    "player_skip": ["webpage", "configs"],
-                }
-            },
+        opts = dict(base_opts)
+        opts["extractor_args"] = {
+            "youtube": {
+                "player_client": [c],
+            }
         }
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 res = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False, process=True)
                 if res and res.get("formats"):
-                    return res
+                    has_hd = any((f.get("height") or 0) >= 720 for f in res.get("formats", []))
+                    if has_hd or not best_res:
+                        return res
         except Exception as exc:
             last_exc = exc
             continue
+
+    if best_res:
+        return best_res
     raise StreamUnavailable(str(last_exc or "Stream unavailable")[:200])
 
 
@@ -640,7 +667,8 @@ def stream_manifest(video_id: str, refresh: bool = False) -> Dict:
         raise StreamUnavailable("bad id")
     hit = _MANIFESTS.get(video_id)
     if hit and not refresh and time.time() - hit["at"] < _MANIFEST_TTL:
-        return hit
+        if len(hit.get("public", {}).get("video", [])) > 1:
+            return hit
     info = _ytdlp_info(video_id)
     if info.get("is_live") or info.get("live_status") in ("is_live", "is_upcoming"):
         raise StreamUnavailable("Live streams cannot be played here.")

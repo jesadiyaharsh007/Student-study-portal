@@ -350,6 +350,43 @@
     } catch (e) { el.bCc.hidden = true; }
   }
 
+  const YT_QUALITY_MAP = {
+    'highres': 2160,
+    'hd2160': 2160,
+    'hd1440': 1440,
+    'hd1080': 1080,
+    'hd720': 720,
+    'large': 480,
+    'medium': 360,
+    'small': 240,
+    'tiny': 144,
+  };
+  const HEIGHT_TO_YT_QUALITY = {
+    2160: 'hd2160',
+    1440: 'hd1440',
+    1080: 'hd1080',
+    720: 'hd720',
+    480: 'large',
+    360: 'medium',
+    240: 'small',
+    144: 'tiny',
+  };
+  function setEmbedQuality(q) {
+    if (!embedPlayer) return;
+    if (q === 'auto') {
+      state.quality = 'auto';
+      if (embedPlayer.setPlaybackQuality) embedPlayer.setPlaybackQuality('default');
+    } else {
+      state.quality = q;
+      state.height = +q;
+      const ytQ = HEIGHT_TO_YT_QUALITY[+q] || 'default';
+      if (embedPlayer.setPlaybackQuality) embedPlayer.setPlaybackQuality(ytQ);
+      if (embedPlayer.setPlaybackQualityRange) embedPlayer.setPlaybackQualityRange(ytQ, ytQ);
+    }
+    paintQuality();
+    savePrefs();
+  }
+
   /* ------------------------------------------------------------------ menus */
   let menuStack = [];
   const closeMenu = () => { el.menu.hidden = true; menuStack = []; ui.classList.remove('menu-open'); };
@@ -364,9 +401,19 @@
       html = item('Quality', qlabel, 'data-m="quality"', false, true) + item('Speed', prefs.rate === 1 ? 'Normal' : prefs.rate + '×', 'data-m="speed"', false, true) +
         item('Captions', state.ccLang ? (state.tracks.find(t => t.lang === state.ccLang) || {}).name || state.ccLang : 'Off', 'data-m="cc"', false, true);
     } else if (view === 'quality') {
-      const hs = state.manifest ? state.manifest.video.map(v => v.height).filter((h, i, a) => engine && engine.formats.some(f => f.height === h) && a.indexOf(h) === i).sort((a, b) => b - a) : [];
+      let hs = [];
+      if (engine && engine.formats && engine.formats.length) {
+        hs = engine.formats.map(f => f.height).filter((h, i, a) => a.indexOf(h) === i).sort((a, b) => b - a);
+      } else if (state.manifest && state.manifest.video && state.manifest.video.length) {
+        hs = state.manifest.video.map(v => v.height).filter((h, i, a) => a.indexOf(h) === i).sort((a, b) => b - a);
+      } else if (state.engineType === 'embed') {
+        const levels = (embedPlayer && embedPlayer.getAvailableQualityLevels && embedPlayer.getAvailableQualityLevels()) || [];
+        const parsed = levels.map(l => YT_QUALITY_MAP[l]).filter(Boolean);
+        hs = parsed.length ? parsed.filter((h, i, a) => a.indexOf(h) === i).sort((a, b) => b - a) : [1080, 720, 480, 360, 240, 144];
+      }
+      if (!hs.length) hs = [1080, 720, 480, 360, 240, 144];
       html = head('Quality') + item('Auto', state.quality === 'auto' && state.height ? `${state.height}p` : '', 'data-q="auto"', state.quality === 'auto', false, true) +
-        hs.map(h => item(`${h}p${h >= 1080 ? ' <b class="yt-hd">HD</b>' : ''}`, '', `data-q="${h}"`, String(state.quality) === String(h), false, true)).join('');
+        hs.map(h => item(`${h}p${h >= 720 ? ' <b class="yt-hd">HD</b>' : ''}`, '', `data-q="${h}"`, String(state.quality) === String(h), false, true)).join('');
     } else if (view === 'speed') {
       html = head('Speed') + [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map(r => item(r === 1 ? 'Normal' : r + '×', '', `data-r="${r}"`, prefs.rate === r, false, true)).join('');
     } else if (view === 'cc') {
@@ -389,7 +436,30 @@
     const d = b.dataset;
     if (d.m === 'back') { menuStack.pop(); renderMenu(); }
     else if (d.m) { menuStack.push(d.m); renderMenu(); }
-    else if (d.q !== undefined) { state.quality = d.q; prefs.quality = d.q; savePrefs(); if (engine) engine.setQuality(d.q); closeMenu(); }
+    else if (d.q !== undefined) {
+      state.quality = d.q;
+      prefs.quality = d.q;
+      savePrefs();
+      if (engine) {
+        engine.setQuality(d.q);
+      } else if (state.engineType === 'native' && state.manifest && state.manifest.video) {
+        const v = (d.q === 'auto')
+          ? state.manifest.video[state.manifest.video.length - 1]
+          : (state.manifest.video.find(x => String(x.height) === String(d.q)) || state.manifest.video[0]);
+        if (v) {
+          const t = video.currentTime;
+          const wasPlaying = !video.paused;
+          video.src = urlFor('mediaUrl', state.id).replace('/0/', `/${v.itag}/`);
+          video.currentTime = t;
+          state.height = v.height;
+          paintQuality();
+          if (wasPlaying) video.play().catch(() => {});
+        }
+      } else if (state.engineType === 'embed' && embedPlayer) {
+        setEmbedQuality(d.q);
+      }
+      closeMenu();
+    }
     else if (d.r !== undefined) { prefs.rate = +d.r; video.playbackRate = prefs.rate; if (state.engineType === 'embed' && embedPlayer && embedPlayer.setPlaybackRate) embedPlayer.setPlaybackRate(prefs.rate); savePrefs(); closeMenu(); }
     else if (d.c !== undefined) { setCaptions(d.c); closeMenu(); }
   });
@@ -533,10 +603,24 @@
                 if (prefs.muted) embedPlayer.mute(); else embedPlayer.unMute();
               }
               if (start > 0 && embedPlayer.seekTo) embedPlayer.seekTo(start, true);
-              state.height = 720;
-              paintQuality();
+              if (prefs.quality && prefs.quality !== 'auto') {
+                setEmbedQuality(prefs.quality);
+              } else {
+                const qLevel = (embedPlayer.getPlaybackQuality && embedPlayer.getPlaybackQuality()) || '';
+                state.height = YT_QUALITY_MAP[qLevel] || state.height || 720;
+                paintQuality();
+              }
               if (autoplay && embedPlayer.playVideo) embedPlayer.playVideo();
               paint();
+            },
+            onPlaybackQualityChange: ev => {
+              if (tok !== state.tok) return;
+              const h = YT_QUALITY_MAP[ev.data];
+              if (h) {
+                state.height = h;
+                paintQuality();
+                if (!el.menu.hidden) renderMenu();
+              }
             },
             onStateChange: ev => {
               if (tok !== state.tok) return;
@@ -545,6 +629,9 @@
                 setPlaying(true);
                 setWaiting(false);
                 state.ready = true;
+                const qLevel = (embedPlayer.getPlaybackQuality && embedPlayer.getPlaybackQuality()) || '';
+                if (YT_QUALITY_MAP[qLevel]) state.height = YT_QUALITY_MAP[qLevel];
+                paintQuality();
                 startEmbedTimer();
               } else if (ev.data === 2) { // paused
                 setPlaying(false);
