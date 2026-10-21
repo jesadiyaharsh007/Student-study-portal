@@ -420,7 +420,7 @@ def youtube_stream(request, video_id):
     try:
         data = videos.stream_manifest(video_id, refresh=bool(request.GET.get("refresh")))
     except videos.StreamUnavailable as exc:
-        return JsonResponse({"ok": False, "error": str(exc) or "This video cannot be played here."}, status=404)
+        return JsonResponse({"ok": False, "fallback": "embed", "video_id": video_id, "error": str(exc) or "This video cannot be played here."}, status=200)
     resp = JsonResponse({"ok": True, **data["public"]})
     resp["Cache-Control"] = "private, max-age=60"
     return resp

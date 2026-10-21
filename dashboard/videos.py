@@ -70,15 +70,15 @@ FEATURED_VIDEOS: List[Dict] = [
         "link": "https://www.youtube.com/watch?v=8mAITcNt710",
     },
     {
-        "id": "8p74N6jUeag",
-        "title": "MIT 8.01 SC: Classical Mechanics — Lecture 1",
-        "channel": "MIT OpenCourseWare",
-        "duration": "48:20",
-        "views": "2.4M views",
-        "published": "University Lecture",
-        "thumbnail": "https://i.ytimg.com/vi/8p74N6jUeag/mqdefault.jpg",
-        "description": "Prof. Walter Lewin introduces classical mechanics, units, dimensions, and physical measurements.",
-        "link": "https://www.youtube.com/watch?v=8p74N6jUeag",
+        "id": "b1t41Q3xRM8",
+        "title": "Physics - Basic Introduction",
+        "channel": "The Organic Chemistry Tutor",
+        "duration": "2:23:10",
+        "views": "3.8M views",
+        "published": "Physics Foundations",
+        "thumbnail": "https://i.ytimg.com/vi/b1t41Q3xRM8/mqdefault.jpg",
+        "description": "Comprehensive introductory physics tutorial covering displacement, velocity, acceleration, Newton's laws, vectors, work, and energy.",
+        "link": "https://www.youtube.com/watch?v=b1t41Q3xRM8",
     },
     {
         "id": "094y1Z2wpJg",
@@ -92,15 +92,15 @@ FEATURED_VIDEOS: List[Dict] = [
         "link": "https://www.youtube.com/watch?v=094y1Z2wpJg",
     },
     {
-        "id": "x48325-eZ_w",
-        "title": "General Chemistry 1 Comprehensive Review Study Guide",
-        "channel": "The Organic Chemistry Tutor",
-        "duration": "2:15:20",
-        "views": "3.1M views",
-        "published": "Exam Prep",
-        "thumbnail": "https://i.ytimg.com/vi/x48325-eZ_w/mqdefault.jpg",
-        "description": "Fundamental review covering stoichiometry, atomic structure, gas laws, thermochemistry, and molarity.",
-        "link": "https://www.youtube.com/watch?v=x48325-eZ_w",
+        "id": "FSyAehMdpyI",
+        "title": "The Nucleus: Crash Course Chemistry #1",
+        "channel": "CrashCourse",
+        "duration": "10:12",
+        "views": "5.6M views",
+        "published": "Chemistry Basics",
+        "thumbnail": "https://i.ytimg.com/vi/FSyAehMdpyI/mqdefault.jpg",
+        "description": "Hank Green discusses atoms, elements, the nucleus, protons, neutrons, electrons, and isotopes.",
+        "link": "https://www.youtube.com/watch?v=FSyAehMdpyI",
     },
     {
         "id": "zQGOcOUBi6s",
@@ -114,15 +114,15 @@ FEATURED_VIDEOS: List[Dict] = [
         "link": "https://www.youtube.com/watch?v=zQGOcOUBi6s",
     },
     {
-        "id": "Yocja_N571A",
+        "id": "Yocja_N5s1I",
         "title": "The Agricultural Revolution: Crash Course World History #1",
         "channel": "CrashCourse",
         "duration": "11:11",
         "views": "15.2M views",
         "published": "World History",
-        "thumbnail": "https://i.ytimg.com/vi/Yocja_N571A/mqdefault.jpg",
+        "thumbnail": "https://i.ytimg.com/vi/Yocja_N5s1I/mqdefault.jpg",
         "description": "John Green investigates human history from hunter-gatherers to settled agriculture and early civilization.",
-        "link": "https://www.youtube.com/watch?v=Yocja_N571A",
+        "link": "https://www.youtube.com/watch?v=Yocja_N5s1I",
     },
     {
         "id": "fNk_zzaMoSs",
@@ -601,18 +601,38 @@ def _ytdlp_info(video_id: str, client: Optional[str] = None) -> Dict:
         import yt_dlp
     except ImportError as exc:
         raise StreamUnavailable("yt-dlp is not installed") from exc
-    opts = {"quiet": True, "no_warnings": True, "skip_download": True, "noplaylist": True, "socket_timeout": 12}
-    if client:
-        opts["extractor_args"] = {"youtube": {"player_client": [client]}}
-    try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            return ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False, process=False)
-    except Exception as exc:
-        raise StreamUnavailable(str(exc)[:200]) from exc
+
+    # Try clients in prioritized order: android/tv_embedded bypass cloud bot checks cleanly
+    clients_to_try = [client] if client else ["android", "tv_embedded", "web_embedded", "ios", "mweb", "web"]
+    last_exc = None
+    for c in clients_to_try:
+        opts = {
+            "quiet": True,
+            "no_warnings": True,
+            "skip_download": True,
+            "noplaylist": True,
+            "socket_timeout": 8,
+            "extractor_args": {
+                "youtube": {
+                    "player_client": [c],
+                    "player_skip": ["webpage", "configs"],
+                }
+            },
+        }
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                res = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False, process=True)
+                if res and res.get("formats"):
+                    return res
+        except Exception as exc:
+            last_exc = exc
+            continue
+    raise StreamUnavailable(str(last_exc or "Stream unavailable")[:200])
 
 
 def stream_manifest(video_id: str, refresh: bool = False) -> Dict:
-    """What the player can play for a video: H.264 video qualities plus the best AAC audio.
+    """What the player can play for a video: H.264 video qualities plus the best AAC audio,
+    or high-quality progressive MP4 streams.
     Returns {"public": manifest-for-the-browser, "urls": {itag: googlevideo-url}} and caches it."""
     import time
 
@@ -626,35 +646,73 @@ def stream_manifest(video_id: str, refresh: bool = False) -> Dict:
         raise StreamUnavailable("Live streams cannot be played here.")
     by_height: Dict[int, Dict] = {}
     audio = None
+    muxed_by_height: Dict[int, Dict] = {}
     urls: Dict[str, str] = {}
     for f in info.get("formats", []):
         url, itag = f.get("url"), str(f.get("format_id"))
         if not url or f.get("protocol") not in ("https", "http", None) or not itag.isdigit():
             continue
         vcodec, acodec = f.get("vcodec") or "none", f.get("acodec") or "none"
+        h = f.get("height") or 0
+
+        # Separate DASH video (H.264)
         if f.get("ext") == "mp4" and vcodec.startswith("avc1") and acodec == "none":
-            h = f.get("height") or 0
-            entry = {"itag": itag, "height": h, "fps": f.get("fps") or 30, "codec": vcodec,
-                     "bitrate": int((f.get("tbr") or 0) * 1000), "size": f.get("filesize") or f.get("filesize_approx") or 0}
+            entry = {
+                "itag": itag, "height": h, "fps": f.get("fps") or 30, "codec": vcodec,
+                "bitrate": int((f.get("tbr") or 0) * 1000), "size": f.get("filesize") or f.get("filesize_approx") or 0,
+            }
             if h and (h not in by_height or entry["bitrate"] > by_height[h]["bitrate"]):
                 by_height[h] = entry
+            urls[itag] = url
+
+        # Separate DASH audio (AAC)
         elif f.get("ext") == "m4a" and acodec.startswith("mp4a") and vcodec == "none":
-            entry = {"itag": itag, "codec": acodec, "bitrate": int((f.get("abr") or f.get("tbr") or 0) * 1000),
-                     "size": f.get("filesize") or f.get("filesize_approx") or 0}
+            entry = {
+                "itag": itag, "codec": acodec, "bitrate": int((f.get("abr") or f.get("tbr") or 0) * 1000),
+                "size": f.get("filesize") or f.get("filesize_approx") or 0,
+            }
             if audio is None or entry["bitrate"] > audio["bitrate"]:
                 audio = entry
-        else:
-            continue
-        urls[itag] = url
-    if not by_height or not audio:
+            urls[itag] = url
+
+        # Progressive muxed MP4 (e.g. itag 18=360p, 22=720p)
+        elif f.get("ext") == "mp4" and (vcodec.startswith("avc1") or vcodec != "none") and acodec != "none":
+            h = h or 360
+            entry = {
+                "itag": itag, "height": h, "fps": f.get("fps") or 30, "codec": vcodec, "acodec": acodec,
+                "bitrate": int((f.get("tbr") or 0) * 1000), "size": f.get("filesize") or f.get("filesize_approx") or 0,
+                "muxed": True,
+            }
+            if h not in muxed_by_height or entry["bitrate"] > muxed_by_height[h]["bitrate"]:
+                muxed_by_height[h] = entry
+            urls[itag] = url
+
+    # Choose DASH if both video and audio are present, otherwise progressive muxed
+    if by_height and audio:
+        videos_list = sorted(by_height.values(), key=lambda v: v["height"])
+        keep = {v["itag"] for v in videos_list} | {audio["itag"]}
+        is_muxed = False
+        best_muxed = None
+    elif muxed_by_height:
+        videos_list = sorted(muxed_by_height.values(), key=lambda v: v["height"])
+        keep = {v["itag"] for v in videos_list}
+        is_muxed = True
+        best_muxed = videos_list[-1]
+        audio = {"itag": best_muxed["itag"], "codec": best_muxed.get("acodec", "mp4a"), "bitrate": 128000, "size": 0}
+    else:
         raise StreamUnavailable("No playable formats were found for this video.")
-    videos_list = sorted(by_height.values(), key=lambda v: v["height"])
-    keep = {v["itag"] for v in videos_list} | {audio["itag"]}
+
     data = {
         "at": time.time(),
         "public": {
-            "id": video_id, "title": info.get("title") or "", "channel": info.get("channel") or info.get("uploader") or "",
-            "duration": info.get("duration") or 0, "video": videos_list, "audio": audio,
+            "id": video_id,
+            "title": info.get("title") or "",
+            "channel": info.get("channel") or info.get("uploader") or "",
+            "duration": info.get("duration") or 0,
+            "video": videos_list,
+            "audio": audio,
+            "is_muxed": is_muxed,
+            "progressive_itag": best_muxed["itag"] if best_muxed else None,
         },
         "urls": {k: v for k, v in urls.items() if k in keep},
     }
