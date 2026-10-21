@@ -12,7 +12,7 @@
 .yt-video { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: #000; object-fit: contain; }
 .yt-embed { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: #000; overflow: hidden; }
 .yt-embed[hidden] { display: none; }
-.yt-embed iframe { width: 100%; height: 100%; border: 0; display: block; pointer-events: none; }
+.yt-embed iframe { width: 100%; height: 100%; border: 0; display: block; pointer-events: auto; }
 
 /* ---- overlay UI ---- */
 .yt-ui { position: absolute; inset: 0; user-select: none; -webkit-user-select: none; }
@@ -69,23 +69,27 @@
 .yt-volr::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #fff; }
 .yt-volr::-moz-range-thumb { width: 12px; height: 12px; border: 0; border-radius: 50%; background: #fff; }
 
-/* ---- menus ---- */
-.yt-menu { position: absolute; right: 1rem; bottom: 4.6rem; min-width: 250px; max-width: calc(100% - 1.6rem); max-height: calc(100% - 6rem); overflow-y: auto; padding: .35rem; border-radius: 16px; background: rgb(12 12 16 / .98); color: #fff; box-shadow: 0 24px 60px -10px rgb(0 0 0 / .85), 0 0 0 1px rgb(255 255 255 / .14); animation: yt-menu .22s var(--out) both; transform-origin: bottom right; }
+/* ---- menus (settings, quality, speed, captions, download): one light panel with clear rows ---- */
+.yt-menu { position: absolute; right: .9rem; bottom: 4.9rem; min-width: 260px; max-width: calc(100% - 1.8rem); max-height: calc(100% - 6rem); overflow-y: auto; scrollbar-width: thin; padding: .4rem; border-radius: 18px; background: var(--core, #fff); color: var(--ink, #111); box-shadow: 0 0 0 1px var(--hair-2, rgb(0 0 0 / .14)), 0 28px 60px -14px rgb(13 14 16 / .5); animation: yt-menu .22s var(--out) both; transform-origin: bottom right; }
 .yt-menu[hidden] { display: none; }
 @keyframes yt-menu { from { opacity: 0; transform: translateY(6px) scale(.97); } to { opacity: 1; transform: none; } }
-.yt-mi, .yt-mh { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .65rem .8rem; border-radius: 11px; text-align: left; font-size: .95rem; font-weight: 600; color: #fff; transition: background .15s; }
-.yt-mi:hover, .yt-mh:hover { background: rgb(255 255 255 / .12); }
+.yt-mi, .yt-mh { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .62rem .75rem; border-radius: 12px; text-align: left; font-size: .93rem; font-weight: 550; color: var(--ink, #111); transition: background .15s; }
+.yt-mi:hover, .yt-mh:hover { background: var(--sunk, rgb(0 0 0 / .06)); }
 .yt-mi-l { display: inline-flex; align-items: center; gap: .6rem; min-width: 0; }
-.yt-mi-l svg { width: 17px; height: 17px; flex: none; opacity: .9; }
-.yt-mi-v { display: inline-flex; align-items: center; gap: .3rem; color: rgb(255 255 255 / .85); font-size: .85rem; font-weight: 600; white-space: nowrap; }
+.yt-mi-l svg { width: 17px; height: 17px; flex: none; opacity: .75; }
+.yt-mi-v { display: inline-flex; align-items: center; gap: .3rem; color: var(--muted, #666); font-size: .85rem; font-weight: 550; white-space: nowrap; }
 .yt-mi > svg { width: 15px; height: 15px; opacity: .6; flex: none; }
-.yt-mh { justify-content: flex-start; gap: .4rem; font-weight: 650; border-bottom: 1px solid rgb(255 255 255 / .1); border-radius: 11px 11px 4px 4px; margin-bottom: .2rem; }
+.yt-mh { justify-content: flex-start; gap: .4rem; font-weight: 650; border-bottom: 1px solid var(--hair, rgb(0 0 0 / .1)); border-radius: 12px 12px 4px 4px; margin-bottom: .2rem; }
 .yt-mh svg { width: 17px; height: 17px; }
-.yt-mt { padding: .55rem .8rem .45rem; font-size: .74rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: rgb(255 255 255 / .7); }
-.yt-mnone { padding: .6rem .75rem; margin: 0; color: rgb(255 255 255 / .6); font-size: .85rem; }
-.yt-mi.on { color: #ff5c78; background: rgb(255 255 255 / .06); } .yt-mi.on .yt-mi-l svg { opacity: 1; }
-.yt-hd { font-size: .62rem; padding: .12rem .35rem; border-radius: 4px; background: #ff2a4f; color: #fff; margin-left: .3rem; letter-spacing: .04em; }
-.yt-mi small { opacity: .6; margin-left: .2rem; }
+.yt-mt { padding: .55rem .75rem .45rem; font-size: .74rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--muted, #666); }
+.yt-mnone { padding: .6rem .75rem; margin: 0; color: var(--muted, #666); font-size: .85rem; }
+/* the row in use: accent text, a check on the left, nothing else competing */
+.yt-mi.on { color: var(--accent-text, var(--accent, #d4501f)); font-weight: 650; background: var(--accent-soft, rgb(232 96 42 / .1)); }
+.yt-mi.on .yt-mi-l svg { opacity: 1; color: var(--accent, #e8602a); }
+.yt-mi.on .yt-mi-v { color: var(--accent-text, var(--accent, #d4501f)); }
+/* HD marker: a small outline tag, not a solid block */
+.yt-hd { display: inline-block; margin-left: .4rem; padding: 0 .3rem; border: 1px solid currentColor; border-radius: 4px; font-size: .62rem; font-weight: 700; line-height: 1.5; letter-spacing: .04em; vertical-align: 1px; opacity: .8; }
+.yt-mi small { color: var(--muted, #666); background: var(--sunk, rgb(0 0 0 / .06)); padding: .05rem .4rem; border-radius: 99px; font-size: .68rem; margin-left: .3rem; }
 
 /* ---- error panel ---- */
 .yt-err { position: absolute; left: 0; right: 0; top: 0; bottom: var(--bar); z-index: 3; display: grid; align-content: center; justify-items: start; gap: .5rem; padding: 7%; background: radial-gradient(circle at 70% 40%, #2a1442, #0c0c0f 70%); color: #fff; }
@@ -113,12 +117,6 @@
 @media (max-width: 560px) { .yt-skip, .yt-vol .yt-volr { display: none; } .yt-time { margin: 0 .2rem; font-size: .76rem; } .yt-cb { width: 36px; height: 36px; } .yt-cb svg { width: 22px; height: 22px; } }
 @media (prefers-reduced-motion: reduce) { .yt-player, .yt-ctrl, .yt-top, .yt-menu { transition: none; animation: none; } .yt-player.pop { animation: none; } }
 .yt-ck { display: inline-block; width: 17px; height: 17px; flex: none; }
-
-/* live quality badge on the settings gear (HD for 720p and up) */
-.yt-gearb { overflow: visible; }
-.yt-qb { position: absolute; top: 1px; right: -2px; padding: 0 .28rem; min-width: 1.3rem; border-radius: 5px; background: rgb(255 255 255 / .92); color: #111; font: 800 .6rem/1.25 inherit; letter-spacing: .03em; text-align: center; pointer-events: none; filter: none; }
-.yt-qb.hd { background: #ff2a4f; color: #fff; }
-.yt-qb[hidden] { display: none; }
 
 /* the shading sits behind every control: it used to paint over them and wash them out */
 .yt-ui::before, .yt-ui::after { z-index: 0; }
@@ -148,25 +146,9 @@
 .yt-cb.on { background: rgb(255 42 79 / .28) !important; }
 .yt-cb.on::after { display: none; }
 .yt-cb.on svg { color: #ff6b87; }
-.yt-qb { top: -5px; right: -6px; border: 2px solid rgb(14 14 18 / .9); }
 @container (max-width: 700px) { .yt-time { margin: 0 .5rem 0 .2rem; font-size: .84rem; } .yt-pipb { display: none; } }
 @container (max-width: 520px) { .yt-grp .yt-cb { width: 38px; height: 38px; } .yt-grp .yt-cb svg { width: 23px; height: 23px; } .yt-vol .yt-volr { display: none; } .yt-row { gap: .4rem; } .yt-grp .yt-primary { width: 42px; height: 42px; } }
 @container (max-width: 400px) { .yt-time { display: none; } }
-
-/* menus: the light theme of the rest of the site */
-.yt-menu { background: var(--core, #fff); color: var(--ink, #111); border-radius: 20px; padding: .4rem; min-width: 260px; bottom: 4.9rem; right: .9rem;
-  box-shadow: 0 0 0 1px var(--hair-2, rgb(0 0 0 / .14)), 0 28px 60px -14px rgb(13 14 16 / .5); }
-.yt-mi, .yt-mh { color: var(--ink, #111); font-weight: 550; border-radius: 12px; }
-.yt-mi:hover, .yt-mh:hover { background: var(--sunk, rgb(0 0 0 / .06)); }
-.yt-mi-v { color: var(--muted, #666); font-weight: 550; }
-.yt-mi-l svg, .yt-mi > svg { opacity: .75; }
-.yt-mi.on { color: var(--accent-text, var(--accent, #d4501f)); background: var(--accent-soft, rgb(232 96 42 / .1)); }
-.yt-mi.on .yt-mi-l svg { opacity: 1; color: var(--accent, #e8602a); }
-.yt-mh { border-bottom: 1px solid var(--hair, rgb(0 0 0 / .1)); }
-.yt-mt { color: var(--muted, #666); }
-.yt-mnone { color: var(--muted, #666); }
-.yt-hd { background: var(--accent, #e8602a); }
-.yt-mi small { color: var(--muted, #666); opacity: 1; background: var(--sunk, rgb(0 0 0 / .06)); padding: .05rem .4rem; border-radius: 99px; font-size: .68rem; }
 
 /* YouTube's embed fills the frame; our own controls step aside */
 .yt-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; background: #000; }

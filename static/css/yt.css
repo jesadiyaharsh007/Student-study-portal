@@ -47,7 +47,7 @@
 .yt-h .yt-text b { font-size: .88rem; }
 
 /* ---- watch view ---- */
-.yt-watch { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 1.5rem; margin: .4rem 0 1.2rem; }
+.yt-watch { position: relative; z-index: 5; display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 1.5rem; margin: .4rem 0 1.2rem; }
 .yt-watch[hidden] { display: none; }
 .yt-watch.in { animation: yt-in .45s var(--out) both; }
 .yt-watch.out { animation: yt-out .2s ease-out both; }
@@ -90,6 +90,8 @@
 .yt-rel:active { transform: scale(.985); }
 .yt-rel .yt-thumb { border-radius: 10px; } .yt-rel .yt-play svg { width: 36px; height: 36px; padding: 8px; }
 .yt-rel .yt-text b { font-size: .85rem; }
+.yt-rel.current .yt-text b, .yt-card.current .yt-text b { color: var(--accent, #e8602a); }
+.yt-rel.current .yt-thumb, .yt-card.current .yt-thumb { box-shadow: 0 0 0 2px var(--accent, #e8602a); }
 .yt-next-empty { color: var(--muted); font-size: .9rem; }
 .yt-sk { height: 84px; border-radius: 12px; background: linear-gradient(100deg, var(--sunk) 30%, var(--hair) 50%, var(--sunk) 70%); background-size: 200% 100%; animation: yt-sh 1.3s linear infinite; }
 @keyframes yt-sh { to { background-position: -200% 0; } }
@@ -115,9 +117,17 @@
 /* ---- Lexi about this video ---- */
 .yt-pill-lexi { background: var(--ink); color: var(--bg); box-shadow: none; }
 .yt-pill-lexi:hover { background: var(--ink); opacity: .9; }
-.yt-anchor { position: relative; display: grid; gap: .9rem; }
-.yt-lexi { position: absolute; left: 0; right: 0; top: calc(100% + .5rem); z-index: 30; display: flex; flex-direction: column; max-height: min(480px, 70vh); border-radius: 20px; background: var(--core); box-shadow: 0 0 0 1px var(--hair-2), 0 30px 60px -20px rgb(13 14 16 / .55); overflow: hidden; transform-origin: 80% 0; }
+/* The anchor is its own stacking layer, so Lexi floats over the description and the cards below without taking up space. */
+.yt-anchor { position: relative; z-index: 5; display: grid; gap: .9rem; }
+/* the cards (more videos and search results) sit in a lower layer, so the open Lexi panel always paints over them */
+.yt-more, #ytResults { position: relative; z-index: 0; }
+.yt-lexi { position: absolute; left: 0; right: 0; top: calc(100% + .5rem); z-index: 1; display: flex; flex-direction: column; max-height: min(480px, 70vh); border-radius: 20px; background: var(--core); box-shadow: 0 0 0 1px var(--hair-2), 0 30px 60px -20px rgb(13 14 16 / .55); overflow: hidden; transform-origin: 80% 0; }
 .yt-lexi[hidden] { display: none; }
+.yt-md-table { overflow-x: auto; margin: .3rem 0; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--hair-2); }
+.yt-md-table table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+.yt-md-table th, .yt-md-table td { padding: .5rem .7rem; border-bottom: 1px solid var(--hair); vertical-align: top; }
+.yt-md-table th { background: var(--sunk); font-weight: 650; }
+.yt-md-table tr:last-child td { border-bottom: 0; }
 .yt-lexi.in { animation: yt-pop-in .28s var(--out) both; }
 @keyframes yt-pop-in { from { opacity: 0; transform: translateY(-6px) scale(.97); } to { opacity: 1; transform: none; } }
 .yt-lexi > header { display: flex; align-items: center; gap: .7rem; padding: .8rem .9rem; border-bottom: 1px solid var(--hair); }

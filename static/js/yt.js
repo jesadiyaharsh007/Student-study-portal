@@ -63,6 +63,7 @@
     }
     showWatch();
     const same = SP.open(id, meta || {}, { stage: el.stage, start: opts.start || 0 });
+    markCurrent();
     document.title = (S.meta.title ? S.meta.title + ' · ' : '') + baseTitle;
     if (!same || opts.refresh) { resetLexi(); fillHeader(S.meta); fetchDetails(id); }
     if (opts.push !== false) {
@@ -143,6 +144,15 @@
     const more = list.slice(SIDE);
     $('ytMoreGrid').innerHTML = more.map(cardHtml).join('');
     $('ytMoreVideos').hidden = !more.length;
+    markCurrent();
+  }
+  // Up next and the grid under the video always show which video is playing now (also after Next, Previous or autoplay).
+  function markCurrent() {
+    document.querySelectorAll('#ytNext .yt-rel, #ytMoreGrid .yt-card').forEach(a => {
+      const on = a.dataset.id === S.id;
+      a.classList.toggle('current', on);
+      if (on) a.setAttribute('aria-current', 'true'); else a.removeAttribute('aria-current');
+    });
   }
   const playNext = () => {
     const f = trail.fwd.pop();
@@ -332,10 +342,29 @@
     const blocks = [];
     const t = esc(src).replace(/```(\w*)\n?([\s\S]*?)```/g, (m, l, code) => { blocks.push(`<pre><code>${code.replace(/\n$/, '')}</code></pre>`); return `\u0000${blocks.length - 1}\u0000`; });
     const inline = s => s.replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/(^|[^*])\*([^*\s][^*]*)\*/g, '$1<i>$2</i>');
+    // Markdown tables: a header row, a |---| separator row, then body rows. Each table becomes one placeholder line.
+    const rowRe = /^\s*\|.*\|\s*$/, sepRe = /^\s*\|?\s*:?-{3,}/;
+    const cells = r => r.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+    const withTables = text => {
+      const ls = text.split('\n'), outLines = [];
+      for (let i = 0; i < ls.length; i++) {
+        if (rowRe.test(ls[i]) && i + 1 < ls.length && sepRe.test(ls[i + 1])) {
+          const align = cells(ls[i + 1]).map(c => (/^:-+:$/.test(c) ? 'center' : /-:$/.test(c) ? 'right' : 'left'));
+          const th = cells(ls[i]).map((c, k) => `<th style="text-align:${align[k] || 'left'}">${inline(c)}</th>`).join('');
+          let j = i + 2; const body = [];
+          while (j < ls.length && rowRe.test(ls[j])) { body.push(`<tr>${cells(ls[j]).map((c, k) => `<td style="text-align:${align[k] || 'left'}">${inline(c)}</td>`).join('')}</tr>`); j++; }
+          blocks.push(`<div class="yt-md-table"><table><thead><tr>${th}</tr></thead><tbody>${body.join('')}</tbody></table></div>`);
+          outLines.push(`\u0000${blocks.length - 1}\u0000`);
+          i = j - 1;
+        } else outLines.push(ls[i]);
+      }
+      return outLines.join('\n');
+    };
     const out = []; let list = null;
     const flush = () => { if (list) { out.push(`<${list.t}>${list.items.join('')}</${list.t}>`); list = null; } };
-    t.split('\n').forEach(line => {
+    withTables(t).split('\n').forEach(line => {
       let m;
+      if (/^\u0000\d+\u0000$/.test(line.trim())) { flush(); out.push(line.trim()); return; }
       if ((m = /^\s*[-*•]\s+(.*)$/.exec(line))) { if (!list || list.t !== 'ul') { flush(); list = { t: 'ul', items: [] }; } list.items.push(`<li>${inline(m[1])}</li>`); }
       else if ((m = /^\s*\d+[.)]\s+(.*)$/.exec(line))) { if (!list || list.t !== 'ol') { flush(); list = { t: 'ol', items: [] }; } list.items.push(`<li>${inline(m[1])}</li>`); }
       else { flush(); if ((m = /^#{1,4}\s+(.*)$/.exec(line))) out.push(`<h4>${inline(m[1])}</h4>`); else if (line.trim()) out.push(`<p>${inline(line)}</p>`); }

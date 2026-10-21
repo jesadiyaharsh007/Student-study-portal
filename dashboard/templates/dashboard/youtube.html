@@ -2,7 +2,7 @@
 {% load static ui %}
 {% block title %}Videos{% if q %} — {{ q }}{% elif topic_label %} — {{ topic_label }}{% endif %}{% endblock %}
 {% block robots %}noindex,nofollow{% endblock %}
-{% block head %}<link rel="stylesheet" href="{% static 'css/media.css' %}?v=4"><link rel="stylesheet" href="{% static 'css/yt.css' %}?v=9">{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% static 'css/media.css' %}?v=4"><link rel="stylesheet" href="{% static 'css/yt.css' %}?v=14">{% endblock %}
 {% block content %}
 <div class="wrap-n yt" id="yt" data-watch-url="{% url 'youtube-watch' 'XXXXXXXXXXX' %}" data-lexi-url="{% url 'youtube-lexi' %}" data-start="{{ start_video }}" data-csrf="{{ csrf_token }}">
 
@@ -94,4 +94,4 @@
 </div>
 {% endblock %}
 
-{% block scripts %}<script src="{% static 'js/yt.js' %}?v=10" defer></script>{% endblock %}
+{% block scripts %}<script src="{% static 'js/yt.js' %}?v=12" defer></script>{% endblock %}

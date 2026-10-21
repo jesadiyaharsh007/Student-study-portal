@@ -61,7 +61,7 @@
           <span class="yt-gap"></span>
           <div class="yt-grp">
             <button type="button" class="yt-cb" data-a="cc" aria-label="Captions" title="Captions (C)">${ICON.cc}</button>
-            <button type="button" class="yt-cb yt-gearb" data-a="settings" aria-label="Settings" title="Quality and speed">${ICON.gear}<span class="yt-qb" hidden></span></button>
+            <button type="button" class="yt-cb yt-gearb" data-a="settings" aria-label="Settings" title="Quality and speed">${ICON.gear}</button>
             <button type="button" class="yt-cb" data-a="download" aria-label="Download" title="Download">${ICON.dl}</button>
             <button type="button" class="yt-cb yt-pipb" data-a="pip" aria-label="Picture in picture" title="Picture in picture">${ICON.pip}</button>
             <button type="button" class="yt-cb" data-a="fs" aria-label="Full screen" title="Full screen (F)">${ICON.fs}</button>
@@ -79,7 +79,7 @@
     cc: q('.yt-cc'), ccText: q('.yt-cc span'), spin: q('.yt-spin'), vtitle: q('.yt-vtitle'),
     seek: q('.yt-seek'), buf: q('.yt-buf'), played: q('.yt-played'), knob: q('.yt-knob'), tip: q('.yt-tip'),
     time: q('.yt-time'), volr: q('.yt-volr'), menu: q('.yt-menu'),
-    bPlay: q('[data-a=play]'), qb: q('.yt-qb'), bMute: q('[data-a=mute]'), bFs: q('[data-a=fs]'), bCc: q('[data-a=cc]'),
+    bPlay: q('[data-a=play]'), bMute: q('[data-a=mute]'), bFs: q('[data-a=fs]'), bCc: q('[data-a=cc]'),
   };
   if (!document.pictureInPictureEnabled) q('.yt-pipb').hidden = true;
 
@@ -383,7 +383,6 @@
       if (embedPlayer.setPlaybackQuality) embedPlayer.setPlaybackQuality(ytQ);
       if (embedPlayer.setPlaybackQualityRange) embedPlayer.setPlaybackQualityRange(ytQ, ytQ);
     }
-    paintQuality();
     savePrefs();
   }
 
@@ -452,7 +451,6 @@
           video.src = urlFor('mediaUrl', state.id).replace('/0/', `/${v.itag}/`);
           video.currentTime = t;
           state.height = v.height;
-          paintQuality();
           if (wasPlaying) video.play().catch(() => {});
         }
       } else if (state.engineType === 'embed' && embedPlayer) {
@@ -496,14 +494,6 @@
   ui.addEventListener('pointerleave', () => { if (state.playing && el.menu.hidden) ui.classList.remove('show'); });
   video.addEventListener('pause', () => { ui.classList.add('show'); clearTimeout(hideT); });
 
-  function paintQuality() {
-    const h = state.height;
-    el.qb.hidden = !h;
-    el.qb.textContent = h >= 1080 ? 'HD' : (h >= 720 ? 'HD' : h + 'p');
-    el.qb.classList.toggle('hd', h >= 720);
-    el.qb.title = `${h}p${state.quality === 'auto' ? ' (auto)' : ''}`;
-  }
-
   /* ------------------------------------------------------------------ engine */
   function teardown() {
     state.tok++;
@@ -516,6 +506,7 @@
       el.embed.innerHTML = '';
       el.embed.hidden = true;
     }
+    host.classList.remove('embed');
     ui.hidden = false;
     ui.style.display = '';
     video.hidden = false;
@@ -524,7 +515,7 @@
     video.load();
     if (engine) { engine.destroy(); engine = null; }
     state.engineType = 'mse';
-    state.manifest = null; state.ready = false; state.height = 0; state.cues = []; state.tracks = []; el.qb.hidden = true;
+    state.manifest = null; state.ready = false; state.height = 0; state.cues = []; state.tracks = [];
     closeMenu(); hideError(); el.cc.hidden = true; setWaiting(false);
   }
 
@@ -534,7 +525,10 @@
     el.embed.hidden = false;
     video.hidden = true;
     const iframe = document.createElement('iframe');
-    iframe.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=${autoplay ? 1 : 0}&start=${Math.floor(start || 0)}&rel=0&modestbranding=1&playsinline=1`;
+    const origin = encodeURIComponent(window.location.origin || '');
+    host.classList.add('embed');
+    iframe.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=${autoplay ? 1 : 0}&start=${Math.floor(start || 0)}&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&origin=${origin}`;
+    iframe.referrerPolicy = 'strict-origin-when-cross-origin';
     iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
     iframe.allowFullscreen = true;
     iframe.style.width = '100%';
@@ -553,6 +547,7 @@
   function startEmbedEngine(id, start, autoplay) {
     const tok = state.tok;
     state.engineType = 'embed';
+    host.classList.add('embed');
     if (engine) { engine.destroy(); engine = null; }
     video.pause();
     video.removeAttribute('src');
@@ -581,7 +576,7 @@
           height: '100%',
           playerVars: {
             autoplay: autoplay ? 1 : 0,
-            controls: 0,
+            controls: 1,
             modestbranding: 1,
             rel: 0,
             iv_load_policy: 3,
@@ -608,7 +603,6 @@
               } else {
                 const qLevel = (embedPlayer.getPlaybackQuality && embedPlayer.getPlaybackQuality()) || '';
                 state.height = YT_QUALITY_MAP[qLevel] || state.height || 720;
-                paintQuality();
               }
               if (autoplay && embedPlayer.playVideo) embedPlayer.playVideo();
               paint();
@@ -618,7 +612,6 @@
               const h = YT_QUALITY_MAP[ev.data];
               if (h) {
                 state.height = h;
-                paintQuality();
                 if (!el.menu.hidden) renderMenu();
               }
             },
@@ -631,7 +624,6 @@
                 state.ready = true;
                 const qLevel = (embedPlayer.getPlaybackQuality && embedPlayer.getPlaybackQuality()) || '';
                 if (YT_QUALITY_MAP[qLevel]) state.height = YT_QUALITY_MAP[qLevel];
-                paintQuality();
                 startEmbedTimer();
               } else if (ev.data === 2) { // paused
                 setPlaying(false);
@@ -719,7 +711,6 @@
       video.src = mediaSrc;
       if (start > 0) video.currentTime = start;
       state.height = (mf.video && mf.video[0] && mf.video[0].height) || 360;
-      paintQuality();
       if (autoplay) {
         video.play().catch(() => { setPlaying(false); ui.dataset.state = 'paused'; state.ready = true; setWaiting(false); });
       } else {
@@ -740,7 +731,7 @@
     if (el.embed) el.embed.hidden = true;
     engine = new window.YTEngine(video, {
       mediaUrl: itag => urlFor('mediaUrl', id).replace(/\/0(\?|\/|$)/, `/${itag}$1`),
-      onQuality: s => { state.height = s.height; state.quality = s.auto ? 'auto' : String(s.height); paintQuality(); if (!el.menu.hidden) renderMenu(); },
+      onQuality: s => { state.height = s.height; state.quality = s.auto ? 'auto' : String(s.height); if (!el.menu.hidden) renderMenu(); },
       onError: msg => { if (tok === state.tok) startEmbedEngine(id, video.currentTime || start, true); },
       onWaiting: setWaiting,
       maxHeight: () => Math.max(360, Math.round((host.clientHeight || 360) * (devicePixelRatio || 1))),
