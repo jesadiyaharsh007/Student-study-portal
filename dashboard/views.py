@@ -1,4 +1,6 @@
 import functools
+import hashlib
+import hmac
 import json
 from concurrent.futures import ThreadPoolExecutor
 import re
@@ -415,12 +417,26 @@ def youtube_watch(request, video_id):
 
 
 @student_required
+def youtube_token(request):
+    """A signed pass (good for two hours) for the separate video service, when one is configured."""
+    from django.conf import settings
+
+    if not (settings.MEDIA_SERVICE_URL and settings.MEDIA_SERVICE_SECRET):
+        return JsonResponse({"ok": False}, status=404)
+    exp = int(time.time()) + 7200
+    sig = hmac.new(settings.MEDIA_SERVICE_SECRET.encode(), str(exp).encode(), hashlib.sha256).hexdigest()
+    resp = JsonResponse({"ok": True, "base": settings.MEDIA_SERVICE_URL, "token": f"{exp}.{sig}", "exp": exp})
+    resp["Cache-Control"] = "no-store"
+    return resp
+
+
+@student_required
 def youtube_stream(request, video_id):
     """What the player can play for this video (qualities, audio, length). The links stay on the server."""
     try:
         data = videos.stream_manifest(video_id, refresh=bool(request.GET.get("refresh")))
     except videos.StreamUnavailable as exc:
-        return JsonResponse({"ok": False, "fallback": "embed", "video_id": video_id, "error": str(exc) or "This video cannot be played here."}, status=200)
+        return JsonResponse({"ok": False, "fallback": "embed", "video_id": video_id, "error": str(exc) or "This video cannot be played here."}, status=404)
     resp = JsonResponse({"ok": True, **data["public"]})
     resp["Cache-Control"] = "private, max-age=60"
     return resp

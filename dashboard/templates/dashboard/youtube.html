@@ -2,7 +2,7 @@
 {% load static ui %}
 {% block title %}Videos{% if q %} — {{ q }}{% elif topic_label %} — {{ topic_label }}{% endif %}{% endblock %}
 {% block robots %}noindex,nofollow{% endblock %}
-{% block head %}<link rel="stylesheet" href="{% static 'css/media.css' %}?v=4"><link rel="stylesheet" href="{% static 'css/yt.css' %}?v=8">{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% static 'css/media.css' %}?v=4"><link rel="stylesheet" href="{% static 'css/yt.css' %}?v=9">{% endblock %}
 {% block content %}
 <div class="wrap-n yt" id="yt" data-watch-url="{% url 'youtube-watch' 'XXXXXXXXXXX' %}" data-lexi-url="{% url 'youtube-lexi' %}" data-start="{{ start_video }}" data-csrf="{{ csrf_token }}">
 
@@ -30,6 +30,7 @@
     <div class="yt-watch-main">
       <div class="yt-bar">
         <button class="yt-ghost" type="button" id="ytBack" aria-label="Back to videos"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Back</span></button>
+        <div class="yt-bar-nav"><button class="yt-ghost" type="button" id="ytPrevB" aria-label="Previous video"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" fill="currentColor"/></svg><span>Previous</span></button><button class="yt-ghost" type="button" id="ytNextB" aria-label="Next video"><span>Next</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" fill="currentColor"/></svg></button></div>
         <button class="yt-ghost" type="button" id="ytMiniBtn" title="Minimise to a small player (i)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3" stroke="currentColor" stroke-width="2" fill="none"/><rect x="12" y="12" width="7" height="5" rx="1.2" fill="currentColor"/></svg><span>Mini player</span></button>
       </div>
       <div class="yt-stage" id="ytStage"></div>
@@ -93,4 +94,4 @@
 </div>
 {% endblock %}
 
-{% block scripts %}<script src="{% static 'js/yt.js' %}?v=9" defer></script>{% endblock %}
+{% block scripts %}<script src="{% static 'js/yt.js' %}?v=10" defer></script>{% endblock %}

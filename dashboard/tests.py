@@ -707,3 +707,22 @@ class LibraryTests(TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertIn('attachment', res['Content-Disposition'])
         self.assertIn('.m4a', res['Content-Disposition'])
+
+    def test_youtube_token_only_with_a_configured_service(self):
+        self.assertEqual(self.client.get(reverse('youtube-token')).status_code, 404)
+        with self.settings(MEDIA_SERVICE_URL='https://media.example.com', MEDIA_SERVICE_SECRET='s3cret'):
+            res = self.client.get(reverse('youtube-token'))
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data['base'], 'https://media.example.com')
+        import hashlib, hmac
+        exp, sig = data['token'].split('.')
+        self.assertEqual(sig, hmac.new(b's3cret', exp.encode(), hashlib.sha256).hexdigest())
+        self.assertEqual(res['Cache-Control'], 'no-store')
+        self.client.logout()
+        self.assertEqual(self.client.get(reverse('youtube-token')).status_code, 302)
+
+    def test_player_mode_defaults(self):
+        self.assertContains(self.client.get(reverse('youtube')), 'data-mode="auto"')
+        with self.settings(PLAYER_MODE='embed'):
+            self.assertContains(self.client.get(reverse('youtube')), 'data-mode="embed"')

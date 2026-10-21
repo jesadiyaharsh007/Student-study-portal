@@ -153,3 +153,5 @@
 .yt-more { margin-top: 2rem; padding-top: 1.4rem; border-top: 1px solid var(--hair); }
 .yt-more[hidden], .yt:not(.watching) .yt-more { display: none; }
 .yt-more h2 { font-size: 1.15rem; letter-spacing: -.02em; margin-bottom: 1rem; }
+.yt-bar-nav { display: none; gap: .4rem; }
+body.sp-embed .yt-bar-nav { display: flex; }

@@ -32,7 +32,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="{% static 'css/studydesk.css' %}?v=8.5">
   <link rel="stylesheet" href="{% static 'css/controls.css' %}?v=4">
-  {% if user.is_authenticated %}<link rel="stylesheet" href="{% static 'css/player.css' %}?v=10">{% endif %}
+  {% if user.is_authenticated %}<link rel="stylesheet" href="{% static 'css/player.css' %}?v=11">{% endif %}
   {% block head %}{% endblock %}
   <link rel="stylesheet" href="{% static 'css/compact.css' %}?v=2">
 </head>
@@ -151,7 +151,7 @@
     </div></div></div>
   </dialog>
 
-  {% if user.is_authenticated %}<script src="{% static 'js/ytengine.js' %}?v=2" defer data-once></script><script src="{% static 'js/player.js' %}?v=8" defer data-once></script><script src="{% static 'js/nav.js' %}?v=1" defer data-once></script>{% endif %}
+  {% if user.is_authenticated %}<script src="{% static 'js/ytengine.js' %}?v=2" defer data-once></script><script src="{% static 'js/player.js' %}?v=10" defer data-once></script><script src="{% static 'js/nav.js' %}?v=1" defer data-once></script>{% endif %}
   {% block scripts %}{% endblock %}
   <script src="{% static 'js/app.js' %}?v=7.0" defer></script>
   <script src="{% static 'js/controls.js' %}?v=1" defer data-once></script>

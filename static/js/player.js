@@ -115,7 +115,27 @@
     const h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, s = t % 60;
     return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s).padStart(2, '0');
   };
-  const urlFor = (attr, id, extra) => { let u = host.dataset[attr].replace('XXXXXXXXXXX', encodeURIComponent(id)); Object.entries(extra || {}).forEach(([k, v]) => { u = u.replace(k, v); }); return u; };
+  // With a separate video service the player talks to it directly, using a signed pass from the website.
+  let svc = null;
+  async function ensureService() {
+    if (host.dataset.mode !== 'service') return false;
+    if (svc && svc.exp * 1000 - Date.now() > 120000) return true;
+    const r = await fetch(host.dataset.tokenUrl, { credentials: 'same-origin' });
+    const d = await r.json();
+    if (!d.ok) throw new Error('no service');
+    svc = d;
+    return true;
+  }
+  if (host.dataset.mode === 'service') setInterval(() => { ensureService().catch(() => {}); }, 10 * 60 * 1000);
+  const urlFor = (attr, id, extra) => {
+    if (svc) {
+      const t = `token=${encodeURIComponent(svc.token)}`, b = svc.base, v = encodeURIComponent(id);
+      if (attr === 'streamUrl') return `${b}/stream/${v}?${t}`;
+      if (attr === 'mediaUrl') return `${b}/media/${v}/0?${t}`;
+      if (attr === 'captionsUrl') return `${b}/captions/${v}?${t}`;
+      if (attr === 'cuesUrl') return `${b}/captions/${v}/${(extra || {}).LANG}?${t}`;
+      if (attr === 'downloadUrl') return `${b}/download/${v}/${(extra || {}).KIND}?${t}`;
+    } let u = host.dataset[attr].replace('XXXXXXXXXXX', encodeURIComponent(id)); Object.entries(extra || {}).forEach(([k, v]) => { u = u.replace(k, v); }); return u; };
 
   /* ------------------------------------------------------------------ persistence */
   let lastSave = 0;
@@ -334,7 +354,7 @@
       const a = (href, l, sub) => `<a class="yt-mi" href="${href}" download><span class="yt-mi-l">${ICON.dl}${l}</span><span class="yt-mi-v">${sub}</span></a>`;
       html = '<div class="yt-mt">Download</div>' + a(urlFor('downloadUrl', id, { KIND: 'mp4' }), 'Video with sound', 'MP4 · 360p') +
         a(urlFor('downloadUrl', id, { KIND: 'audio' }), 'Audio only', 'M4A') +
-        (vq ? a(urlFor('downloadUrl', id, { KIND: 'video' }) + `?itag=${vq.itag}`, `Picture only`, `MP4 · ${vq.height}p`) : '');
+        (vq ? a(urlFor('downloadUrl', id, { KIND: 'video' }) + (svc ? '&' : '?') + `itag=${vq.itag}`, `Picture only`, `MP4 · ${vq.height}p`) : '');
     }
     el.menu.innerHTML = html;
     el.menu.hidden = false; ui.classList.add('menu-open');
@@ -520,11 +540,15 @@
 
   async function startEngine(id, start, autoplay) {
     const tok = ++state.tok;
+    if (host.dataset.mode === 'embed' || engineDown()) { startEmbed(id, start, autoplay); return; }
     hideError(); setWaiting(true); ui.dataset.state = 'loading';
     el.buf.style.transform = el.played.style.transform = 'scaleX(0)';
     let mf;
     try {
-      const r = await fetch(urlFor('streamUrl', id), { credentials: 'same-origin' });
+      await ensureService();
+      const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 9000);
+      const r = await fetch(urlFor('streamUrl', id), { credentials: 'same-origin', signal: ctl.signal });
+      clearTimeout(timer);
       mf = await r.json();
     } catch (e) {
       if (tok === state.tok) startEmbedEngine(id, start, autoplay);
@@ -571,7 +595,7 @@
     video.hidden = false;
     if (el.embed) el.embed.hidden = true;
     engine = new window.YTEngine(video, {
-      mediaUrl: itag => urlFor('mediaUrl', id).replace('/0/', `/${itag}/`),
+      mediaUrl: itag => urlFor('mediaUrl', id).replace(/\/0(\?|\/|$)/, `/${itag}$1`),
       onQuality: s => { state.height = s.height; state.quality = s.auto ? 'auto' : String(s.height); paintQuality(); if (!el.menu.hidden) renderMenu(); },
       onError: msg => { if (tok === state.tok) startEmbedEngine(id, video.currentTime || start, true); },
       onWaiting: setWaiting,
@@ -622,6 +646,8 @@
       emit('closed');
     },
     toggle,
+    seek(t) { if (state.embed) embedSend('seekTo', [t, true]); else seekTo(t); },
+    get embed() { return state.embed; },
     refresh() { place(false); },
     track,
     get video() { return video; },
@@ -634,7 +660,7 @@
     if (state.mode === 'none' || e.ctrlKey || e.metaKey || e.altKey) return;
     const t = e.target;
     if (t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) && t !== el.volr || t.isContentEditable)) return;
-    if (!(state.mode === 'watch' || fsActive())) return;
+    if (state.embed || !(state.mode === 'watch' || fsActive())) return;
     const k = e.key;
     const vol = d => { video.muted = false; video.volume = Math.max(0, Math.min(1, video.volume + d)); prefs.vol = video.volume; prefs.muted = false; savePrefs(); poke(); };
     if (k === ' ' || k === 'k' || k === 'K') { if (t && t.closest && t.closest('button, a, [role=slider]') && k === ' ') return; e.preventDefault(); toggle(); poke(); }
