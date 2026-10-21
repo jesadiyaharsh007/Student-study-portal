@@ -1,6 +1,6 @@
 {# The one video player. It lives outside the page content so it can keep playing: it sits over the watch stage on the Videos page and docks bottom-right everywhere else. player.js builds the picture and controls inside #ytFrame. #}
 <div class="yt-player" id="ytPlayer" hidden tabindex="-1"
-     data-videos-url="{% url 'youtube' %}"
+     data-videos-url="{% url 'youtube' %}" data-mode="{{ player_mode }}" data-token-url="{% url 'youtube-token' %}"
      data-stream-url="{% url 'youtube-stream' 'XXXXXXXXXXX' %}"
      data-media-url="{% url 'youtube-media' 'XXXXXXXXXXX' '0' %}"
      data-download-url="{% url 'youtube-download' 'XXXXXXXXXXX' 'KIND' %}"

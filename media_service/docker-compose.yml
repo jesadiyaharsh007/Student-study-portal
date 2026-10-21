@@ -1,0 +1,22 @@
+# Run from the project root:  docker compose -f media_service/docker-compose.yml up -d --build
+# Create media_service/.env first (see README.md).
+services:
+  video:
+    build:
+      context: ..
+      dockerfile: media_service/Dockerfile
+    env_file: .env
+    restart: unless-stopped
+    expose: ["8080"]
+
+  caddy:                       # automatic HTTPS for your video domain
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on: [video]
+
+volumes:
+  caddy_data:

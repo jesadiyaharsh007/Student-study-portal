@@ -151,7 +151,7 @@
     if (a) openVideo(a.dataset.id, metaOf(a), { nav: 'next' });
   };
   const playPrev = () => {
-    if (S.time > 3 || !trail.back.length) { SP.video.currentTime = 0; if (SP.video.paused) SP.toggle(); return; }   // like YouTube: restart first
+    if (S.time > 3 || !trail.back.length) { SP.seek(0); if (!S.playing) SP.toggle(); return; }   // like YouTube: restart first
     const b = trail.back.pop();
     openVideo(b.id, b.meta, { nav: 'prev' });
   };
@@ -182,6 +182,8 @@
 
   /* ------------------------------------------------------------------ controls */
   $('ytBack').addEventListener('click', back);
+  $('ytPrevB').addEventListener('click', () => playPrev());
+  $('ytNextB').addEventListener('click', () => playNext());
   $('ytMiniBtn').addEventListener('click', back);
   const collapsed = () => parseFloat(getComputedStyle(el.desc).lineHeight) * 3 + 'px';
   el.more.addEventListener('click', () => {

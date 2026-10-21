@@ -164,3 +164,7 @@
 .yt-mnone { color: var(--muted, #666); }
 .yt-hd { background: var(--accent, #e8602a); }
 .yt-mi small { color: var(--muted, #666); opacity: 1; background: var(--sunk, rgb(0 0 0 / .06)); padding: .05rem .4rem; border-radius: 99px; font-size: .68rem; }
+
+/* YouTube's embed fills the frame; our own controls step aside */
+.yt-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; background: #000; }
+.yt-player.embed .yt-ui, .yt-player.embed .yt-video { display: none; }

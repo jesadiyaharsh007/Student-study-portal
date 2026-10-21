@@ -1,4 +1,6 @@
 import functools
+import hashlib
+import hmac
 import json
 from concurrent.futures import ThreadPoolExecutor
 import re
@@ -412,6 +414,20 @@ def youtube_watch(request, video_id):
     # Warm the captions so Lexi answers quickly if the student asks about this video.
     threading.Thread(target=videos.transcript_text, args=(video_id,), daemon=True).start()
     return JsonResponse(info)
+
+
+@student_required
+def youtube_token(request):
+    """A signed pass (good for two hours) for the separate video service, when one is configured."""
+    from django.conf import settings
+
+    if not (settings.MEDIA_SERVICE_URL and settings.MEDIA_SERVICE_SECRET):
+        return JsonResponse({"ok": False}, status=404)
+    exp = int(time.time()) + 7200
+    sig = hmac.new(settings.MEDIA_SERVICE_SECRET.encode(), str(exp).encode(), hashlib.sha256).hexdigest()
+    resp = JsonResponse({"ok": True, "base": settings.MEDIA_SERVICE_URL, "token": f"{exp}.{sig}", "exp": exp})
+    resp["Cache-Control"] = "no-store"
+    return resp
 
 
 @student_required

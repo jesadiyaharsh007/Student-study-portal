@@ -82,7 +82,7 @@
   };
   if (!document.pictureInPictureEnabled) q('.yt-pipb').hidden = true;
 
-  const state = { id: null, meta: {}, mode: 'none', playing: false, time: 0, duration: 0, stage: null, tok: 0, manifest: null, cues: [], tracks: [], ccLang: '', quality: 'auto', height: 0 };
+  const state = { embed: false, iframe: null, id: null, meta: {}, mode: 'none', playing: false, time: 0, duration: 0, stage: null, tok: 0, manifest: null, cues: [], tracks: [], ccLang: '', quality: 'auto', height: 0 };
   const listeners = {};
   const emit = (name, arg) => (listeners[name] || []).forEach(fn => fn(arg));
   let engine = null;
@@ -92,7 +92,27 @@
     const h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, s = t % 60;
     return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s).padStart(2, '0');
   };
-  const urlFor = (attr, id, extra) => { let u = host.dataset[attr].replace('XXXXXXXXXXX', encodeURIComponent(id)); Object.entries(extra || {}).forEach(([k, v]) => { u = u.replace(k, v); }); return u; };
+  // With a separate video service the player talks to it directly, using a signed pass from the website.
+  let svc = null;
+  async function ensureService() {
+    if (host.dataset.mode !== 'service') return false;
+    if (svc && svc.exp * 1000 - Date.now() > 120000) return true;
+    const r = await fetch(host.dataset.tokenUrl, { credentials: 'same-origin' });
+    const d = await r.json();
+    if (!d.ok) throw new Error('no service');
+    svc = d;
+    return true;
+  }
+  if (host.dataset.mode === 'service') setInterval(() => { ensureService().catch(() => {}); }, 10 * 60 * 1000);
+  const urlFor = (attr, id, extra) => {
+    if (svc) {
+      const t = `token=${encodeURIComponent(svc.token)}`, b = svc.base, v = encodeURIComponent(id);
+      if (attr === 'streamUrl') return `${b}/stream/${v}?${t}`;
+      if (attr === 'mediaUrl') return `${b}/media/${v}/0?${t}`;
+      if (attr === 'captionsUrl') return `${b}/captions/${v}?${t}`;
+      if (attr === 'cuesUrl') return `${b}/captions/${v}/${(extra || {}).LANG}?${t}`;
+      if (attr === 'downloadUrl') return `${b}/download/${v}/${(extra || {}).KIND}?${t}`;
+    } let u = host.dataset[attr].replace('XXXXXXXXXXX', encodeURIComponent(id)); Object.entries(extra || {}).forEach(([k, v]) => { u = u.replace(k, v); }); return u; };
 
   /* ------------------------------------------------------------------ persistence */
   let lastSave = 0;
@@ -215,6 +235,7 @@
 
   const toggle = () => {
     if (state.mode === 'none') return;
+    if (state.embed) { embedSend(state.playing ? 'pauseVideo' : 'playVideo'); setPlaying(!state.playing); return; }
     if (video.ended) { seekTo(0); }
     if (video.paused) video.play().catch(() => {}); else video.pause();
   };
@@ -280,7 +301,7 @@
       const a = (href, l, sub) => `<a class="yt-mi" href="${href}" download><span class="yt-mi-l">${ICON.dl}${l}</span><span class="yt-mi-v">${sub}</span></a>`;
       html = '<div class="yt-mt">Download</div>' + a(urlFor('downloadUrl', id, { KIND: 'mp4' }), 'Video with sound', 'MP4 · 360p') +
         a(urlFor('downloadUrl', id, { KIND: 'audio' }), 'Audio only', 'M4A') +
-        (vq ? a(urlFor('downloadUrl', id, { KIND: 'video' }) + `?itag=${vq.itag}`, `Picture only`, `MP4 · ${vq.height}p`) : '');
+        (vq ? a(urlFor('downloadUrl', id, { KIND: 'video' }) + (svc ? '&' : '?') + `itag=${vq.itag}`, `Picture only`, `MP4 · ${vq.height}p`) : '');
     }
     el.menu.innerHTML = html;
     el.menu.hidden = false; ui.classList.add('menu-open');
@@ -340,29 +361,81 @@
   /* ------------------------------------------------------------------ engine */
   function teardown() {
     state.tok++;
+    if (state.iframe) { state.iframe.remove(); state.iframe = null; }
+    state.embed = false; host.classList.remove('embed'); document.body.classList.remove('sp-embed');
     if (engine) { engine.destroy(); engine = null; }
     state.manifest = null; state.ready = false; state.height = 0; state.cues = []; state.tracks = []; el.qb.hidden = true;
     closeMenu(); hideError(); el.cc.hidden = true; setWaiting(false);
   }
+  /* ------------------------------------------------------------------ YouTube's own embed: the safety net */
+  // Used when our streaming is not available (for example on the live site without the media service), or fails for a video.
+  const DOWN_KEY = 'sp:engineDown';
+  const engineDown = () => { try { return Date.now() - (+localStorage.getItem(DOWN_KEY) || 0) < 15 * 60 * 1000; } catch (e) { return false; } };
+  const markDown = () => { try { localStorage.setItem(DOWN_KEY, String(Date.now())); } catch (e) { /* ignore */ } };
+  const embedSend = (func, args = []) => { if (state.iframe && state.iframe.contentWindow) state.iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func, args }), '*'); };
+  function startEmbed(id, start, autoplay) {
+    if (engine) { engine.destroy(); engine = null; }
+    video.removeAttribute('src');
+    hideError(); setWaiting(false);
+    if (state.iframe) state.iframe.remove();
+    state.embed = true; host.classList.add('embed'); document.body.classList.add('sp-embed');
+    ui.dataset.state = 'embed'; el.bCc.hidden = true;
+    const q = new URLSearchParams({ autoplay: autoplay ? '1' : '0', rel: '0', modestbranding: '1', iv_load_policy: '3', playsinline: '1', enablejsapi: '1', origin: location.origin });
+    if (start > 1) q.set('start', String(Math.floor(start)));
+    const f = document.createElement('iframe');
+    f.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?${q}`;
+    f.title = 'Video player';
+    f.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen';
+    f.allowFullscreen = true;
+    f.referrerPolicy = 'strict-origin-when-cross-origin';
+    f.addEventListener('load', () => f.contentWindow && f.contentWindow.postMessage(JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }), '*'));
+    frame.appendChild(f);
+    state.iframe = f;
+    state.ready = true;
+    setPlaying(!!autoplay);
+  }
+  addEventListener('message', e => {
+    if (!state.embed || !state.iframe || e.source !== state.iframe.contentWindow) return;
+    let d = e.data;
+    if (typeof d === 'string') { try { d = JSON.parse(d); } catch (err) { return; } }
+    if (!d) return;
+    if (d.event === 'onError') { showError("This video can't be played here", 'The owner does not allow it outside YouTube, or it is private or blocked in your region.'); return; }
+    const info = d.event === 'infoDelivery' ? d.info : (d.event === 'onStateChange' ? { playerState: d.info } : null);
+    if (!info) return;
+    if (typeof info.currentTime === 'number') {
+      state.time = info.currentTime;
+      if (info.duration) state.duration = info.duration;
+      if (state.duration) el.prog.style.transform = `scaleX(${Math.min(1, state.time / state.duration)})`;
+      if (Date.now() - lastSave > 2000) { lastSave = Date.now(); save(); }
+    }
+    if (info.playerState === 1) { hideError(); setPlaying(true); }
+    else if (info.playerState === 2) setPlaying(false);
+    else if (info.playerState === 0) { setPlaying(false); emit('ended'); }
+  });
+
   async function startEngine(id, start, autoplay) {
     const tok = ++state.tok;
+    if (host.dataset.mode === 'embed' || engineDown()) { startEmbed(id, start, autoplay); return; }
     hideError(); setWaiting(true); ui.dataset.state = 'loading';
     el.buf.style.transform = el.played.style.transform = 'scaleX(0)';
     let mf;
     try {
-      const r = await fetch(urlFor('streamUrl', id), { credentials: 'same-origin' });
+      await ensureService();
+      const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 9000);
+      const r = await fetch(urlFor('streamUrl', id), { credentials: 'same-origin', signal: ctl.signal });
+      clearTimeout(timer);
       mf = await r.json();
       if (!mf.ok) throw new Error(mf.error || 'unavailable');
     } catch (e) {
-      if (tok === state.tok) showError("This video can't be played here", String(e.message || '').includes('Live') ? e.message : 'YouTube did not give us this video. It may be private, age restricted or blocked in your region.');
+      if (tok === state.tok) { if (e.name === 'AbortError' || !String(e.message).includes('Live')) markDown(); startEmbed(id, start, autoplay); }
       return;
     }
     if (tok !== state.tok) return;
-    if (!window.YTEngine.supported(mf)) { showError('This browser cannot play it', 'Try a recent Chrome, Edge, Firefox or Safari.'); return; }
+    if (!window.YTEngine.supported(mf)) { startEmbed(id, start, autoplay); return; }
     state.manifest = mf; state.duration = mf.duration || 0;
     video.playbackRate = prefs.rate;
     engine = new window.YTEngine(video, {
-      mediaUrl: itag => urlFor('mediaUrl', id).replace('/0/', `/${itag}/`),
+      mediaUrl: itag => urlFor('mediaUrl', id).replace(/\/0(\?|\/|$)/, `/${itag}$1`),
       onQuality: s => { state.height = s.height; state.quality = s.auto ? 'auto' : String(s.height); paintQuality(); if (!el.menu.hidden) renderMenu(); },
       onError: msg => { if (tok === state.tok) showError('Playback stopped', msg); },
       onWaiting: setWaiting,
@@ -371,7 +444,7 @@
     try {
       await engine.load(mf, { quality: prefs.quality, start, targetHeight: Math.max(480, Math.min(1080, Math.round((host.clientHeight || 360) * (devicePixelRatio || 1)))) });
     } catch (e) {
-      if (tok === state.tok) showError('Playback could not start', 'We could not open the video streams. Try again in a moment.');
+      if (tok === state.tok) startEmbed(id, start, autoplay);
       return;
     }
     if (tok !== state.tok) return;
@@ -413,6 +486,8 @@
       emit('closed');
     },
     toggle,
+    seek(t) { if (state.embed) embedSend('seekTo', [t, true]); else seekTo(t); },
+    get embed() { return state.embed; },
     refresh() { place(false); },
     track,
     get video() { return video; },
@@ -425,7 +500,7 @@
     if (state.mode === 'none' || e.ctrlKey || e.metaKey || e.altKey) return;
     const t = e.target;
     if (t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) && t !== el.volr || t.isContentEditable)) return;
-    if (!(state.mode === 'watch' || fsActive())) return;
+    if (state.embed || !(state.mode === 'watch' || fsActive())) return;
     const k = e.key;
     const vol = d => { video.muted = false; video.volume = Math.max(0, Math.min(1, video.volume + d)); prefs.vol = video.volume; prefs.muted = false; savePrefs(); poke(); };
     if (k === ' ' || k === 'k' || k === 'K') { if (t && t.closest && t.closest('button, a, [role=slider]') && k === ' ') return; e.preventDefault(); toggle(); poke(); }

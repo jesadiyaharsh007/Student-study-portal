@@ -17,6 +17,7 @@ urlpatterns = [
     path('youtube/', views.youtube, name="youtube"),
     path('youtube/watch/<str:video_id>/', views.youtube_watch, name="youtube-watch"),
     path('youtube/lexi/', views.youtube_lexi, name="youtube-lexi"),
+    path('youtube/token/', views.youtube_token, name="youtube-token"),
     path('youtube/stream/<str:video_id>/', views.youtube_stream, name="youtube-stream"),
     path('youtube/media/<str:video_id>/<str:itag>/', views.youtube_media, name="youtube-media"),
     path('youtube/download/<str:video_id>/<str:kind>/', views.youtube_download, name="youtube-download"),
