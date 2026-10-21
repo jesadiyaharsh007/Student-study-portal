@@ -1,0 +1,40 @@
+{% load ui %}{% if error %}
+<div class="lib-empty">
+  <span class="glyph">{% icon "alert" %}</span>
+  <h3>The library is taking a break</h3>
+  <p>{{ error }}</p>
+  <button class="btn btn-ink no-ico" type="button" data-retry>Try again</button>
+</div>
+{% elif books %}
+{% if recommended and subject %}<p class="lib-reco">{% icon "sparkles" "ic-sm" %}Picked for your {{ subject }} homework</p>{% endif %}
+<div class="lib-grid">
+  {% for b in books %}
+  <a class="lib-card" style="--i:{{ forloop.counter0 }}" href="{% url 'book-read' b.id %}?t={{ b.title|urlencode }}&amp;a={{ b.authors|urlencode }}">
+    <span class="lib-cover" aria-hidden="true">
+      <span class="lib-cover-title">{{ b.title|truncatechars:60 }}</span>
+      <img src="{{ b.cover }}" alt="" loading="lazy" decoding="async" data-cover>
+    </span>
+    <span class="lib-meta">
+      <b class="clamp-2">{{ b.title }}</b>
+      {% if b.authors %}<small class="clamp-1">{{ b.authors }}</small>{% endif %}
+      <span class="lib-tags"><i>Free</i><i>Public domain</i></span>
+    </span>
+    <span class="lib-cta">Read now {% icon "arrow-up-right" "ic-sm" %}</span>
+  </a>
+  {% endfor %}
+</div>
+{% if page > 1 or has_next %}
+<nav class="lib-pager" aria-label="More books">
+  {% if page > 1 %}<a class="btn btn-line no-ico" href="?{% if q %}q={{ q|urlencode }}&amp;{% elif topic %}topic={{ topic }}&amp;{% endif %}page={{ page|add:'-1' }}">{% icon "arrow-left" "ic-sm" %} Previous</a>{% endif %}
+  <span>Page {{ page }}</span>
+  {% if has_next %}<a class="btn btn-ink no-ico" href="?{% if q %}q={{ q|urlencode }}&amp;{% elif topic %}topic={{ topic }}&amp;{% endif %}page={{ page|add:'1' }}">Next page</a>{% endif %}
+</nav>
+{% endif %}
+{% else %}
+<div class="lib-empty">
+  <span class="glyph">{% icon "book-open" %}</span>
+  <h3>No books found</h3>
+  <p>Nothing matched &ldquo;{{ q }}&rdquo;. Try a title, an author&rsquo;s name or a broader subject.</p>
+  <a class="btn btn-ink no-ico" href="{% url 'books' %}">See popular books</a>
+</div>
+{% endif %}

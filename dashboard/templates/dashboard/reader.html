@@ -1,0 +1,108 @@
+{% load static ui %}<!DOCTYPE html>
+<html lang="en" class="no-js">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{% if title %}{{ title }} | {% endif %}Reader | Student Study Portal</title>
+  <meta name="robots" content="noindex,nofollow">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%230d0e10'/%3E%3Cpath d='M16 8 6 13l10 5 8-4v6h2v-7z' fill='%23fff'/%3E%3Cpath d='M10 17v3.5c0 1.6 2.7 3 6 3s6-1.4 6-3V17l-6 3z' fill='%23e5501f'/%3E%3C/svg%3E">
+  <script>
+    /* apply the saved reading theme before first paint (no flash) */
+    (function () {
+      var t = 'paper';
+      try {
+        var p = JSON.parse(localStorage.getItem('rd:prefs') || 'null');
+        if (p && p.theme) t = p.theme;
+        else if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && matchMedia('(prefers-color-scheme: dark)').matches)) t = 'slate';
+      } catch (e) {}
+      document.documentElement.dataset.rd = t;
+      document.documentElement.classList.remove('no-js');
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Newsreader:ital,opsz,wght@0,6..72,300..700;1,6..72,300..700&display=swap">
+  <link rel="stylesheet" href="{% static 'css/reader.css' %}?v=1">
+</head>
+<body class="rd" data-id="{{ gid }}" data-src="{% url 'book-data' gid %}" data-back="{% url 'books' %}" data-title="{{ title }}" data-author="{{ author }}">
+  {% include 'dashboard/partials/icons.html' %}
+
+  <header class="rd-top" id="top">
+    <a class="rd-btn" href="{% url 'books' %}" aria-label="Back to the library">{% icon "arrow-left" %}<span>Library</span></a>
+    <div class="rd-heading">
+      <b id="rd-title">{{ title|default:"Opening your book" }}</b>
+      <small id="rd-sub">{{ author }}</small>
+    </div>
+    <div class="rd-actions">
+      <button class="rd-btn rd-icon" id="btn-toc" type="button" aria-label="Contents" aria-expanded="false" aria-controls="toc" disabled>{% icon "menu" %}</button>
+      <button class="rd-btn rd-icon" id="btn-aa" type="button" aria-label="Reading settings" aria-expanded="false" aria-controls="aa"><span class="rd-aa">Aa</span></button>
+    </div>
+  </header>
+  <div class="rd-bar" aria-hidden="true"><i id="bar"></i></div>
+
+  <main class="rd-stage" id="stage" tabindex="-1">
+    <section class="rd-loading" id="loading" aria-live="polite">
+      <span class="rd-book" aria-hidden="true">{% icon "book-open" %}</span>
+      <h1>Opening {% if title %}&ldquo;{{ title|truncatechars:60 }}&rdquo;{% else %}your book{% endif %}</h1>
+      <p>Getting the pages ready. Long books can take a few seconds the first time.</p>
+      <div class="rd-lines" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+    </section>
+
+    <section class="rd-error" id="error" hidden>
+      <span class="rd-book">{% icon "alert" %}</span>
+      <h1>This book would not open</h1>
+      <p id="error-text">Something went wrong while getting the text.</p>
+      <div class="rd-error-actions">
+        <button class="rd-cta" type="button" id="retry">Try again</button>
+        <a class="rd-cta rd-cta-quiet" href="{% url 'books' %}">Back to the library</a>
+      </div>
+    </section>
+
+    <article class="rd-page" id="page" hidden></article>
+    <nav class="rd-pager" id="pager" hidden aria-label="Chapters">
+      <button type="button" id="prev"><small>Previous</small><b id="prev-t"></b></button>
+      <button type="button" id="next"><small>Next</small><b id="next-t"></b></button>
+    </nav>
+  </main>
+
+  <div class="rd-scrim" id="scrim" hidden></div>
+
+  <aside class="rd-toc" id="toc" hidden aria-label="Contents">
+    <header><h2>Contents</h2><button class="rd-btn rd-icon" type="button" data-close aria-label="Close contents">{% icon "x" %}</button></header>
+    <label class="rd-find">{% icon "search" "ic-sm" %}<input type="search" id="toc-q" placeholder="Find a chapter" autocomplete="off" aria-label="Find a chapter"></label>
+    <ol id="toc-list"></ol>
+  </aside>
+
+  <section class="rd-aa-panel" id="aa" hidden aria-label="Reading settings">
+    <div class="rd-set">
+      <span class="rd-set-label">Text size</span>
+      <div class="rd-size"><button type="button" data-size="-1" aria-label="Smaller text">A</button><input type="range" id="size" min="15" max="30" step="1" aria-label="Text size"><button type="button" data-size="1" aria-label="Larger text" class="big">A</button></div>
+    </div>
+    <div class="rd-set">
+      <span class="rd-set-label">Font</span>
+      <div class="rd-seg" data-pref="font"><button type="button" data-v="serif">Serif</button><button type="button" data-v="sans">Sans</button></div>
+    </div>
+    <div class="rd-set">
+      <span class="rd-set-label">Line spacing</span>
+      <div class="rd-seg" data-pref="lh"><button type="button" data-v="1.55">Tight</button><button type="button" data-v="1.75">Normal</button><button type="button" data-v="2">Airy</button></div>
+    </div>
+    <div class="rd-set">
+      <span class="rd-set-label">Page width</span>
+      <div class="rd-seg" data-pref="width"><button type="button" data-v="560">Narrow</button><button type="button" data-v="680">Medium</button><button type="button" data-v="820">Wide</button></div>
+    </div>
+    <div class="rd-set">
+      <span class="rd-set-label">Theme</span>
+      <div class="rd-themes" data-pref="theme" role="radiogroup">
+        <button type="button" data-v="paper" role="radio" aria-label="Paper"><i></i><span>Paper</span></button>
+        <button type="button" data-v="sepia" role="radio" aria-label="Sepia"><i></i><span>Sepia</span></button>
+        <button type="button" data-v="slate" role="radio" aria-label="Slate"><i></i><span>Slate</span></button>
+        <button type="button" data-v="night" role="radio" aria-label="Night"><i></i><span>Night</span></button>
+      </div>
+    </div>
+  </section>
+
+  <footer class="rd-foot" id="foot" aria-live="off"><span id="foot-ch"></span><span id="foot-left"></span></footer>
+
+  <script src="{% static 'js/reader.js' %}?v=2" defer></script>
+</body>
+</html>

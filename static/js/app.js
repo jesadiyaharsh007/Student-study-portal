@@ -3,7 +3,20 @@
   'use strict';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
-  const on = (el, ev, fn, o) => el && el.addEventListener(ev, fn, o);
+  // Soft navigation runs this file again for the new page. Listeners already placed on elements that stayed
+  // (document, window, the navigation) are not added twice; new elements get theirs as usual.
+  (window.__appIntervals || []).forEach(clearInterval);
+  window.__appIntervals = [];
+  const every = (fn, ms) => { window.__appIntervals.push(setInterval(fn, ms)); };
+  const on = (el, ev, fn, o) => {
+    if (!el) return;
+    if (!(o && o.once)) {
+      const seen = el.__on || (el.__on = new Set()), key = ev + '|' + fn.toString();
+      if (seen.has(key)) return;
+      seen.add(key);
+    }
+    el.addEventListener(ev, fn, o);
+  };
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const csrf = () => document.body.dataset.csrf || (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || '';
   const esc = s => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -477,7 +490,7 @@
     });
   }
   renderDue();
-  setInterval(renderDue, 60000);
+  every(renderDue, 60000);
   on(document, 'submit', () => setTimeout(renderDue, 700));
 
   /* ------------------------------------------------------------ async data regions */
@@ -503,7 +516,7 @@
       refreshCounts();
       renderDue();
       if (!reduce) {
-        $$('.item, .note', region).forEach((el, i) => {
+        $$('.item, .note, .lib-card', region).forEach((el, i) => {
           el.style.setProperty('--k', Math.min(i, 8));
           el.classList.add('enter');
           on(el, 'animationend', e => { if (e.animationName === 'enter') el.classList.remove('enter'); }, { once: true });
@@ -537,7 +550,7 @@
       const dt = $('[data-date]'); if (dt) dt.textContent = n.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
       const g = $('[data-greet]'); if (g) { const h = n.getHours(); g.textContent = h < 5 ? 'Burning the midnight oil' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'; }
     };
-    t(); setInterval(t, 15000);
+    t(); every(t, 15000);
   }
 
   /* ------------------------------------------------------------ form helpers */

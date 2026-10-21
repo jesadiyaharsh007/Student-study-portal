@@ -1,16 +1,16 @@
 {% extends 'dashboard/base.html' %}
-{% load ui %}
+{% load static ui %}
 {% block title %}Notes{% endblock %}
 {% block robots %}noindex,nofollow{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% static 'css/media.css' %}?v=2"><link rel="stylesheet" href="{% static 'css/tools.css' %}?v=2">{% endblock %}
 {% block content %}
-<div class="wrap" data-scope>
-  <header class="head-split">
-    <div>
-      <h1 class="display display-xl">Notes</h1>
-      <p class="lead u-margin-1p2rem-0-1p8rem">Capture ideas the moment they arrive and file them by subject.</p>
-      <button class="btn btn-ink" type="button" data-open="note-dialog"><span>New note</span><span class="btn-ico">{% icon "plus" %}</span></button>
+<div class="wrap-n tx tx-notes" data-scope>
+  <header class="th t-amber">
+    <div class="th-main">
+      <span class="th-glyph">{% icon "note" %}</span>
+      <div><span class="th-eyebrow">Notebook</span><h1>Notes</h1><p>Capture ideas the moment they arrive and file them by subject.</p></div>
     </div>
-    <div class="bz tilt"><div class="core"><div class="photo u-border-radius-0">{% photo "notes" "A notebook with a fountain pen" "(min-width:1000px) 30vw, 90vw" True %}</div></div></div>
+    <div class="th-side"><button class="btn btn-ink" type="button" data-open="note-dialog"><span>New note</span><span class="btn-ico">{% icon "plus" %}</span></button></div>
   </header>
 
   <div data-async aria-busy="{% if loading %}true{% else %}false{% endif %}">

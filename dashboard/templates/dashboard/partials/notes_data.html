@@ -1,9 +1,12 @@
 {% load ui %}{% if notes %}
-  <div class="toolbar">
-    <label class="input-icon">{% icon "search" %}<input class="input" type="search" placeholder="Search your notes" data-for="notes-list" aria-label="Search notes"></label>
-    <div class="tags" data-filter-for="notes-list">
-      <button class="tag btn-like active" type="button" data-filter="all" aria-pressed="true">All</button>
-      {% for s in subjects %}<button class="tag btn-like" type="button" data-filter="{{ s }}" aria-pressed="false">{{ s }}</button>{% endfor %}
+  <div class="nt-bar">
+    <div class="books-search-box nt-search">
+      <span class="books-search-icon" aria-hidden="true">{% icon "search" %}</span>
+      <input class="books-search-input" type="search" placeholder="Search your notes" data-for="notes-list" aria-label="Search notes" autocomplete="off">
+    </div>
+    <div class="lib-chips nt-chips" data-filter-for="notes-list" role="group" aria-label="Filter by subject">
+      <button class="active" type="button" data-filter="all" aria-pressed="true">All</button>
+      {% for s in subjects %}<button type="button" data-filter="{{ s }}" aria-pressed="false">{{ s }}</button>{% endfor %}
     </div>
   </div>
   <div class="notes-grid" id="notes-list" data-list data-filterable>

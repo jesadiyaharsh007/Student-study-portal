@@ -9,10 +9,13 @@ TOOLS = (
     ("chatbot", "chatbot", "Lexi", "cap", "pink", "Ask anything and get a clear explanation."),
     ("dictionary", "dictionary", "Dictionary", "book-a", "teal", "Definitions, phonetics and synonyms."),
     ("books", "books", "Books", "book-open", "sky", "Search a huge open library of books."),
-    ("wiki", "wiki", "Wikipedia", "globe", "slate", "Quick, trustworthy summaries."),
+    ("wiki", "wiki", "Encyclopedia", "globe", "slate", "Quick, trustworthy summaries of any topic."),
     ("youtube", "youtube", "Videos", "play", "red", "Find lessons without the rabbit hole."),
     ("conversion", "conversion", "Converter", "swap", "orange", "Length, mass, temperature and more."),
 )
+
+NAV_DROPDOWN = ("notes", "homework", "todo", "dictionary", "conversion")
+NAV_TOP = ("chatbot", "books", "youtube", "wiki")
 
 _TOOLS_CACHE = None
 
@@ -31,4 +34,11 @@ def _get_tools():
 
 def navigation(request):
     match = getattr(request, "resolver_match", None)
-    return {"tools": _get_tools(), "current": match.url_name if match else ""}
+    tools = _get_tools()
+    return {
+        "tools": tools,
+        # The Tools dropdown only holds the everyday tools; the rest sit directly in the top bar.
+        "nav_tools": [t for t in tools if t["key"] in NAV_DROPDOWN],
+        "nav_main": [t for t in tools if t["key"] in NAV_TOP],
+        "current": match.url_name if match else "",
+    }

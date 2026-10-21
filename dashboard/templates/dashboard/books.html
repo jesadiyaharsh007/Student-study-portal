@@ -1,48 +1,50 @@
 {% extends 'dashboard/base.html' %}
-{% load ui %}
-{% block title %}Books{% endblock %}
+{% load static ui %}
+{% block title %}Books — Free Public Domain Library{% endblock %}
 {% block robots %}noindex,nofollow{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% static 'css/media.css' %}?v=2">{% endblock %}
 {% block content %}
-<div class="wrap" data-skeleton-wrap>
-  <section class="bz"><div class="core hero-search">
-    <div class="photo scrim-flat">{% photo "books" "A library aisle lit by hanging bulbs" "100vw" True "30% 45%" %}</div>
-    <h1>Find your next read.</h1>
-    <p>Search millions of books, authors and subjects from the Open Library.</p>
-    <form class="searchbar" method="get" action="{% url 'books' %}" role="search" data-skeleton>
-      <label class="input-icon">{% icon "search" %}<input class="input" type="search" name="q" value="{% if not recommended %}{{ q }}{% endif %}" placeholder="Title, author or subject" maxlength="100" required autocomplete="off" aria-label="Search books"></label>
-      <button class="btn btn-ink no-ico" type="submit">Search</button>
+<div class="wrap-n books-page">
+  <header class="books-hero">
+    <h1 class="books-title">Books</h1>
+    <p class="books-subtitle">Thousands of timeless classics and historical texts from Project Gutenberg. Pick any book and read it right in your browser.</p>
+
+    <form class="books-search-form" method="get" action="{% url 'books' %}" role="search">
+      <div class="books-search-box">
+        <span class="books-search-icon" aria-hidden="true">{% icon "search" %}</span>
+        <input
+          class="books-search-input"
+          type="search"
+          name="q"
+          id="booksSearchInput"
+          value="{{ q }}"
+          placeholder="Title, author, or subject (e.g. Frankenstein, Austen)..."
+          maxlength="100"
+          autocomplete="off"
+          aria-label="Search books"
+        >
+        <a href="{% url 'books' %}" class="books-search-clear" id="booksSearchClear" title="Clear search" aria-label="Clear search" {% if not q %}hidden{% endif %}>{% icon "x" %}</a>
+        <button class="books-search-btn" type="submit">
+          <span>Search</span>
+        </button>
+      </div>
     </form>
-  </div></section>
+  </header>
 
-  <div class="results grid results-skel" aria-hidden="true">
-    {% for i in "123456" %}<div class="bz"><div class="core book"><div class="cover skeleton"></div><div class="stack skel-stack"><div class="skeleton u-height-16px"></div><div class="skeleton u-height-12px-width-60pc"></div></div></div></div>{% endfor %}
-  </div>
+  <nav class="lib-chips lib-chips-tight" aria-label="Browse by topic">
+    {% for key, label in topics %}
+      <a href="{% url 'books' %}{% if key != 'popular' %}?topic={{ key }}{% endif %}" {% if not q and topic == key or not q and not topic and key == 'popular' %}aria-current="true"{% endif %}>{{ label }}</a>
+    {% endfor %}
+  </nav>
 
-  <div class="results-live">
-  {% if recommended and subject %}<div class="reco">{% icon "sparkles" %}Picked for your {{ subject }} homework</div>{% endif %}
-  {% if error %}
-    <div class="notice">{% icon "alert" %}<div><b>Library unavailable</b>{{ error }}</div></div>
-  {% elif results %}
-    <div class="results grid{% if recommended %} after-reco{% endif %}">
-      {% for b in results %}
-      <a class="bz hov" href="{{ b.link }}" target="_blank" rel="noopener noreferrer"><div class="core book" style="--i:{{ forloop.counter0 }}">
-        <div class="cover">{% if b.thumbnail %}<img src="{{ b.thumbnail }}" alt="" loading="lazy" decoding="async" width="96" height="144">{% else %}{% icon "book-open" "ic-lg" %}{% endif %}</div>
-        <div>
-          <h3 class="clamp-2">{{ b.title }}</h3>
-          {% if b.authors %}<div class="sub clamp-2">{{ b.authors }}</div>{% endif %}
-          <div class="row wrap-r book-meta">
-            {% if b.rating %}<span class="stars">{% icon "star" %}{{ b.rating }}</span>{% endif %}
-            {% if b.year %}<span>{{ b.year }}</span>{% endif %}
-            {% if b.pages %}<span>{{ b.pages }} pages</span>{% endif %}
-          </div>
-          {% if b.categories %}<div class="tags u-margin-top-p7rem">{% for c in b.categories %}<span class="tag">{{ c|truncatechars:20 }}</span>{% endfor %}</div>{% endif %}
-        </div>
-      </div></a>
-      {% endfor %}
-    </div>
-  {% elif q and not recommended %}
-    <div class="empty u-margin-top-2p4rem"><h3>No books found</h3><p>Nothing matched &ldquo;{{ q }}&rdquo;. Try a broader search.</p></div>
-  {% endif %}
+  <section class="lib-continue" id="continue" data-continue hidden aria-label="Continue reading">
+    <h2 class="lib-h">Continue reading</h2>
+    <div class="lib-shelf" data-shelf></div>
+  </section>
+
+  <div data-async aria-busy="{% if loading %}true{% else %}false{% endif %}">
+    {% if loading %}{% include "dashboard/partials/skeleton.html" with kind="cards" %}{% endif %}
   </div>
 </div>
 {% endblock %}
+{% block scripts %}<script src="{% static 'js/media.js' %}?v=1" defer></script>{% endblock %}

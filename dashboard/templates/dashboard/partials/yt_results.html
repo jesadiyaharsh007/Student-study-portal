@@ -1,0 +1,37 @@
+{% load ui %}<div class="yt-section-head">
+  <h2>{% if q %}Results for &ldquo;{{ q }}&rdquo;{% elif topic_label %}{{ topic_label }}{% else %}Suggested for you{% endif %}</h2>
+  <div class="yt-len" id="ytLen" role="group" aria-label="Filter by length">
+    <button type="button" data-len="all" aria-pressed="true">Any length</button>
+    <button type="button" data-len="short" aria-pressed="false">Under 5 min</button>
+    <button type="button" data-len="mid" aria-pressed="false">5 to 20 min</button>
+    <button type="button" data-len="long" aria-pressed="false">Over 20 min</button>
+  </div>
+</div>
+
+{% if error %}
+<div class="notice">{% icon "alert" %}<div><b>Could not load videos.</b> {{ error }}</div></div>
+{% elif results %}
+<div class="yt-grid" id="ytGrid">
+  {% for r in results %}
+  <a class="yt-card" href="{% url 'youtube' %}?v={{ r.id }}" style="--i:{{ forloop.counter0 }}"
+     data-id="{{ r.id }}" data-title="{{ r.title }}" data-channel="{{ r.channel }}" data-views="{{ r.views }}" data-published="{{ r.published }}" data-duration="{{ r.duration }}" data-thumb="{{ r.thumbnail }}">
+    <span class="yt-thumb">
+      <img src="{{ r.thumbnail }}" alt="" loading="{% if forloop.counter0 < 8 %}eager{% else %}lazy{% endif %}" decoding="async">
+      <span class="yt-play" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9.2 7v10l8.4-5z" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></span>
+      {% if r.duration %}<span class="yt-dur">{{ r.duration }}</span>{% endif %}
+    </span>
+    <span class="yt-meta">
+      <span class="yt-avatar" aria-hidden="true">{{ r.channel|slice:":1"|upper }}</span>
+      <span class="yt-text">
+        <b class="clamp-2">{{ r.title }}</b>
+        <small class="clamp-1">{{ r.channel }}</small>
+        <small class="clamp-1">{% if r.views %}{{ r.views }}{% endif %}{% if r.views and r.published %} &middot; {% endif %}{{ r.published }}</small>
+      </span>
+    </span>
+  </a>
+  {% endfor %}
+</div>
+<div class="empty yt-none" id="ytNone" hidden><h3>No videos match this length</h3><p>Try another length filter.</p></div>
+{% else %}
+<div class="empty"><h3>No videos found</h3><p>Nothing matched &ldquo;{{ q }}&rdquo;. Try a subject like Calculus, Physics or Computer Science.</p></div>
+{% endif %}

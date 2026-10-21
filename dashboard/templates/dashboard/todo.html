@@ -1,30 +1,26 @@
 {% extends 'dashboard/base.html' %}
-{% load ui %}
+{% load static ui %}
 {% block title %}To-do{% endblock %}
 {% block robots %}noindex,nofollow{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% static 'css/tools.css' %}?v=2">{% endblock %}
 {% block content %}
-<div class="wrap">
-  <div class="todo-layout" data-scope>
-    <div>
-      <header class="head u-margin-bottom-1p8rem">
-        <div><h1>To-do</h1><p>Small tasks, finished one tap at a time.</p></div>
-        {% include 'dashboard/partials/ring.html' with pct=pct size="96px" %}
-      </header>
-
-      <form class="quick-add" method="post" action="{% url 'todo' %}" data-ajax="add" data-target="#todo-list" data-needs-data autocomplete="off">
-        {% csrf_token %}
-        <label class="input-icon u-flex-1">{% icon "plus" %}{{ form.title }}<span class="sr">New task</span></label>
-        <button class="btn btn-ink" type="submit"><span>Add task</span><span class="btn-ico">{% icon "arrow-up-right" %}</span></button>
-      </form>
-
-      <div data-async aria-busy="{% if loading %}true{% else %}false{% endif %}">
-        {% if loading %}{% include "dashboard/partials/skeleton.html" with kind="list" %}{% else %}{% include "dashboard/partials/todo_data.html" %}{% endif %}
-      </div>
+<div class="wrap-n tx tx-todo" data-scope>
+  <header class="th t-green">
+    <div class="th-main">
+      <span class="th-glyph">{% icon "checks" %}</span>
+      <div><span class="th-eyebrow">Checklist</span><h1>To-do</h1><p>Small tasks, finished one tap at a time.</p></div>
     </div>
+    <div class="th-side">{% include 'dashboard/partials/ring.html' with pct=pct size="72px" %}</div>
+  </header>
 
-    <aside class="todo-aside" aria-hidden="true">
-      <div class="bz"><div class="core"><div class="photo u-border-radius-0">{% photo "todo" "" "340px" False "35% 60%" %}</div></div></div>
-    </aside>
+  <form class="quick-add" method="post" action="{% url 'todo' %}" data-ajax="add" data-target="#todo-list" data-needs-data autocomplete="off">
+    {% csrf_token %}
+    <label class="input-icon u-flex-1">{% icon "plus" %}{{ form.title }}<span class="sr">New task</span></label>
+    <button class="btn btn-ink" type="submit"><span>Add task</span><span class="btn-ico">{% icon "arrow-up-right" %}</span></button>
+  </form>
+
+  <div data-async aria-busy="{% if loading %}true{% else %}false{% endif %}">
+    {% if loading %}{% include "dashboard/partials/skeleton.html" with kind="list" %}{% else %}{% include "dashboard/partials/todo_data.html" %}{% endif %}
   </div>
 </div>
 

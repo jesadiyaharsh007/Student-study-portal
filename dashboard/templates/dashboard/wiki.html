@@ -1,37 +1,304 @@
 {% extends 'dashboard/base.html' %}
 {% load ui %}
-{% block title %}Wikipedia{% endblock %}
+{% block title %}Encyclopedia{% if title %} — {{ title }}{% endif %}{% endblock %}
 {% block robots %}noindex,nofollow{% endblock %}
 {% block content %}
-<div class="wrap" data-skeleton-wrap>
-  <header class="head-split">
-    <div>
-      <h1 class="display display-lg">Look it up.</h1>
-      <p class="lead u-margin-1p1rem-0-1p8rem">A clear summary of almost any topic, in seconds.</p>
-      <form class="searchbar" method="get" action="{% url 'wiki' %}" role="search" data-skeleton>
-        <label class="input-icon">{% icon "search" %}<input class="input" type="search" name="q" value="{{ q }}" placeholder="Photosynthesis" maxlength="100" required autocomplete="off" {% if not q %}data-focus-on-load{% endif %} aria-label="Topic"></label>
-        <button class="btn btn-ink no-ico" type="submit">Search</button>
-      </form>
-    </div>
-    <div class="bz tilt"><div class="core"><div class="photo photo-43">{% photo "wiki" "A Wikipedia article in a browser window" "(min-width:1000px) 35vw, 90vw" True "50% 0%" %}</div></div></div>
+<div class="wrap-n" data-skeleton-wrap>
+  <header class="wiki-hero">
+    <h1 class="wiki-title">Encyclopedia</h1>
+    <p class="wiki-subtitle">Instant, verified knowledge with interactive summaries and full-text articles.</p>
+
+    <form class="wiki-search-form" method="get" action="{% url 'wiki' %}" role="search" data-skeleton>
+      <div class="wiki-search-box">
+        <span class="wiki-search-icon" aria-hidden="true">{% icon "search" %}</span>
+        <input
+          class="wiki-search-input"
+          type="search"
+          name="q"
+          id="wikiSearchInput"
+          value="{{ q }}"
+          placeholder="Search any topic, e.g. Dubai, Photosynthesis, 9/11..."
+          maxlength="100"
+          required
+          autocomplete="off"
+          {% if not q %}data-focus-on-load{% endif %}
+          aria-label="Search topic"
+        >
+        <a href="{% url 'wiki' %}" class="wiki-search-clear" id="wikiSearchClear" title="Clear search" aria-label="Clear search" {% if not q %}hidden{% endif %}>{% icon "x" %}</a>
+        <button class="wiki-search-btn" type="submit">
+          <span>Search</span>
+        </button>
+      </div>
+    </form>
   </header>
 
-  <div class="results-skel" aria-hidden="true"><div class="bz"><div class="core u-padding-2rem"><div class="skeleton u-height-48px-width-50pc"></div><div class="skeleton u-height-14px-margin-top-1p4rem"></div><div class="skeleton u-height-14px-margin-top-p6rem"></div><div class="skeleton u-height-14px-margin-top-p6rem-width-70pc"></div></div></div></div>
+  <div class="results-skel" aria-hidden="true">
+    <div class="bz"><div class="core u-padding-2rem">
+      <div class="skeleton" style="height:14px; width:220px; margin-bottom:1rem;"></div>
+      <div class="skeleton" style="height:44px; width:65%; margin-bottom:0.8rem;"></div>
+      <div class="skeleton" style="height:16px; width:85%; margin-bottom:1.6rem;"></div>
+      <div class="skeleton" style="height:38px; width:280px; margin-bottom:1.8rem; border-radius:10px;"></div>
+      <div style="overflow:hidden;">
+        <div class="skeleton" style="width:280px; height:200px; border-radius:14px; float:left; margin:0 1.8rem 1.2rem 0;"></div>
+        <div class="skeleton u-height-14px-margin-top-1p4rem" style="margin-top:0.4rem;"></div>
+        <div class="skeleton u-height-14px-margin-top-p6rem"></div>
+        <div class="skeleton u-height-14px-margin-top-p6rem"></div>
+        <div class="skeleton u-height-14px-margin-top-p6rem-width-70pc"></div>
+      </div>
+    </div></div>
+  </div>
 
   <div class="results-live">
   {% if title %}
-    <article class="bz wiki-card"><div class="core">
-      <span class="tag">Wikipedia</span>
-      <h2>{{ title }}</h2>
-      <p class="summary">{{ details }}</p>
-      <div class="row wrap-r u-margin-top-2rem">
-        <a class="btn btn-ink" href="{{ link }}" target="_blank" rel="noopener noreferrer"><span>Read full article</span><span class="btn-ico">{% icon "arrow-up-right" %}</span></a>
-        <button class="btn btn-line no-ico" type="button" data-copy="{{ details }}">Copy summary</button>
-      </div>
-    </div></article>
+    <article class="bz wiki-main-card fade-slide-in">
+        <div class="core">
+          <div class="wiki-header">
+            <div class="wiki-meta-row">
+              <span class="wiki-meta-item">{% icon "clock" %} ~{{ read_time }} min read</span>
+              <span class="wiki-dot-sep">&bull;</span>
+              <span class="wiki-meta-item">{% icon "file-text" %} {{ word_count }} words</span>
+              {% if section_count %}
+              <span class="wiki-dot-sep">&bull;</span>
+              <span class="wiki-meta-item">{{ section_count }} sections</span>
+              {% endif %}
+            </div>
+
+            <h2 class="wiki-headline">{{ title }}</h2>
+            {% if description %}
+              <p class="wiki-standfirst">{{ description }}</p>
+            {% endif %}
+
+            <!-- Reading Mode Switcher -->
+            <div class="wiki-mode-nav" role="tablist" aria-label="Reading mode">
+              <button type="button" class="wiki-mode-btn {% if view_mode != 'full' %}active{% endif %}" id="wikiTabSummary" role="tab" aria-selected="{% if view_mode != 'full' %}true{% else %}false{% endif %}" data-wiki-tab="summary">
+                {% icon "sparkles" %}
+                <span>Summary &amp; Highlights</span>
+              </button>
+              <button type="button" class="wiki-mode-btn {% if view_mode == 'full' %}active{% endif %}" id="wikiTabFull" role="tab" aria-selected="{% if view_mode == 'full' %}true{% else %}false{% endif %}" data-wiki-tab="full">
+                {% icon "book-open" %}
+                <span>Full Article</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Tab Panel 1: Summary & Key Points -->
+          <div class="wiki-panel {% if view_mode != 'full' %}active{% endif %}" id="wikiPanelSummary" role="tabpanel" aria-labelledby="wikiTabSummary">
+            <div class="wiki-article-body">
+              {% if image_url %}
+              <figure class="wiki-article-figure">
+                <div class="wiki-article-figure-card">
+                  <img class="wiki-article-img" src="{{ image_url }}" alt="{{ title }}" loading="lazy" decoding="async">
+                </div>
+                <figcaption class="wiki-article-caption">
+                  <span class="wiki-caption-title">{{ title }}</span>
+                  {% if description %}<span class="wiki-caption-desc">{{ description }}</span>{% endif %}
+                </figcaption>
+              </figure>
+              {% endif %}
+
+              <div class="wiki-body-text">
+                {% if lead_paragraphs %}
+                  {% for p in lead_paragraphs %}
+                    <p class="wiki-paragraph">{{ p }}</p>
+                  {% endfor %}
+                {% else %}
+                  <p class="wiki-paragraph">{{ details }}</p>
+                {% endif %}
+              </div>
+            </div>
+
+            {% if highlights %}
+            <div class="wiki-highlights-box">
+              <div class="highlights-head">
+                <span class="highlights-icon">{% icon "sparkles" %}</span>
+                <h4>Key Takeaways</h4>
+              </div>
+              <ul class="highlights-list">
+                {% for point in highlights %}
+                  <li>{{ point }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+            {% endif %}
+
+            <div class="wiki-actions-bar">
+              <button type="button" class="btn btn-ink" data-wiki-switch="full">
+                <span>Read full detail</span>
+                <span class="btn-ico">{% icon "book-open" %}</span>
+              </button>
+              <button type="button" class="btn btn-line no-ico" data-copy="{{ details }}">
+                Copy summary
+              </button>
+            </div>
+          </div>
+
+          <!-- Tab Panel 2: Full In-Depth Article -->
+          <div class="wiki-panel {% if view_mode == 'full' %}active{% endif %}" id="wikiPanelFull" role="tabpanel" aria-labelledby="wikiTabFull">
+            {% if sections %}
+              <div class="wiki-full-content">
+                {% if lead_paragraphs %}
+                <div class="wiki-article-body wiki-intro-body">
+                  {% if image_url %}
+                  <figure class="wiki-article-figure">
+                    <div class="wiki-article-figure-card">
+                      <img class="wiki-article-img" src="{{ image_url }}" alt="{{ title }}" loading="lazy" decoding="async">
+                    </div>
+                    <figcaption class="wiki-article-caption">
+                      <span class="wiki-caption-title">{{ title }}</span>
+                    </figcaption>
+                  </figure>
+                  {% endif %}
+                  <div class="wiki-body-text">
+                    {% for p in lead_paragraphs %}
+                      <p class="wiki-paragraph">{{ p }}</p>
+                    {% endfor %}
+                  </div>
+                </div>
+                {% endif %}
+
+                {% for s in sections %}
+                  <section class="wiki-article-sec" id="{{ s.id }}">
+                    {% if s.level == 2 %}
+                      <h3 class="wiki-sec-h2">{{ s.title }}</h3>
+                    {% else %}
+                      <h4 class="wiki-sec-h3">{{ s.title }}</h4>
+                    {% endif %}
+                    {% for p in s.paragraphs %}
+                      <p class="wiki-paragraph">{{ p }}</p>
+                    {% endfor %}
+                  </section>
+                {% endfor %}
+              </div>
+
+              <div class="wiki-full-bottom-nav">
+                <button type="button" class="wiki-back-btn" data-wiki-switch="summary">
+                  <span class="wiki-back-arrow">{% icon "arrow-left" %}</span>
+                  <span>Back to summary</span>
+                </button>
+                <button type="button" class="wiki-back-btn wiki-back-secondary" data-wiki-scroll-top>
+                  <span>Top of article</span>
+                  <span class="wiki-top-arrow">{% icon "arrow-up" %}</span>
+                </button>
+              </div>
+            {% else %}
+              <div class="wiki-article-body">
+                {% if image_url %}
+                <figure class="wiki-article-figure">
+                  <div class="wiki-article-figure-card">
+                    <img class="wiki-article-img" src="{{ image_url }}" alt="{{ title }}" loading="lazy" decoding="async">
+                  </div>
+                </figure>
+                {% endif %}
+                <div class="wiki-body-text">
+                  <p class="wiki-paragraph">{{ details }}</p>
+                  <div class="notice u-margin-top-1rem">
+                    {% icon "info" %}
+                    <div>This article is a concise entry without extended subsections.</div>
+                  </div>
+                </div>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </article>
   {% elif error %}
-    <div class="notice">{% icon "alert" %}<div><b>No result</b>{{ error }}</div></div>
+    <div class="notice">
+      {% icon "alert" %}
+      <div><b>No result found</b>{{ error }}</div>
+    </div>
+  {% else %}
+    <div class="empty">
+      <span class="empty-glyph tone-slate">{% icon "globe" %}</span>
+      <h3>What are you curious about?</h3>
+      <p>Search any topic above to get an instant summary, key bullet points, or the complete article with photos.</p>
+      <div class="wiki-empty-topics">
+        <a class="tag btn-like" href="{% url 'wiki' %}?q=Solar+System">Solar System</a>
+        <a class="tag btn-like" href="{% url 'wiki' %}?q=Photosynthesis">Photosynthesis</a>
+        <a class="tag btn-like" href="{% url 'wiki' %}?q=Dubai">Dubai</a>
+        <a class="tag btn-like" href="{% url 'wiki' %}?q=Albert+Einstein">Albert Einstein</a>
+        <a class="tag btn-like" href="{% url 'wiki' %}?q=Machine+Learning">Machine Learning</a>
+      </div>
+    </div>
   {% endif %}
   </div>
 </div>
+
+<script>
+(function() {
+  function initWikiTabs() {
+    const tabBtns = document.querySelectorAll('[data-wiki-tab]');
+    const switchBtns = document.querySelectorAll('[data-wiki-switch]');
+    const panelSummary = document.getElementById('wikiPanelSummary');
+    const panelFull = document.getElementById('wikiPanelFull');
+    const btnSummary = document.getElementById('wikiTabSummary');
+    const btnFull = document.getElementById('wikiTabFull');
+
+    if (!panelSummary || !panelFull || !btnSummary || !btnFull) return;
+
+    function switchMode(mode) {
+      if (mode === 'full') {
+        panelSummary.classList.remove('active');
+        panelFull.classList.add('active');
+        btnSummary.classList.remove('active');
+        btnSummary.setAttribute('aria-selected', 'false');
+        btnFull.classList.add('active');
+        btnFull.setAttribute('aria-selected', 'true');
+      } else {
+        panelFull.classList.remove('active');
+        panelSummary.classList.add('active');
+        btnFull.classList.remove('active');
+        btnFull.setAttribute('aria-selected', 'false');
+        btnSummary.classList.add('active');
+        btnSummary.setAttribute('aria-selected', 'true');
+      }
+    }
+
+    tabBtns.forEach(btn => {
+      btn.addEventListener('click', () => switchMode(btn.dataset.wikiTab));
+    });
+
+    switchBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        switchMode(btn.dataset.wikiSwitch);
+        const header = document.querySelector('.wiki-header');
+        if (header) header.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+
+    const topBtns = document.querySelectorAll('[data-wiki-scroll-top]');
+    topBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const header = document.querySelector('.wiki-header');
+        if (header) header.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+
+    const searchInput = document.getElementById('wikiSearchInput');
+    const searchClear = document.getElementById('wikiSearchClear');
+    if (searchInput && searchClear) {
+      searchInput.addEventListener('input', () => {
+        if (searchInput.value.trim().length > 0) {
+          searchClear.removeAttribute('hidden');
+        } else {
+          searchClear.setAttribute('hidden', '');
+        }
+      });
+      searchClear.addEventListener('click', (e) => {
+        if (!location.search) {
+          e.preventDefault();
+          searchInput.value = '';
+          searchClear.setAttribute('hidden', '');
+          searchInput.focus();
+        }
+      });
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initWikiTabs);
+  } else {
+    initWikiTabs();
+  }
+})();
+</script>
 {% endblock %}

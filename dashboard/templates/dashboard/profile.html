@@ -1,9 +1,10 @@
 {% extends 'dashboard/base.html' %}
-{% load ui %}
+{% load static ui %}
 {% block title %}Dashboard{% endblock %}
 {% block robots %}noindex,nofollow{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% static 'css/media.css' %}?v=1"><link rel="stylesheet" href="{% static 'css/dashboard.css' %}?v=1">{% endblock %}
 {% block content %}
-<div class="wrap">
+<div class="wrap-n wrap-dash">
   <header class="dash-head">
     <h1><span data-greet>Welcome back</span>,<br>{{ user.username }}.</h1>
     <div class="clock"><b data-clock>--:--</b><span data-date></span></div>
@@ -14,3 +15,4 @@
   </div>
 </div>
 {% endblock %}
+{% block scripts %}<script src="{% static 'js/dashboard.js' %}?v=1" defer data-once></script>{% endblock %}

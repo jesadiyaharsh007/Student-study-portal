@@ -1,0 +1,50 @@
+/* Custom select list and calendar */
+.cs { position: relative; display: block; width: 100%; }
+.cs-native { position: absolute !important; inset: 0; width: 100%; height: 100%; opacity: 0; pointer-events: none; }
+.cs-btn { display: flex; align-items: center; justify-content: space-between; gap: .6rem; text-align: left; cursor: pointer; background-image: none !important; padding-right: 1rem; }
+.cs-btn.has-icon { padding-left: 2.8rem; }
+.cs-val { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-val.ph { color: var(--muted); }
+.cs-chev { display: grid; place-items: center; color: var(--muted); transition: transform .3s cubic-bezier(.23, 1, .32, 1); flex: none; }
+.cs-chev svg { width: 14px; height: 14px; }
+.cs.open .cs-chev { transform: rotate(180deg); }
+.cs.open .cs-btn { background: var(--core); box-shadow: inset 0 0 0 1.5px var(--ink), 0 0 0 4px var(--accent-soft); }
+
+.cs-panel {
+  position: absolute; z-index: 60; left: 0; right: 0; top: calc(100% + 8px); max-height: min(380px, 60vh); overflow-y: auto; padding: .35rem;
+  background: var(--core); border-radius: 1.1rem; box-shadow: 0 0 0 1px var(--hair-2), 0 24px 50px -18px rgb(13 14 16 / .45);
+  opacity: 0; visibility: hidden; transform: translateY(-6px) scale(.98); transform-origin: top; pointer-events: none;
+  transition: opacity .18s ease-out, transform .22s cubic-bezier(.23, 1, .32, 1), visibility 0s .22s;
+  overscroll-behavior: contain;
+}
+.cs.up .cs-panel { top: auto; bottom: calc(100% + 8px); transform-origin: bottom; transform: translateY(6px) scale(.98); }
+.cs.open .cs-panel { opacity: 1; visibility: visible; transform: none; pointer-events: auto; transition-delay: 0s; }
+
+.cs-opt { display: flex; align-items: center; justify-content: space-between; gap: .8rem; padding: .62rem .8rem; border-radius: .75rem; cursor: pointer; font-size: .96rem; }
+.cs-opt svg { width: 15px; height: 15px; color: var(--accent); opacity: 0; flex: none; }
+.cs-opt.act { background: var(--sunk); }
+.cs-opt.sel { font-weight: 600; }
+.cs-opt.sel svg { opacity: 1; }
+.cs-opt.dis { opacity: .45; cursor: not-allowed; }
+
+/* calendar */
+.cs-cal { padding: .8rem; min-width: 280px; right: auto; max-height: none; overflow: visible; }
+.cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: .6rem; }
+.cal-head b { font-weight: 600; font-size: .98rem; }
+.cal-nav { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--sunk); border: 0; cursor: pointer; transition: background .2s, transform .2s; color: var(--ink); }
+.cal-nav:hover { background: var(--hair-2); }
+.cal-nav:active { transform: scale(.94); }
+.cal-nav svg { width: 14px; height: 14px; transform: rotate(90deg); }
+.cal-nav.nx svg { transform: rotate(-90deg); }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+.cal-dow { font-size: .72rem; color: var(--muted); font-weight: 600; padding: .3rem 0; text-transform: uppercase; letter-spacing: .04em; }
+.cal-day { aspect-ratio: 1; border: 0; border-radius: 50%; background: transparent; color: var(--ink); cursor: pointer; font-size: .9rem; transition: background .2s, color .2s, transform .15s; }
+.cal-day:hover { background: var(--sunk); }
+.cal-day:active { transform: scale(.92); }
+.cal-day.today { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.cal-day.sel { background: var(--ink); color: var(--bg); font-weight: 600; box-shadow: none; }
+.cal-foot { display: flex; justify-content: center; margin-top: .5rem; padding-top: .5rem; border-top: 1px solid var(--hair); }
+.cal-foot button { border: 0; background: none; color: var(--accent); font-weight: 600; cursor: pointer; padding: .3rem .8rem; border-radius: 999px; }
+.cal-foot button:hover { background: var(--accent-soft); }
+dialog:has(.cs.open), dialog:has(.cs.open) .modal, dialog:has(.cs.open) .bz, dialog:has(.cs.open) .core, dialog:has(.cs.open) form { overflow: visible; }
+@media (prefers-reduced-motion: reduce) { .cs-panel, .cs-chev { transition: opacity .15s; } }

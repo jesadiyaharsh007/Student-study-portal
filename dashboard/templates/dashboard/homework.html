@@ -1,17 +1,20 @@
 {% extends 'dashboard/base.html' %}
-{% load ui %}
+{% load static ui %}
 {% block title %}Homework{% endblock %}
 {% block robots %}noindex,nofollow{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% static 'css/tools.css' %}?v=2">{% endblock %}
 {% block content %}
-<div class="wrap" data-scope>
-  <section class="bz u-margin-bottom-2rem"><div class="core banner banner-flat">
-    <div class="photo scrim">{% photo "homework" "A laptop, coffee and notepad on a wooden desk" "100vw" True "50% 55%" %}</div>
-    <div class="in">
-      <div><h1>Homework</h1><p>Every deadline, ordered by what is due first.</p>
-        <button class="btn btn-ink u-margin-top-1p4rem" type="button" data-open="hw-dialog"><span>Add homework</span><span class="btn-ico">{% icon "plus" %}</span></button></div>
-      {% include 'dashboard/partials/ring.html' with pct=pct size="110px" %}
+<div class="wrap-n tx" data-scope>
+  <header class="th t-violet">
+    <div class="th-main">
+      <span class="th-glyph">{% icon "clipboard" %}</span>
+      <div><span class="th-eyebrow">Deadlines</span><h1>Homework</h1><p>Every deadline, ordered by what is due first.</p></div>
     </div>
-  </div></section>
+    <div class="th-side">
+      {% include 'dashboard/partials/ring.html' with pct=pct size="72px" %}
+      <button class="btn btn-ink" type="button" data-open="hw-dialog"><span>Add homework</span><span class="btn-ico">{% icon "plus" %}</span></button>
+    </div>
+  </header>
 
   <div data-async aria-busy="{% if loading %}true{% else %}false{% endif %}">
     {% if loading %}{% include "dashboard/partials/skeleton.html" with kind="list" %}{% else %}{% include "dashboard/partials/homework_data.html" %}{% endif %}

@@ -1,0 +1,54 @@
+/* One size scale for the whole site (Lexi AI keeps its own layout). Loaded last so it wins. */
+:root { --t-title: clamp(1.9rem, 3.4vw, 2.4rem); --t-h2: clamp(1.4rem, 2.4vw, 1.8rem); --ctl: 48px; }
+
+/* page titles + subtitles */
+.th h1, .books-title, .wiki-title, .dash-head h1, .head h1, .display, .display-lg, .display-xl { font-size: var(--t-title); line-height: 1.1; letter-spacing: -.04em; font-weight: 650; }
+.th p, .books-subtitle, .wiki-subtitle, .head p, .lead { font-size: .98rem; line-height: 1.55; }
+.h2, .section-head h2, .cta-flat h2 { font-size: var(--t-h2); letter-spacing: -.035em; }
+.dash-head h1 { font-size: var(--t-title); }
+.bn-title { font-size: clamp(1.5rem, 2.8vw, 2rem); max-width: 26ch; }
+.footer .word { font-size: clamp(2rem, 6vw, 3.4rem); }
+
+/* search bars, composers, buttons */
+.searchbar .input, .sp .searchbar .input { min-height: var(--ctl); font-size: 1rem; padding-left: 3rem; }
+.searchbar .input-icon > .ic { left: 1.1rem; width: 1.2rem; height: 1.2rem; }
+.searchbar .btn, .sp .searchbar .btn { min-height: var(--ctl); }
+.searchbar .btn.no-ico { padding-inline: 1.5rem; }
+.quick-add .input, .tx-todo .quick-add .input { min-height: var(--ctl); font-size: 1rem; }
+.quick-add .btn, .tx-todo .quick-add .btn { min-height: var(--ctl); }
+.btn { min-height: 44px; font-size: .92rem; }
+.btn-ico { width: 34px; height: 34px; }
+.btn.no-ico { padding-inline: 1.25rem; }
+
+/* dictionary + encyclopedia results */
+.dx-search { padding: 1.2rem; gap: .8rem; }
+.dx-search h2 { font-size: 1.2rem; }
+.word-head h2 { font-size: clamp(2rem, 5vw, 2.8rem); letter-spacing: -.045em; line-height: 1; }
+.tx-dict .word-head h2 { font-size: clamp(2rem, 5vw, 2.8rem); }
+.speak { width: 44px; height: 44px; }
+.sense { padding-block: 1rem 0; margin-top: 1rem; }
+.sense .def { font-size: 1.08rem; line-height: 1.5; }
+.sense .ex { font-size: .95rem; }
+.wiki-card > .core { padding: clamp(1.2rem, 3vw, 1.8rem); }
+.wiki-card h2 { font-size: clamp(1.7rem, 3.6vw, 2.4rem); letter-spacing: -.04em; line-height: 1.1; margin-block: .6rem 1rem; }
+.wiki-card .summary { font-size: 1rem; line-height: 1.75; }
+
+/* cards and rows */
+.item { padding: .75rem 1rem; }
+.item .title { font-size: .98rem; }
+.note h3 { font-size: 1.05rem; }
+.note > .core { padding: 1.1rem 1.2rem; }
+.th { margin-bottom: 1.2rem; }
+.empty { padding: 2rem 1.2rem; }
+.empty h3 { font-size: 1.2rem; }
+
+/* ---- scrollbars that match the site (no default grey bars) ---- */
+* { scrollbar-width: thin; scrollbar-color: var(--hair-2) transparent; }
+@supports selector(::-webkit-scrollbar) {
+  * { scrollbar-width: auto; scrollbar-color: auto; }
+  ::-webkit-scrollbar { width: 12px; height: 12px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--hair-2); border-radius: 99px; border: 3px solid transparent; background-clip: content-box; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); background-clip: content-box; }
+  ::-webkit-scrollbar-corner { background: transparent; }
+}

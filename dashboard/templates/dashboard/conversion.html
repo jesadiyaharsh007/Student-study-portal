@@ -1,33 +1,35 @@
 {% extends 'dashboard/base.html' %}
-{% load ui %}
+{% load static ui %}
 {% block title %}Unit converter{% endblock %}
 {% block robots %}noindex,nofollow{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% static 'css/tools.css' %}?v=4">{% endblock %}
 {% block content %}
-<div class="wrap">
-  <div class="conv-layout">
-    <div class="bz"><div class="core conv-photo">
-      <div class="photo">{% photo "conversion" "A wooden ruler against a yellow background" "(min-width:1000px) 35vw, 90vw" True %}</div>
-      <div class="cap">Measure<br>anything.</div>
-    </div></div>
+<div class="wrap-n tx">
+  <header class="th t-orange">
+    <div class="th-main">
+      <span class="th-glyph">{% icon "swap" %}</span>
+      <div><span class="th-eyebrow">Calculator</span><h1>Unit converter</h1><p>Results appear as you type. Nothing leaves your device.</p></div>
+    </div>
+  </header>
 
-    <div class="bz conv"><div class="core">
-      <div><h1 class="h2">Unit converter</h1><p class="muted u-margin-top-p6rem">Results appear as you type. Nothing leaves your device.</p></div>
-      <div class="seg u-justify-self-start" id="conv-tabs" role="group" aria-label="Measurement type"></div>
-      <div class="conv-row">
-        <div class="stack u-gap-p8rem">
-          <div class="field"><label for="c-from">From</label><select class="input" id="c-from"></select></div>
-          <div class="field"><label for="c-val">Value</label><input class="input big" id="c-val" type="number" inputmode="decimal" value="1" step="any" autofocus></div>
-        </div>
-        <button class="swap" id="c-swap" type="button" aria-label="Swap units">{% icon "swap" %}</button>
-        <div class="stack u-gap-p8rem">
-          <div class="field"><label for="c-to">To</label><select class="input" id="c-to"></select></div>
-          <div class="field"><label for="c-out">Result</label><input class="input big" id="c-out" readonly aria-live="polite"></div>
-        </div>
+  <section class="bz cv"><div class="core">
+    <div class="cv-pills" id="conv-tabs" role="group" aria-label="Measurement type"></div>
+
+    <div class="cv-grid">
+      <div class="cv-tile">
+        <div class="field"><label for="c-from">From</label><select class="input" id="c-from"></select></div>
+        <div class="field"><label for="c-val">Value</label><input class="input big" id="c-val" type="number" inputmode="decimal" value="1" step="any" autofocus></div>
       </div>
-      <div class="conv-out"><b id="c-line">0</b><small id="c-formula"></small></div>
-      <button class="btn btn-line no-ico u-justify-self-start" id="c-copy" type="button">Copy result</button>
-    </div></div>
-  </div>
+      <button class="cv-swap" id="c-swap" type="button" aria-label="Swap units">{% icon "swap" %}</button>
+      <div class="cv-tile">
+        <div class="field"><label for="c-to">To</label><select class="input" id="c-to"></select></div>
+        <div class="field"><label for="c-out">Result</label><input class="input big" id="c-out" readonly aria-live="polite"></div>
+      </div>
+    </div>
+
+    <div class="cv-out"><b id="c-line">0</b><small id="c-formula"></small></div>
+    <div class="cv-foot"><span>Twelve measurement types. Use the swap button to reverse.</span><button class="btn btn-line no-ico" id="c-copy" type="button">Copy result</button></div>
+  </div></section>
 </div>
 {% endblock %}
 
@@ -35,13 +37,23 @@
 <script>
 (() => {
   const U = {
-    Length: { u: { millimetre: .001, centimetre: .01, metre: 1, kilometre: 1000, inch: .0254, foot: .3048, yard: .9144, mile: 1609.344 } },
-    Mass: { u: { milligram: 1e-6, gram: .001, kilogram: 1, tonne: 1000, ounce: .028349523125, pound: .45359237 } },
+    Length: { u: { nanometre: 1e-9, micrometre: 1e-6, millimetre: .001, centimetre: .01, metre: 1, kilometre: 1000, inch: .0254, foot: .3048, yard: .9144, mile: 1609.344, 'nautical mile': 1852 } },
+    Mass: { u: { microgram: 1e-9, milligram: 1e-6, gram: .001, kilogram: 1, tonne: 1000, ounce: .028349523125, pound: .45359237, stone: 6.35029318 } },
     Temperature: { temp: true, u: { celsius: 0, fahrenheit: 0, kelvin: 0 } },
-    Volume: { u: { millilitre: .001, litre: 1, 'cup (US)': .2365882365, 'gallon (US)': 3.785411784, 'fluid ounce (US)': .0295735296 } },
-    Speed: { u: { 'metre/second': 1, 'kilometre/hour': 1 / 3.6, 'mile/hour': .44704, knot: .5144444444 } },
+    Volume: { u: { millilitre: .001, litre: 1, 'cubic metre': 1000, teaspoon: .00492892159, tablespoon: .0147867648, 'fluid ounce (US)': .0295735296, 'cup (US)': .2365882365, 'pint (US)': .473176473, 'quart (US)': .946352946, 'gallon (US)': 3.785411784 } },
+    Speed: { u: { 'metre/second': 1, 'kilometre/hour': 1 / 3.6, 'mile/hour': .44704, knot: .5144444444, mach: 340.29 } },
+    Area: { u: { 'square millimetre': 1e-6, 'square centimetre': 1e-4, 'square metre': 1, hectare: 1e4, 'square kilometre': 1e6, 'square inch': 6.4516e-4, 'square foot': .09290304, 'square yard': .83612736, acre: 4046.8564224, 'square mile': 2589988.110336 } },
+    Time: { u: { millisecond: .001, second: 1, minute: 60, hour: 3600, day: 86400, week: 604800, month: 2629800, year: 31557600 } },
+    Data: { u: { bit: .125, byte: 1, kilobyte: 1e3, megabyte: 1e6, gigabyte: 1e9, terabyte: 1e12, kibibyte: 1024, mebibyte: 1048576, gibibyte: 1073741824 } },
+    Energy: { u: { joule: 1, kilojoule: 1000, calorie: 4.184, kilocalorie: 4184, 'watt-hour': 3600, 'kilowatt-hour': 3.6e6, BTU: 1055.05585262 } },
+    Pressure: { u: { pascal: 1, kilopascal: 1000, bar: 1e5, atmosphere: 101325, psi: 6894.757293168, mmHg: 133.322387415 } },
+    Power: { u: { watt: 1, kilowatt: 1000, megawatt: 1e6, horsepower: 745.69987158227, 'BTU/hour': .29307107 } },
+    Angle: { u: { degree: Math.PI / 180, radian: 1, gradian: Math.PI / 200, turn: 2 * Math.PI } },
   };
-  const DEF = { Length: ['metre', 'foot'], Mass: ['kilogram', 'pound'], Temperature: ['celsius', 'fahrenheit'], Volume: ['litre', 'gallon (US)'], Speed: ['kilometre/hour', 'mile/hour'] };
+  const DEF = {
+    Length: ['metre', 'foot'], Mass: ['kilogram', 'pound'], Temperature: ['celsius', 'fahrenheit'], Volume: ['litre', 'gallon (US)'], Speed: ['kilometre/hour', 'mile/hour'],
+    Area: ['square metre', 'square foot'], Time: ['hour', 'minute'], Data: ['megabyte', 'kilobyte'], Energy: ['kilocalorie', 'kilojoule'], Pressure: ['bar', 'psi'], Power: ['kilowatt', 'horsepower'], Angle: ['degree', 'radian'],
+  };
   const $ = id => document.getElementById(id);
   const tabs = $('conv-tabs'), from = $('c-from'), to = $('c-to'), val = $('c-val'), out = $('c-out'), line = $('c-line'), formula = $('c-formula');
   let cat = 'Length';
@@ -51,6 +63,7 @@
   const conv = (v, a, b) => U[cat].temp ? fromK(toK(v, a), b) : v * U[cat].u[a] / U[cat].u[b];
   const fmt = n => Number.isFinite(n) ? (Math.abs(n) > 0 && (Math.abs(n) < 1e-6 || Math.abs(n) >= 1e12) ? n.toExponential(4) : n.toLocaleString(undefined, { maximumSignificantDigits: 9 })) : '-';
   const sym = { celsius: '°C', fahrenheit: '°F', kelvin: 'K' };
+  const sync = sel => sel.dispatchEvent(new Event('change', { bubbles: true }));   // refreshes the custom dropdown label
 
   function fill(sel, pick) { sel.innerHTML = Object.keys(U[cat].u).map(k => `<option>${k}</option>`).join(''); sel.selectedIndex = pick; }
   function run(animate = true) {
@@ -73,9 +86,10 @@
   tabs.innerHTML = Object.keys(U).map(k => `<button type="button" aria-pressed="false">${k}</button>`).join('');
   tabs.addEventListener('click', e => { if (e.target.tagName === 'BUTTON') setCat(e.target.textContent); });
   [from, to, val].forEach(el => el.addEventListener('input', () => run()));
+  [from, to].forEach(el => el.addEventListener('change', () => run(false)));
   $('c-swap').addEventListener('click', e => {
     e.currentTarget.classList.toggle('spun');
-    [from.value, to.value] = [to.value, from.value]; run();
+    [from.value, to.value] = [to.value, from.value]; sync(from); sync(to); run();
   });
   $('c-copy').addEventListener('click', () => { if (out.value) { navigator.clipboard.writeText(out.value).then(() => toast('success', 'Result copied.')).catch(() => toast('warning', 'Copy is not available here.')); } });
   setCat('Length');

@@ -30,26 +30,29 @@
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="{% static 'css/studydesk.css' %}?v=7.6">
+  <link rel="stylesheet" href="{% static 'css/studydesk.css' %}?v=8.5">
+  <link rel="stylesheet" href="{% static 'css/controls.css' %}?v=4">
+  {% if user.is_authenticated %}<link rel="stylesheet" href="{% static 'css/player.css' %}?v=10">{% endif %}
   {% block head %}{% endblock %}
+  <link rel="stylesheet" href="{% static 'css/compact.css' %}?v=2">
 </head>
-<body{% if user.is_authenticated %} data-csrf="{{ csrf_token }}" data-initial="{{ user.username|initial }}"{% endif %}>
+<body{% if user.is_authenticated %} data-shell="student" data-csrf="{{ csrf_token }}" data-initial="{{ user.username|initial }}"{% endif %}>
   {% include 'dashboard/partials/icons.html' %}
   <div id="nprog" aria-hidden="true"></div>
   <a href="#main" class="skip">Skip to content</a>
 
   <header class="nav-pill">
-    <a href="{% url 'home' %}" class="brand" aria-label="Student Study Portal, home">
+    <a href="{% if user.is_authenticated %}{% url 'profile' %}{% else %}{% url 'home' %}{% endif %}" class="brand" aria-label="Student Study Portal, home">
       <span class="brand-mark">{% icon "cap" %}</span><span>Study Portal</span>
     </a>
 
     <nav class="nav-links" aria-label="Primary">
-      <a class="nav-link" href="{% url 'home' %}" {% if current == 'home' %}aria-current="page"{% endif %}>Home</a>
+      {% if not user.is_authenticated %}<a class="nav-link" href="{% url 'home' %}" {% if current == 'home' %}aria-current="page"{% endif %}>Home</a>{% endif %}
       {% if user.is_authenticated %}<a class="nav-link" href="{% url 'profile' %}" {% if current == 'profile' %}aria-current="page"{% endif %}>Dashboard</a>{% endif %}
       <div class="menu-wrap">
         <button class="nav-link" type="button" data-menu aria-expanded="false" aria-haspopup="true" aria-controls="tools-panel">Tools {% icon "chev" "chev" %}</button>
         <div class="panel tools-panel" id="tools-panel"><div class="panel-in">
-          {% for t in tools %}
+          {% for t in nav_tools %}
           <a class="tool-row" href="{{ t.url }}" {% if current == t.key %}aria-current="page"{% endif %}>
             <span class="glyph">{% icon t.icon %}</span>
             <span><b>{{ t.label }}</b><small>{{ t.desc }}</small></span>
@@ -57,11 +60,11 @@
           {% endfor %}
         </div></div>
       </div>
+      {% for t in nav_main %}<a class="nav-link" href="{{ t.url }}" {% if current == t.key %}aria-current="page"{% endif %}>{{ t.label }}</a>{% endfor %}
       <a class="nav-link" href="{% url 'about' %}" {% if current == 'about' %}aria-current="page"{% endif %}>About</a>
     </nav>
 
     <div class="nav-end">
-      <button class="search-btn" type="button" data-palette aria-label="Search and jump to">{% icon "search" "ic-sm" %}<span>Jump to</span><span class="kbd">Ctrl K</span></button>
       <button class="iconbtn theme-btn" type="button" data-theme-toggle aria-label="Toggle dark mode"><span><svg class="ic sun"><use href="#i-sun"/></svg><svg class="ic moon"><use href="#i-moon"/></svg></span></button>
       {% if user.is_authenticated %}
       <div class="menu-wrap">
@@ -89,7 +92,7 @@
 
   <div class="overlay" id="overlay">
     <nav class="ov-list" aria-label="Mobile">
-      <a class="ov-link" style="--i:0" href="{% url 'home' %}" {% if current == 'home' %}aria-current="page"{% endif %}>Home {% icon "arrow-up-right" %}</a>
+      {% if not user.is_authenticated %}<a class="ov-link" style="--i:0" href="{% url 'home' %}" {% if current == 'home' %}aria-current="page"{% endif %}>Home {% icon "arrow-up-right" %}</a>{% endif %}
       {% if user.is_authenticated %}<a class="ov-link" style="--i:1" href="{% url 'profile' %}" {% if current == 'profile' %}aria-current="page"{% endif %}>Dashboard {% icon "arrow-up-right" %}</a>{% endif %}
       <a class="ov-link" style="--i:2" href="{% url 'about' %}" {% if current == 'about' %}aria-current="page"{% endif %}>About {% icon "arrow-up-right" %}</a>
       {% if user.is_authenticated %}<a class="ov-link" style="--i:3" href="{% url 'logout' %}" data-noprefetch>Log out {% icon "arrow-up-right" %}</a>
@@ -106,11 +109,13 @@
 
   <main id="main">{% block content %}{% endblock %}</main>
 
+  {% if user.is_authenticated %}{% include 'dashboard/partials/player.html' %}{% endif %}
+
   <footer class="footer">
     <div class="wrap">
       <div class="footer-grid">
         <div class="word">Study Portal.</div>
-        <nav aria-label="Footer"><a class="link" href="{% url 'home' %}">Home</a><a class="link" href="{% url 'about' %}">About</a><a class="link" href="{% url 'privacy' %}">Privacy</a><a class="link" href="{% url 'terms' %}">Terms</a>{% if user.is_authenticated %}<a class="link" href="{% url 'profile' %}">Dashboard</a>{% else %}<a class="link" href="{% url 'login' %}">Log in</a>{% endif %}</nav>
+        <nav aria-label="Footer"><a class="link" href="{% if user.is_authenticated %}{% url 'profile' %}{% else %}{% url 'home' %}{% endif %}">{% if user.is_authenticated %}Dashboard{% else %}Home{% endif %}</a><a class="link" href="{% url 'about' %}">About</a><a class="link" href="{% url 'privacy' %}">Privacy</a><a class="link" href="{% url 'terms' %}">Terms</a>{% if user.is_authenticated %}<a class="link" href="{% url 'profile' %}">Dashboard</a>{% else %}<a class="link" href="{% url 'login' %}">Log in</a>{% endif %}</nav>
       </div>
     </div>
   </footer>
@@ -131,7 +136,7 @@
     <div class="modal"><div class="bz"><div class="core">
       <label class="pal-input">{% icon "search" %}<input id="pal-q" type="text" placeholder="Jump to a tool or page" autocomplete="off" spellcheck="false"><span class="kbd">Esc</span></label>
       <div class="pal-list" id="pal-list" role="listbox">
-        <a class="pal-item" href="{% url 'home' %}"><span class="glyph">{% icon "home" %}</span>Home<small>Page</small></a>
+        {% if not user.is_authenticated %}<a class="pal-item" href="{% url 'home' %}"><span class="glyph">{% icon "home" %}</span>Home<small>Page</small></a>{% endif %}
         {% if user.is_authenticated %}<a class="pal-item" href="{% url 'profile' %}"><span class="glyph">{% icon "dash" %}</span>Dashboard<small>Page</small></a>{% endif %}
         {% for t in tools %}<a class="pal-item" href="{{ t.url }}"><span class="glyph">{% icon t.icon %}</span>{{ t.label }}<small>Tool</small></a>{% endfor %}
         <a class="pal-item" href="{% url 'about' %}"><span class="glyph">{% icon "info" %}</span>About<small>Page</small></a>
@@ -146,7 +151,9 @@
     </div></div></div>
   </dialog>
 
+  {% if user.is_authenticated %}<script src="{% static 'js/ytengine.js' %}?v=2" defer data-once></script><script src="{% static 'js/player.js' %}?v=8" defer data-once></script><script src="{% static 'js/nav.js' %}?v=1" defer data-once></script>{% endif %}
   {% block scripts %}{% endblock %}
-  <script src="{% static 'js/app.js' %}?v=6.1" defer></script>
+  <script src="{% static 'js/app.js' %}?v=7.0" defer></script>
+  <script src="{% static 'js/controls.js' %}?v=1" defer data-once></script>
 </body>
 </html>

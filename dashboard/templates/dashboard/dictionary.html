@@ -1,16 +1,24 @@
 {% extends 'dashboard/base.html' %}
-{% load ui %}
+{% load static ui %}
 {% block title %}Dictionary{% endblock %}
 {% block robots %}noindex,nofollow{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% static 'css/tools.css' %}?v=2">{% endblock %}
 {% block content %}
-<div class="wrap-n" data-skeleton-wrap>
-  <section class="bz"><div class="core hero-search u-min-height-380px">
-    <div class="photo scrim-flat">{% photo "dictionary" "Close-up of dictionary entries" "900px" True %}</div>
-    <h1>What does it mean?</h1>
+<div class="wrap-n tx tx-dict" data-skeleton-wrap>
+  <header class="th t-teal">
+    <div class="th-main">
+      <span class="th-glyph">{% icon "book-a" %}</span>
+      <div><span class="th-eyebrow">Word lookup</span><h1>Dictionary</h1><p>Definitions, pronunciation and synonyms in one place.</p></div>
+    </div>
+  </header>
+
+  <section class="bz"><div class="core dx-search">
+    <h2>What does it mean?</h2>
     <form class="searchbar" method="get" action="{% url 'dictionary' %}" role="search" data-skeleton>
       <label class="input-icon">{% icon "search" %}<input class="input" type="search" name="q" value="{{ q }}" placeholder="Look up a word" maxlength="60" required autocomplete="off" autocapitalize="none" spellcheck="false" {% if not q %}data-focus-on-load{% endif %} aria-label="Word"></label>
       <button class="btn btn-ink no-ico" type="submit">Define</button>
     </form>
+    <div class="dx-try"><span>Try</span><a href="{% url 'dictionary' %}?q=ephemeral">ephemeral</a><a href="{% url 'dictionary' %}?q=ubiquitous">ubiquitous</a><a href="{% url 'dictionary' %}?q=serendipity">serendipity</a><a href="{% url 'dictionary' %}?q=algorithm">algorithm</a></div>
   </div></section>
 
   <div class="results-skel u-margin-top-1p4rem" aria-hidden="true"><div class="bz"><div class="core u-padding-2rem"><div class="skeleton u-height-56px-width-45pc"></div><div class="skeleton u-height-16px-margin-top-1p4rem"></div><div class="skeleton u-height-16px-margin-top-p6rem-width-75pc"></div></div></div></div>
@@ -31,7 +39,7 @@
       </div>
       {% endfor %}
       {% if synonyms %}
-      <div class="sense"><div class="pos u-color-var-muted">Synonyms</div>
+      <div class="sense"><div class="pos">Synonyms</div>
         <div class="tags">{% for s in synonyms %}<a class="tag btn-like" href="{% url 'dictionary' %}?q={{ s|urlencode }}">{{ s }}</a>{% endfor %}</div>
       </div>
       {% endif %}

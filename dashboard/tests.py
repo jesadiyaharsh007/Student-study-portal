@@ -1,3 +1,5 @@
+from unittest import mock
+
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth.models import User
@@ -444,3 +446,264 @@ class ConsoleTests(TestCase):
         self.assertEqual(res.status_code, 503)
         self.assertContains(res, 'could not set up', status_code=503)
         self.assertNotContains(res, 'migrate', status_code=503)
+
+
+
+SAMPLE_BOOK = """The Project Gutenberg eBook of Tiny Tale
+
+Title: Tiny Tale
+Author: Doe, Jane, 1850-1920
+
+*** START OF THE PROJECT GUTENBERG EBOOK TINY TALE ***
+
+CONTENTS
+
+CHAPTER I.
+The Beginning
+
+It was a bright cold day in April, and the clocks were striking
+thirteen. She walked _slowly_ home & thought of tea <and> toast.
+""" + ("A long paragraph of story text that goes on and on. " * 12 + "\n\n") * 3 + """
+CHAPTER II.
+The Middle
+
+""" + ("More story text for the second chapter lives right here. " * 12 + "\n\n") * 3 + """
+CHAPTER III.
+The End
+
+Roses are red,
+Violets are blue,
+Sugar is sweet,
+And so are you.
+
+""" + ("The very last part of the story, told at length. " * 12 + "\n\n") * 2 + """
+*** END OF THE PROJECT GUTENBERG EBOOK TINY TALE ***
+
+License text that must never reach the reader.
+"""
+
+
+class LibraryTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user('reader', 'reader@example.com', 'Reader-pass-123')
+        self.client.login(username='reader', password='Reader-pass-123')
+
+    # ---- parser ----
+    def test_parser_splits_chapters_and_strips_boilerplate(self):
+        from .library import parse_gutenberg
+        book = parse_gutenberg(SAMPLE_BOOK, 9)
+        self.assertEqual(book['title'], 'Tiny Tale')
+        self.assertEqual(book['author'], 'Jane Doe')
+        titles = [c['t'] for c in book['chapters']]
+        self.assertEqual(len(titles), 3)
+        self.assertIn('chapter i', titles[0].lower())
+        self.assertIn('The End', titles[2])
+        everything = ''.join(c['html'] for c in book['chapters'])
+        self.assertNotIn('License text', everything)
+        self.assertNotIn('PROJECT GUTENBERG', everything)
+
+    def test_parser_escapes_html_and_formats_emphasis_and_verse(self):
+        from .library import parse_gutenberg
+        html = ''.join(c['html'] for c in parse_gutenberg(SAMPLE_BOOK, 9)['chapters'])
+        self.assertIn('<em>slowly</em>', html)
+        self.assertIn('&lt;and&gt;', html)
+        self.assertIn('&amp;', html)
+        self.assertNotIn('<and>', html)
+        self.assertIn('class="verse"', html)
+        self.assertIn('Roses are red,<br>Violets are blue', html)
+
+    def test_parser_falls_back_to_even_parts_without_headings(self):
+        from .library import parse_gutenberg
+        text = '*** START OF THE PROJECT GUTENBERG EBOOK X ***\n\n' + ('Plain flowing prose without any headings at all. ' * 25 + '\n\n') * 80
+        book = parse_gutenberg(text, 5)
+        self.assertGreater(len(book['chapters']), 2)
+        self.assertTrue(book['chapters'][0]['t'].startswith('Part '))
+
+    def test_parser_rejects_empty_text(self):
+        from .library import BookUnavailable, parse_gutenberg
+        with self.assertRaises(BookUnavailable):
+            parse_gutenberg('*** START OF THE PROJECT GUTENBERG EBOOK X ***\n\n*** END OF THE PROJECT GUTENBERG EBOOK X ***', 5)
+
+    # ---- pages (sources mocked) ----
+    def test_books_page_is_an_instant_shell_then_loads_results(self):
+        from unittest import mock
+        found = {'books': [{'id': 1342, 'title': 'Pride and Prejudice', 'authors': 'Jane Austen', 'note': '', 'cover': 'https://example.org/c.jpg'}], 'has_next': True}
+        with mock.patch('dashboard.library.search_books', return_value=found) as search:
+            shell = self.client.get(reverse('books'))
+            self.assertEqual(shell.status_code, 200)
+            self.assertContains(shell, 'data-async')
+            self.assertNotContains(shell, 'Pride and Prejudice')
+            search.assert_not_called()                      # nothing slow happens before the page opens
+            part = self.client.get(reverse('books') + '?q=austen&_part=1')
+        self.assertContains(part, 'Pride and Prejudice')
+        self.assertContains(part, 'Jane Austen')
+        self.assertContains(part, '/books/read/1342/')
+        self.assertContains(part, 'Next page')
+
+    def test_books_page_survives_a_down_catalog(self):
+        from unittest import mock
+        from .library import LibraryError
+        with mock.patch('dashboard.library.search_books', side_effect=LibraryError('down')):
+            res = self.client.get(reverse('books') + '?q=x&_part=1')
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, 'data-retry')
+        self.assertContains(res, 'did not respond')
+
+    def test_books_empty_search_state(self):
+        from unittest import mock
+        with mock.patch('dashboard.library.search_books', return_value={'books': [], 'has_next': False}):
+            res = self.client.get(reverse('books') + '?q=zzzz&_part=1')
+        self.assertContains(res, 'No books found')
+
+    def test_books_topic_chip_uses_its_search_term(self):
+        from unittest import mock
+        with mock.patch('dashboard.library.search_books', return_value={'books': [], 'has_next': False}) as search:
+            self.client.get(reverse('books') + '?topic=math&_part=1')
+        search.assert_called_once_with('mathematics', 1)
+
+    def test_reader_page_and_data_endpoint(self):
+        from unittest import mock
+        from .library import BookUnavailable, parse_gutenberg
+        book = parse_gutenberg(SAMPLE_BOOK, 9)
+        page = self.client.get(reverse('book-read', args=[9]) + '?t=Tiny+Tale&a=Jane+Doe')
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, 'Tiny Tale')
+        self.assertContains(page, 'id="toc"')
+        self.assertContains(page, 'data-src="/books/read/9/data/"')
+        with mock.patch('dashboard.library.load_book', return_value=book):
+            data = self.client.get(reverse('book-data', args=[9]))
+        self.assertEqual(data.status_code, 200)
+        self.assertEqual(data.json()['book']['chapters'][0]['i'], 0)
+        self.assertIn('max-age', data['Cache-Control'])
+        with mock.patch('dashboard.library.load_book', side_effect=BookUnavailable('nope')):
+            bad = self.client.get(reverse('book-data', args=[9]))
+        self.assertEqual(bad.status_code, 502)
+        self.assertFalse(bad.json()['ok'])
+
+    def test_reader_title_cannot_inject_html(self):
+        res = self.client.get(reverse('book-read', args=[9]) + '?t=%3Cscript%3Ealert(1)%3C/script%3E')
+        self.assertNotContains(res, '<script>alert(1)</script>')
+
+    def test_library_pages_require_login(self):
+        self.client.logout()
+        for url in (reverse('books'), reverse('youtube'), reverse('book-read', args=[9]), reverse('book-data', args=[9])):
+            self.assertEqual(self.client.get(url).status_code, 302, url)
+
+    SAMPLE_VIDEO = {
+        'id': 'WUvTyaaNkzM', 'title': 'The Essence of Calculus', 'channel': '3Blue1Brown', 'duration': '17:05',
+        'views': '11.8M views', 'published': '9 years ago', 'thumbnail': 'https://i.ytimg.com/vi/WUvTyaaNkzM/mqdefault.jpg',
+    }
+
+    def test_youtube_cold_start_shows_feed_without_ad_wording(self):
+        with mock.patch('dashboard.videos.home_feed', return_value=[self.SAMPLE_VIDEO]):
+            res = self.client.get(reverse('youtube'))
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, 'Suggested for you')
+        self.assertContains(res, 'The Essence of Calculus')
+        self.assertContains(res, 'data-id="WUvTyaaNkzM"')
+        self.assertNotIn('ad-free', res.content.decode().lower())
+
+    def test_youtube_topic_chip_filter(self):
+        with mock.patch('dashboard.videos.search_videos', return_value=([self.SAMPLE_VIDEO], None)) as search:
+            res = self.client.get(reverse('youtube') + '?topic=calculus')
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, 'Calculus')
+        self.assertEqual(search.call_args[0][0], 'calculus explained')
+
+    def test_youtube_deep_link_opens_the_watch_view(self):
+        with mock.patch('dashboard.videos.home_feed', return_value=[self.SAMPLE_VIDEO]):
+            res = self.client.get(reverse('youtube') + '?v=WUvTyaaNkzM')
+            bad = self.client.get(reverse('youtube') + '?v=<script>')
+        self.assertContains(res, 'data-start="WUvTyaaNkzM"')
+        self.assertContains(bad, 'data-start=""')
+
+    def test_youtube_watch_data(self):
+        info = dict(self.SAMPLE_VIDEO, description='x', related=[], subscribers='1M', link='https://youtu.be/x')
+        with mock.patch('dashboard.videos.video_details', return_value=info):
+            ok = self.client.get(reverse('youtube-watch', args=['WUvTyaaNkzM']))
+        self.assertEqual(ok.status_code, 200)
+        self.assertEqual(ok.json()['title'], 'The Essence of Calculus')
+        with mock.patch('dashboard.videos.video_details', return_value=None):
+            gone = self.client.get(reverse('youtube-watch', args=['WUvTyaaNkzM']))
+        self.assertEqual(gone.status_code, 404)
+        self.client.logout()
+        self.assertEqual(self.client.get(reverse('youtube-watch', args=['WUvTyaaNkzM'])).status_code, 302)
+
+    def test_youtube_results_fragment_for_in_page_search(self):
+        with mock.patch('dashboard.videos.search_videos', return_value=([self.SAMPLE_VIDEO], None)):
+            res = self.client.get(reverse('youtube') + '?q=calculus&_part=1')
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, 'data-id="WUvTyaaNkzM"')
+        self.assertNotContains(res, '<html')
+
+    def test_youtube_lexi_answers_about_the_video(self):
+        info = dict(self.SAMPLE_VIDEO, description='Limits and derivatives', related=[])
+        with mock.patch('dashboard.videos.video_details', return_value=info),                 mock.patch('dashboard.videos.transcript_text', return_value='We start with limits.'),                 mock.patch('dashboard.views._query_gemini_tutor', return_value='A short summary.') as ask,                 self.settings(GEMINI_API_KEY='test-key'):
+            res = self.client.post(reverse('youtube-lexi'), {'video': 'WUvTyaaNkzM', 'question': 'Summarize'})
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertTrue(data['ok'])
+        self.assertTrue(data['captions'])
+        prompt = ask.call_args[0][2]
+        self.assertIn('We start with limits.', prompt)
+        self.assertIn('The Essence of Calculus', prompt)
+        bad = self.client.post(reverse('youtube-lexi'), {'video': 'nope', 'question': 'x'})
+        self.assertEqual(bad.status_code, 400)
+        self.assertEqual(self.client.get(reverse('youtube-lexi')).status_code, 405)
+
+    SAMPLE_MANIFEST = {
+        'at': 0, 'public': {'id': 'WUvTyaaNkzM', 'title': 'The Essence of Calculus', 'channel': '3Blue1Brown', 'duration': 1024,
+                            'video': [{'itag': '136', 'height': 720, 'fps': 30, 'codec': 'avc1.4D401F', 'bitrate': 1000000, 'size': 1}],
+                            'audio': {'itag': '140', 'codec': 'mp4a.40.2', 'bitrate': 128000, 'size': 1}},
+        'urls': {'136': 'https://example.com/v', '140': 'https://example.com/a'},
+    }
+
+    def test_youtube_stream_manifest_hides_the_links(self):
+        with mock.patch('dashboard.videos.stream_manifest', return_value=self.SAMPLE_MANIFEST):
+            ok = self.client.get(reverse('youtube-stream', args=['WUvTyaaNkzM']))
+        self.assertEqual(ok.status_code, 200)
+        data = ok.json()
+        self.assertEqual(data['video'][0]['height'], 720)
+        self.assertNotIn('example.com', ok.content.decode())
+        with mock.patch('dashboard.videos.stream_manifest', side_effect=__import__('dashboard.videos', fromlist=['x']).StreamUnavailable('nope')):
+            gone = self.client.get(reverse('youtube-stream', args=['WUvTyaaNkzM']))
+        self.assertEqual(gone.status_code, 404)
+        self.client.logout()
+        self.assertEqual(self.client.get(reverse('youtube-stream', args=['WUvTyaaNkzM'])).status_code, 302)
+
+    def test_youtube_media_relays_ranges(self):
+        class Upstream:
+            status_code = 206
+            headers = {'Content-Type': 'video/mp4', 'Content-Length': '4', 'Content-Range': 'bytes 0-3/10'}
+            def iter_content(self, n): yield b'abcd'
+            def close(self): pass
+        with mock.patch('dashboard.videos.media_url', return_value='https://example.com/v'), \
+                mock.patch('dashboard.videos._HTTP_SESSION.get', return_value=Upstream()) as get:
+            res = self.client.get(reverse('youtube-media', args=['WUvTyaaNkzM', '136']), HTTP_RANGE='bytes=0-3')
+            body = b''.join(res.streaming_content)
+        self.assertEqual(res.status_code, 206)
+        self.assertEqual(body, b'abcd')
+        self.assertEqual(res['Content-Range'], 'bytes 0-3/10')
+        self.assertEqual(get.call_args[1]['headers']['Range'], 'bytes=0-3')
+        self.assertEqual(self.client.get(reverse('youtube-media', args=['WUvTyaaNkzM', 'abc'])).status_code, 400)
+
+    def test_youtube_captions_endpoints(self):
+        with mock.patch('dashboard.videos.caption_tracks', return_value=[{'lang': 'en', 'name': 'English', 'auto': False}]):
+            tracks = self.client.get(reverse('youtube-captions', args=['WUvTyaaNkzM'])).json()
+        self.assertEqual(tracks['tracks'][0]['lang'], 'en')
+        with mock.patch('dashboard.videos.caption_cues', return_value=[[0, 2, 'Hello']]):
+            cues = self.client.get(reverse('youtube-caption-cues', args=['WUvTyaaNkzM', 'en'])).json()
+        self.assertEqual(cues['cues'][0][2], 'Hello')
+
+    def test_youtube_download_sets_a_filename(self):
+        class Upstream:
+            status_code = 200
+            headers = {'Content-Type': 'audio/mp4', 'Content-Length': '3'}
+            def iter_content(self, n): yield b'abc'
+        with mock.patch('dashboard.videos.stream_manifest', return_value=self.SAMPLE_MANIFEST), \
+                mock.patch('dashboard.videos._HTTP_SESSION.get', return_value=Upstream()):
+            res = self.client.get(reverse('youtube-download', args=['WUvTyaaNkzM', 'audio']))
+            b''.join(res.streaming_content)
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('attachment', res['Content-Disposition'])
+        self.assertIn('.m4a', res['Content-Disposition'])
