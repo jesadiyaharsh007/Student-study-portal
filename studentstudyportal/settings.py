@@ -211,8 +211,7 @@ LOGIN_URL = 'login'
 
 # Lexi (AI Bot) API Key
 # Load from environment variable (Vercel dashboard), or local .env file if present
-# How videos play: "auto" uses our own streaming player and falls back to YouTube's embed when that is not possible;
-# "embed" goes straight to the embed (the default on Vercel, where streaming from the server does not work).
+# How videos play: "embed" plays directly via the clean embedded engine with custom controls.
 PLAYER_MODE = os.environ.get("PLAYER_MODE") or ("embed" if os.environ.get("VERCEL") == "1" else "auto")
 # Optional: a separate always-on server running media_service/ that does the streaming, so it works on the live site too.
 MEDIA_SERVICE_URL = os.environ.get("MEDIA_SERVICE_URL", "").strip().rstrip("/")

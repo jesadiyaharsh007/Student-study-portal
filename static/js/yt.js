@@ -622,7 +622,8 @@
     const t = e.target;
     if ((t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === 'Escape' && !el.lexi.hidden) openLexi(false);
-    else if ((e.key === 'Escape' || e.key === 'i' || e.key === 'I') && inWatch()) back();
+    else if ((e.key === 'i' || e.key === 'I') && inWatch()) minimize(false);
+    else if (e.key === 'Escape' && inWatch()) back();
     else if ((e.key === 'i' || e.key === 'I') && S.mode === 'mini' && S.id) expand();
   });
 

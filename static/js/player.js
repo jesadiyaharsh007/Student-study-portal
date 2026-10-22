@@ -149,27 +149,13 @@
     const h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, s = t % 60;
     return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s).padStart(2, '0');
   };
-  // With a separate video service the player talks to it directly, using a signed pass from the website.
   let svc = null;
-  async function ensureService() {
-    if (host.dataset.mode !== 'service') return false;
-    if (svc && svc.exp * 1000 - Date.now() > 120000) return true;
-    const r = await fetch(host.dataset.tokenUrl, { credentials: 'same-origin' });
-    const d = await r.json();
-    if (!d.ok) throw new Error('no service');
-    svc = d;
-    return true;
-  }
-  if (host.dataset.mode === 'service') setInterval(() => { ensureService().catch(() => {}); }, 10 * 60 * 1000);
+  async function ensureService() { return false; }
   const urlFor = (attr, id, extra) => {
-    if (svc) {
-      const t = `token=${encodeURIComponent(svc.token)}`, b = svc.base, v = encodeURIComponent(id);
-      if (attr === 'streamUrl') return `${b}/stream/${v}?${t}`;
-      if (attr === 'mediaUrl') return `${b}/media/${v}/0?${t}`;
-      if (attr === 'captionsUrl') return `${b}/captions/${v}?${t}`;
-      if (attr === 'cuesUrl') return `${b}/captions/${v}/${(extra || {}).LANG}?${t}`;
-      if (attr === 'downloadUrl') return `${b}/download/${v}/${(extra || {}).KIND}?${t}`;
-    } let u = host.dataset[attr].replace('XXXXXXXXXXX', encodeURIComponent(id)); Object.entries(extra || {}).forEach(([k, v]) => { u = u.replace(k, v); }); return u; };
+    let u = (host.dataset[attr] || '').replace('XXXXXXXXXXX', encodeURIComponent(id));
+    Object.entries(extra || {}).forEach(([k, v]) => { u = u.replace(k, v); });
+    return u;
+  };
 
   /* ------------------------------------------------------------------ persistence */
   let lastSave = 0;
@@ -365,25 +351,61 @@
     state.ccLang = lang; state.cues = [];
     el.bCc.classList.toggle('on', !!lang);
     prefs.cc = lang; savePrefs();
+    if (state.engineType === 'embed' && embedPlayer && typeof embedPlayer.setOption === 'function') {
+      try {
+        embedPlayer.setOption('captions', 'track', lang ? { languageCode: lang } : {});
+      } catch (e) {}
+    }
     if (!lang) { el.cc.hidden = true; return; }
     const id = state.id;
     try {
       const r = await fetch(urlFor('cuesUrl', id, { LANG: encodeURIComponent(lang) }), { credentials: 'same-origin' });
       const d = await r.json();
-      if (state.id === id && state.ccLang === lang) { state.cues = d.cues || []; paintCaption(video.currentTime); }
-    } catch (e) { /* captions are optional */ }
+      if (state.id === id && state.ccLang === lang) {
+        state.cues = d.cues || [];
+        paintCaption(state.time || video.currentTime || 0);
+      }
+    } catch (e) { /* captions from embedPlayer will render if server cues are unavailable */ }
+  }
+  function syncEmbedCaptions() {
+    if (!embedPlayer || typeof embedPlayer.getOption !== 'function') return;
+    try {
+      const list = embedPlayer.getOption('captions', 'tracklist') || [];
+      if (Array.isArray(list) && list.length) {
+        list.forEach(t => {
+          const lang = t.languageCode || t.vssId;
+          if (lang && !state.tracks.some(x => x.lang === lang)) {
+            state.tracks.push({
+              lang: lang,
+              name: t.displayName || t.languageName || lang,
+              auto: t.kind === 'asr' || !!t.is_default
+            });
+          }
+        });
+        el.bCc.hidden = !state.tracks.length;
+        if (state.ccLang) {
+          embedPlayer.setOption('captions', 'track', { languageCode: state.ccLang });
+        } else if (prefs.cc && state.tracks.some(t => t.lang === prefs.cc)) {
+          setCaptions(prefs.cc);
+        }
+      }
+    } catch (e) {}
   }
   async function loadCaptionTracks(id) {
     state.tracks = []; state.ccLang = ''; state.cues = [];
-    el.bCc.classList.remove('on'); el.bCc.hidden = false;
+    el.bCc.classList.remove('on');
     try {
       const r = await fetch(urlFor('captionsUrl', id), { credentials: 'same-origin' });
       const d = await r.json();
-      if (state.id !== id) return;
-      state.tracks = d.tracks || [];
-      el.bCc.hidden = !state.tracks.length;
-      if (prefs.cc && state.tracks.some(t => t.lang === prefs.cc)) setCaptions(prefs.cc);
-    } catch (e) { el.bCc.hidden = true; }
+      if (state.id === id && Array.isArray(d.tracks)) {
+        d.tracks.forEach(t => {
+          if (!state.tracks.some(x => x.lang === t.lang)) state.tracks.push(t);
+        });
+      }
+    } catch (e) { /* ignore */ }
+    syncEmbedCaptions();
+    el.bCc.hidden = !state.tracks.length;
+    if (prefs.cc && state.tracks.some(t => t.lang === prefs.cc)) setCaptions(prefs.cc);
   }
 
   const YT_QUALITY_MAP = {
@@ -513,7 +535,14 @@
     else if (a === 'prev') emit('prev');
     else if (a === 'next') emit('next');
     else if (a === 'mute') { video.muted = !video.muted; prefs.muted = video.muted; savePrefs(); }
-    else if (a === 'cc') { if (state.ccLang) setCaptions(''); else if (state.tracks.length) openMenu('cc'); }
+    else if (a === 'cc') {
+      if (state.ccLang) {
+        setCaptions('');
+      } else if (state.tracks.length) {
+        const preferred = (prefs.cc && state.tracks.find(t => t.lang === prefs.cc)) || state.tracks[0];
+        setCaptions(preferred ? preferred.lang : 'en');
+      }
+    }
     else if (a === 'settings') { if (el.menu.hidden || menuStack[0] !== 'settings') openMenu('settings'); else closeMenu(); }
     else if (a === 'download') { if (el.menu.hidden || menuStack[0] !== 'download') openMenu('download'); else closeMenu(); }
     else if (a === 'pip') { if (state.engineType === 'embed') api.minimize(); else if (document.pictureInPictureElement) document.exitPictureInPicture(); else video.requestPictureInPicture().catch(() => {}); }
@@ -548,6 +577,7 @@
     }
     if (el.embed) {
       el.embed.innerHTML = '';
+      el.embed.classList.remove('ready');
       el.embed.hidden = true;
     }
     host.classList.remove('embed');
@@ -557,7 +587,7 @@
     video.pause();
     video.removeAttribute('src');
     video.load();
-    state.engineType = 'mse';
+    state.engineType = 'embed';
     state.manifest = null; state.ready = false; state.height = 0; state.cues = []; state.tracks = [];
     closeMenu(); hideError(); el.cc.hidden = true; setWaiting(false);
   }
@@ -565,21 +595,22 @@
   function fallbackIframe(id, start, autoplay) {
     if (!el.embed) return;
     el.embed.innerHTML = '';
+    el.embed.classList.remove('ready');
     el.embed.hidden = false;
     video.hidden = true;
     const iframe = document.createElement('iframe');
     const origin = encodeURIComponent(window.location.origin || '');
     host.classList.add('embed');
     const startSec = Math.floor(start || 0);
-    iframe.src = `https://www.youtube.com/embed/${encodeURIComponent(id)}?enablejsapi=1&origin=${origin}&controls=0&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&fs=0${startSec > 0 ? '&start=' + startSec : ''}`;
+    iframe.src = `https://www.youtube.com/embed/${encodeURIComponent(id)}?enablejsapi=1&origin=${origin}&controls=0&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&fs=0&playsinline=1${startSec > 0 ? '&start=' + startSec : ''}`;
     iframe.referrerPolicy = 'no-referrer-when-downgrade';
     iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
     iframe.allowFullscreen = true;
     iframe.style.position = 'absolute';
-    iframe.style.top = '-60px';
-    iframe.style.left = '0';
-    iframe.style.width = '100%';
-    iframe.style.height = 'calc(100% + 120px)';
+    iframe.style.top = '-72px';
+    iframe.style.left = '-4px';
+    iframe.style.width = 'calc(100% + 8px)';
+    iframe.style.height = 'calc(100% + 144px)';
     iframe.style.border = '0';
     iframe.style.pointerEvents = 'none';
     el.embed.appendChild(iframe);
@@ -589,6 +620,7 @@
     hideError();
     state.ready = true;
     setPlaying(!!autoplay);
+    setTimeout(() => { if (el.embed) el.embed.classList.add('ready'); }, 500);
   }
 
   function startEmbedEngine(id, start, autoplay) {
@@ -601,6 +633,7 @@
     if (el.embed) {
       el.embed.hidden = false;
       el.embed.innerHTML = '';
+      el.embed.classList.remove('ready');
     }
     ui.hidden = false;
     ui.style.display = '';
@@ -615,16 +648,16 @@
       iframe.referrerPolicy = 'no-referrer-when-downgrade';
       iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
       iframe.style.position = 'absolute';
-      iframe.style.top = '-60px';
-      iframe.style.left = '0';
-      iframe.style.width = '100%';
-      iframe.style.height = 'calc(100% + 120px)';
+      iframe.style.top = '-72px';
+      iframe.style.left = '-4px';
+      iframe.style.width = 'calc(100% + 8px)';
+      iframe.style.height = 'calc(100% + 144px)';
       iframe.style.border = '0';
       iframe.style.pointerEvents = 'none';
 
       const origin = encodeURIComponent(window.location.origin || '');
       const startSec = Math.floor(start || 0);
-      iframe.src = `https://www.youtube.com/embed/${encodeURIComponent(id)}?enablejsapi=1&origin=${origin}&controls=0&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&fs=0${startSec > 0 ? '&start=' + startSec : ''}`;
+      iframe.src = `https://www.youtube.com/embed/${encodeURIComponent(id)}?enablejsapi=1&origin=${origin}&controls=0&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&fs=0&playsinline=1${startSec > 0 ? '&start=' + startSec : ''}`;
 
       if (el.embed) el.embed.appendChild(iframe);
 
@@ -651,6 +684,10 @@
                 const qLevel = (embedPlayer.getPlaybackQuality && embedPlayer.getPlaybackQuality()) || '';
                 state.height = YT_QUALITY_MAP[qLevel] || state.height || 720;
               }
+              if (embedPlayer.loadModule) {
+                try { embedPlayer.loadModule('captions'); } catch (e) {}
+              }
+              syncEmbedCaptions();
               if (autoplay && embedPlayer.playVideo) embedPlayer.playVideo();
               paint();
             },
@@ -669,8 +706,10 @@
                 setPlaying(true);
                 setWaiting(false);
                 state.ready = true;
+                if (el.embed) el.embed.classList.add('ready');
                 const qLevel = (embedPlayer.getPlaybackQuality && embedPlayer.getPlaybackQuality()) || '';
                 if (YT_QUALITY_MAP[qLevel]) state.height = YT_QUALITY_MAP[qLevel];
+                syncEmbedCaptions();
                 startEmbedTimer();
               } else if (ev.data === 2) { // paused
                 setPlaying(false);
@@ -721,113 +760,9 @@
     if (embedTimer) { clearInterval(embedTimer); embedTimer = 0; }
   }
 
-  const manifestCache = new Map();
-  async function preloadManifest(id) {
-    if (!id || manifestCache.has(id)) return;
-    try {
-      await ensureService();
-      const r = await fetch(urlFor('streamUrl', id), { credentials: 'same-origin' });
-      if (r.ok) {
-        const d = await r.json();
-        if (d && d.ok && d.fallback !== 'embed') {
-          if (manifestCache.size > 8) manifestCache.clear();
-          manifestCache.set(id, d);
-        }
-      }
-    } catch (e) { /* ignore */ }
-  }
-
-  let serviceUnavailable = false;
-
   async function startEngine(id, start, autoplay) {
     endingTriggered = false;
-    const tok = ++state.tok;
-    if (host.dataset.mode === 'embed' || serviceUnavailable) {
-      startEmbedEngine(id, start, autoplay);
-      return;
-    }
-    hideError(); setWaiting(true); ui.dataset.state = 'loading';
-    el.buf.style.transform = el.played.style.transform = 'scaleX(0)';
-    let mf = manifestCache.get(id);
-    if (mf) {
-      manifestCache.delete(id);
-    } else {
-      try {
-        await ensureService();
-        const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 1200);
-        const r = await fetch(urlFor('streamUrl', id), { credentials: 'same-origin', signal: ctl.signal });
-        clearTimeout(timer);
-        mf = await r.json();
-      } catch (e) {
-        serviceUnavailable = true;
-        if (tok === state.tok) startEmbedEngine(id, start, autoplay);
-        return;
-      }
-    }
-    if (tok !== state.tok) return;
-
-    if (!mf || !mf.ok || mf.fallback === 'embed') {
-      serviceUnavailable = true;
-      startEmbedEngine(id, start, autoplay);
-      return;
-    }
-
-    state.manifest = mf;
-    state.duration = mf.duration || 0;
-    video.playbackRate = prefs.rate;
-
-    // Progressive muxed MP4 stream (plays natively in <video>)
-    if (mf.is_muxed) {
-      state.engineType = 'native';
-      const itag = mf.progressive_itag || (mf.video && mf.video[0] && mf.video[0].itag) || '18';
-      const mediaSrc = urlFor('mediaUrl', id).replace('/0/', `/${itag}/`);
-      video.hidden = false;
-      if (el.embed) el.embed.hidden = true;
-      video.src = mediaSrc;
-      if (start > 0) video.currentTime = start;
-      state.height = (mf.video && mf.video[0] && mf.video[0].height) || 360;
-      if (autoplay) {
-        video.play().catch(() => { setPlaying(false); ui.dataset.state = 'paused'; state.ready = true; setWaiting(false); });
-      } else {
-        setPlaying(false); ui.dataset.state = 'paused'; state.ready = true; setWaiting(false);
-      }
-      loadCaptionTracks(id);
-      return;
-    }
-
-    // Adaptive DASH MSE stream
-    if (!window.YTEngine || !window.YTEngine.supported(mf)) {
-      startEmbedEngine(id, start, autoplay);
-      return;
-    }
-
-    state.engineType = 'mse';
-    video.hidden = false;
-    if (el.embed) el.embed.hidden = true;
-    engine = new window.YTEngine(video, {
-      mediaUrl: itag => urlFor('mediaUrl', id).replace(/\/0(\?|\/|$)/, `/${itag}$1`),
-      onQuality: s => { state.height = s.height; state.quality = s.auto ? 'auto' : String(s.height); if (!el.menu.hidden) renderMenu(); },
-      onError: msg => { if (tok === state.tok) startEmbedEngine(id, video.currentTime || start, true); },
-      onWaiting: setWaiting,
-      maxHeight: () => Math.max(360, Math.round((host.clientHeight || 360) * (devicePixelRatio || 1))),
-    });
-    try {
-      await engine.load(mf, { quality: prefs.quality, start, targetHeight: Math.max(480, Math.min(1080, Math.round((host.clientHeight || 360) * (devicePixelRatio || 1)))) });
-    } catch (e) {
-      if (tok === state.tok) startEmbedEngine(id, video.currentTime || start, true);
-      return;
-    }
-    if (tok !== state.tok) return;
-    if (autoplay) { video.play().catch(() => { setPlaying(false); ui.dataset.state = 'paused'; state.ready = true; setWaiting(false); }); }
-    else { setPlaying(false); ui.dataset.state = 'paused'; state.ready = true; setWaiting(false); }
-    loadCaptionTracks(id);
-
-    // Auto-preload the next item in the queue
-    const q = state.meta.related || [];
-    const idx = q.findIndex(v => v && v.id === id);
-    if (idx >= 0 && idx + 1 < q.length && q[idx + 1] && q[idx + 1].id) {
-      setTimeout(() => preloadManifest(q[idx + 1].id), 800);
-    }
+    startEmbedEngine(id, start, autoplay);
   }
 
   /* ------------------------------------------------------------------ public API */
@@ -892,7 +827,7 @@
     get active() { return state.mode !== 'none'; },
     get autoplay() { return prefs.autoplay !== false; },
     set autoplay(on) { prefs.autoplay = !!on; savePrefs(); },
-    preload(id) { preloadManifest(id); },
+    preload(id) {},
   };
   window.StudyPlayer = api;
 

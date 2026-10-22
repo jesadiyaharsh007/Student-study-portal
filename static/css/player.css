@@ -10,12 +10,13 @@
 .yt-frame { position: absolute; left: 0; right: 0; top: 0; bottom: var(--bar); background: #000; }
 .yt-player:fullscreen .yt-frame { bottom: 0; }
 .yt-video { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: #000; object-fit: contain; }
-.yt-embed { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: #000; overflow: hidden; z-index: 1; }
-.yt-embed[hidden] { display: none; }
-.yt-embed iframe { position: absolute; top: -60px; left: 0; width: 100%; height: calc(100% + 120px); border: 0; display: block; pointer-events: none; }
+.yt-embed { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: #000; overflow: hidden; z-index: 1; opacity: 0; transition: opacity .25s ease; }
+.yt-embed.ready { opacity: 1; }
+.yt-embed iframe { position: absolute; top: -72px; left: -4px; width: calc(100% + 8px); height: calc(100% + 144px); border: 0; display: block; pointer-events: none; }
 
 /* ---- overlay UI ---- */
-.yt-ui { position: absolute; inset: 0; z-index: 10; user-select: none; -webkit-user-select: none; }
+.yt-ui { position: absolute; inset: 0; z-index: 10; user-select: none; -webkit-user-select: none; transition: background .25s ease; }
+.yt-ui[data-state="paused"] { background: rgb(0 0 0 / .35); }
 .yt-ui::before, .yt-ui::after { content: ""; position: absolute; left: 0; right: 0; pointer-events: none; opacity: 0; transition: opacity .25s; }
 .yt-ui::before { top: 0; height: 30%; background: linear-gradient(to bottom, rgb(0 0 0 / .75), transparent); }
 .yt-ui::after { bottom: 0; height: 58%; background: linear-gradient(to top, rgb(0 0 0 / .92), rgb(0 0 0 / .6) 40%, rgb(0 0 0 / 0)); }
@@ -151,7 +152,11 @@
 @container (max-width: 400px) { .yt-time { display: none; } }
 
 /* In embed mode, hide the HTML5 video element but keep our custom controls UI completely visible on top */
-.yt-frame iframe { position: absolute; top: -60px; left: 0; width: 100%; height: calc(100% + 120px); border: 0; display: block; background: #000; pointer-events: none; }
+.yt-frame iframe { position: absolute; top: -72px; left: -4px; width: calc(100% + 8px); height: calc(100% + 144px); border: 0; display: block; background: #000; pointer-events: none; }
+.yt-player:fullscreen .yt-embed iframe,
+.yt-player.fs .yt-embed iframe,
+.yt-player:fullscreen .yt-frame iframe,
+.yt-player.fs .yt-frame iframe { top: -82px; left: -4px; width: calc(100% + 8px); height: calc(100% + 164px); }
+.yt-player.mini .yt-embed iframe,
+.yt-player.mini .yt-frame iframe { top: -42px; left: -2px; width: calc(100% + 4px); height: calc(100% + 84px); }
 .yt-player.embed .yt-video { display: none; }
-.yt-player.embed .yt-spin { display: none !important; }
-.yt-player.embed:not(.fs):not(:fullscreen) .yt-top { display: none !important; }
