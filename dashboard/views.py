@@ -562,43 +562,6 @@ def youtube_media(request, video_id, itag):
     return resp
 
 
-def _safe_name(title, ext):
-    base = re.sub(r'[\\/:*?"<>|\r\n]+', " ", title or "video").strip()[:90] or "video"
-    return f"{base}.{ext}"
-
-
-@student_required
-def youtube_download(request, video_id, kind):
-    """Download a video as MP4 (with sound, 360p), audio only (M4A), or the picture alone at the chosen quality."""
-    from urllib.parse import quote
-
-    try:
-        if kind == "mp4":
-            m = videos.muxed_stream(video_id)
-            if not m:
-                raise videos.StreamUnavailable("no file")
-            url, title, ext = m["url"], m["title"], "mp4"
-        else:
-            data = videos.stream_manifest(video_id)
-            title = data["public"]["title"]
-            if kind == "audio":
-                itag, ext = data["public"]["audio"]["itag"], "m4a"
-            else:
-                itag, ext = request.GET.get("itag", ""), "mp4"
-                if itag not in data["urls"]:
-                    return JsonResponse({"ok": False}, status=400)
-            url = data["urls"][itag]
-        upstream = _proxy(request, url)
-    except (videos.StreamUnavailable, requests.RequestException):
-        return JsonResponse({"ok": False, "error": "This download is not available."}, status=502)
-    resp = StreamingHttpResponse(upstream.iter_content(256 * 1024), status=200 if upstream.status_code == 206 else upstream.status_code)
-    resp["Content-Type"] = upstream.headers.get("Content-Type", "application/octet-stream")
-    if upstream.headers.get("Content-Length") and upstream.status_code != 206:
-        resp["Content-Length"] = upstream.headers["Content-Length"]
-    resp["Content-Disposition"] = f"attachment; filename*=UTF-8''{quote(_safe_name(title, ext))}"
-    return resp
-
-
 @student_required
 def youtube_captions(request, video_id, lang=None):
     if not videos.valid_id(video_id):

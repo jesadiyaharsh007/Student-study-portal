@@ -25,7 +25,6 @@ urlpatterns = [
     path('youtube/token/', views.youtube_token, name="youtube-token"),
     path('youtube/stream/<str:video_id>/', views.youtube_stream, name="youtube-stream"),
     path('youtube/media/<str:video_id>/<str:itag>/', views.youtube_media, name="youtube-media"),
-    path('youtube/download/<str:video_id>/<str:kind>/', views.youtube_download, name="youtube-download"),
     path('youtube/captions/<str:video_id>/', views.youtube_captions, name="youtube-captions"),
     path('youtube/captions/<str:video_id>/<str:lang>/', views.youtube_captions, name="youtube-caption-cues"),
 

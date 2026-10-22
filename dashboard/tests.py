@@ -695,19 +695,6 @@ class LibraryTests(TestCase):
             cues = self.client.get(reverse('youtube-caption-cues', args=['WUvTyaaNkzM', 'en'])).json()
         self.assertEqual(cues['cues'][0][2], 'Hello')
 
-    def test_youtube_download_sets_a_filename(self):
-        class Upstream:
-            status_code = 200
-            headers = {'Content-Type': 'audio/mp4', 'Content-Length': '3'}
-            def iter_content(self, n): yield b'abc'
-        with mock.patch('dashboard.videos.stream_manifest', return_value=self.SAMPLE_MANIFEST), \
-                mock.patch('dashboard.videos._HTTP_SESSION.get', return_value=Upstream()):
-            res = self.client.get(reverse('youtube-download', args=['WUvTyaaNkzM', 'audio']))
-            b''.join(res.streaming_content)
-        self.assertEqual(res.status_code, 200)
-        self.assertIn('attachment', res['Content-Disposition'])
-        self.assertIn('.m4a', res['Content-Disposition'])
-
     def test_youtube_token_only_with_a_configured_service(self):
         self.assertEqual(self.client.get(reverse('youtube-token')).status_code, 404)
         with self.settings(MEDIA_SERVICE_URL='https://media.example.com', MEDIA_SERVICE_SECRET='s3cret'):
