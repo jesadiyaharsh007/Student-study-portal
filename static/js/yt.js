@@ -600,7 +600,7 @@
   $('ytBack').addEventListener('click', back);
   $('ytPrevB').addEventListener('click', () => playPrev());
   $('ytNextB').addEventListener('click', () => playNext());
-  $('ytMiniBtn').addEventListener('click', back);
+  $('ytMiniBtn').addEventListener('click', () => minimize(false));
   const collapsed = () => parseFloat(getComputedStyle(el.desc).lineHeight) * 3 + 'px';
   el.more.addEventListener('click', () => {
     const on = el.descBox.classList.toggle('open');

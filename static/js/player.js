@@ -520,7 +520,10 @@
     else if (a === 'fs') fullscreen();
   });
   q('.yt-bigplay').addEventListener('click', toggle);
-  ui.addEventListener('click', e => { if (e.target === ui || e.target.closest('.yt-cc') || e.target.classList.contains('yt-top')) { if (!el.menu.hidden) closeMenu(); else if (state.mode !== 'none') toggle(); } });
+  ui.addEventListener('click', e => {
+    if (state.mode === 'mini' && !e.target.closest('#ytToggle, #ytClose, .yt-cb, .yt-vol')) { expand(); return; }
+    if (e.target === ui || e.target.closest('.yt-cc') || e.target.classList.contains('yt-top')) { if (!el.menu.hidden) closeMenu(); else if (state.mode !== 'none') toggle(); }
+  });
   ui.addEventListener('dblclick', e => { if (e.target === ui || e.target.closest('.yt-cc')) fullscreen(); });
 
   /* controls fade out while playing and the pointer is still */
@@ -631,8 +634,10 @@
             onReady: () => {
               if (tok !== state.tok) return;
               state.ready = true;
-              setWaiting(false);
-              ui.dataset.state = autoplay ? 'playing' : 'paused';
+              if (!autoplay) {
+                setWaiting(false);
+                ui.dataset.state = 'paused';
+              }
               state.duration = (embedPlayer.getDuration && embedPlayer.getDuration()) || state.duration || 0;
               if (embedPlayer.setPlaybackRate) embedPlayer.setPlaybackRate(prefs.rate);
               if (embedPlayer.setVolume) embedPlayer.setVolume(prefs.vol * 100);
@@ -671,7 +676,7 @@
                 setPlaying(false);
                 stopEmbedTimer();
               } else if (ev.data === 3) { // buffering
-                setWaiting(true);
+                if (!state.playing) setWaiting(true);
               } else if (ev.data === 0) { // ended
                 setPlaying(false);
                 stopEmbedTimer();
@@ -732,10 +737,15 @@
     } catch (e) { /* ignore */ }
   }
 
+  let serviceUnavailable = false;
+
   async function startEngine(id, start, autoplay) {
     endingTriggered = false;
     const tok = ++state.tok;
-    if (host.dataset.mode === 'embed') { startEmbedEngine(id, start, autoplay); return; }
+    if (host.dataset.mode === 'embed' || serviceUnavailable) {
+      startEmbedEngine(id, start, autoplay);
+      return;
+    }
     hideError(); setWaiting(true); ui.dataset.state = 'loading';
     el.buf.style.transform = el.played.style.transform = 'scaleX(0)';
     let mf = manifestCache.get(id);
@@ -744,11 +754,12 @@
     } else {
       try {
         await ensureService();
-        const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 2500);
+        const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 1200);
         const r = await fetch(urlFor('streamUrl', id), { credentials: 'same-origin', signal: ctl.signal });
         clearTimeout(timer);
         mf = await r.json();
       } catch (e) {
+        serviceUnavailable = true;
         if (tok === state.tok) startEmbedEngine(id, start, autoplay);
         return;
       }
@@ -756,6 +767,7 @@
     if (tok !== state.tok) return;
 
     if (!mf || !mf.ok || mf.fallback === 'embed') {
+      serviceUnavailable = true;
       startEmbedEngine(id, start, autoplay);
       return;
     }

@@ -716,15 +716,29 @@ def search_suggestions(query: str) -> List[str]:
         return []
 
 
+_VIDEO_CHANNELS_CACHE: OrderedDict[str, Dict] = OrderedDict()
+
+
 def video_channels(video_ids) -> Dict[str, Dict]:
     """Channel, picture and subscribers for a list of videos (the up-next items do not carry the channel ID)."""
     ids = [v for v in dict.fromkeys(video_ids or []) if valid_id(v)][:24]
     out: Dict[str, Dict] = {}
-    with ThreadPoolExecutor(max_workers=8) as pool:
-        for vid, info in zip(ids, pool.map(lambda v: video_details(v, header_only=True), ids)):
-            if info and info.get("channel_id"):
-                out[vid] = {"channel_id": info["channel_id"], "channel": info["channel"],
+    missing = []
+    for vid in ids:
+        if vid in _VIDEO_CHANNELS_CACHE:
+            out[vid] = _VIDEO_CHANNELS_CACHE[vid]
+        else:
+            missing.append(vid)
+    if missing:
+        with ThreadPoolExecutor(max_workers=min(8, len(missing))) as pool:
+            for vid, info in zip(missing, pool.map(lambda v: video_details(v, header_only=True), missing)):
+                if info and info.get("channel_id"):
+                    data = {"channel_id": info["channel_id"], "channel": info["channel"],
                             "avatar": info["avatar"], "subscribers": info["subscribers"]}
+                    out[vid] = data
+                    _VIDEO_CHANNELS_CACHE[vid] = data
+                    if len(_VIDEO_CHANNELS_CACHE) > 500:
+                        _VIDEO_CHANNELS_CACHE.popitem(last=False)
     return out
 
 

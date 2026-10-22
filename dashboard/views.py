@@ -457,13 +457,13 @@ def youtube_watch(request, video_id):
                         next_vid = p_ids[idx + 1]
                 elif pl_videos:
                     next_vid = pl_videos[0]["id"]
-            if next_vid and next_vid != video_id:
+            if next_vid and next_vid != video_id and not os.environ.get("VERCEL"):
                 threading.Thread(target=videos.stream_manifest, args=(next_vid,), daemon=True).start()
             return JsonResponse(res)
 
     if not header_only and info.get("related"):
         next_vid = info["related"][0]["id"]
-        if next_vid and next_vid != video_id:
+        if next_vid and next_vid != video_id and not os.environ.get("VERCEL"):
             threading.Thread(target=videos.stream_manifest, args=(next_vid,), daemon=True).start()
 
     return JsonResponse(info)
