@@ -544,7 +544,7 @@ def _proxy(request, url, extra_headers=None):
 @student_required
 def youtube_media(request, video_id, itag):
     """The video or audio bytes of one stream, relayed with Range support (browsers may not fetch YouTube's servers directly)."""
-    if not re.match(r"^[\w-]+$", itag):
+    if not itag.isdigit():
         return JsonResponse({"ok": False}, status=400)
     try:
         upstream = _proxy(request, videos.media_url(video_id, itag))

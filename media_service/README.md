@@ -8,7 +8,36 @@ embedding.
 This service is a small always-on server that does the streaming. With it, the live site plays videos with the
 portal's own player (quality menu, speed, captions, downloads) exactly like on your computer.
 
-## 1. Get a server
+## Deploy on Render.com (Recommended Free Cloud Hosting)
+
+If your website is hosted on Vercel (`https://studentstudyportal-wheat.vercel.app`), you can deploy `media_service` on Render as a free Web Service:
+
+1. In [Render.com](https://render.com), click **New +** → **Web Service** and connect this repository.
+2. Fill out the service settings:
+   - **Name**: `student-media-service` (or any name)
+   - **Region**: `Singapore` (or nearest region)
+   - **Branch**: `main`
+   - **Root Directory**: *(leave blank)*
+   - **Runtime**: `Python 3`
+   - **Build Command**: `pip install -r media_service/requirements.txt`
+   - **Start Command**: `uvicorn media_service.app:app --host 0.0.0.0 --port $PORT`
+   - **Plan**: `Free`
+3. Add Environment Variables in Render:
+   - `MEDIA_SERVICE_SECRET` = `studysecret_2026_xyz_secure`
+   - `ALLOWED_ORIGINS` = `https://studentstudyportal-wheat.vercel.app`
+   - `PYTHON_VERSION` = `3.11.8`
+4. Connect Vercel to Render:
+   - Once Render finishes deploying and is Live, copy the Render URL (e.g. `https://student-media-service.onrender.com`).
+   - In your **Vercel Project Settings** → **Environment Variables**, add:
+     - `MEDIA_SERVICE_URL` = `https://student-media-service.onrender.com`
+     - `MEDIA_SERVICE_SECRET` = `studysecret_2026_xyz_secure`
+   - Redeploy Vercel.
+
+---
+
+## Alternative: Self-Hosted Docker Server
+
+### 1. Get a server
 
 Any small Linux server with a public IP: Hetzner, DigitalOcean, Vultr, an Oracle free VM, and so on (1 GB of RAM
 is enough). A home-style or less commonly blocked address works best with YouTube. Point a domain name such as

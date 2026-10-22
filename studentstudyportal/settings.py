@@ -219,11 +219,21 @@ MEDIA_SERVICE_URL = os.environ.get("MEDIA_SERVICE_URL", "").strip().rstrip("/")
 MEDIA_SERVICE_SECRET = os.environ.get("MEDIA_SERVICE_SECRET", "").strip()
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip(' "\'')
-if not GEMINI_API_KEY:
-    _env_file = BASE_DIR / '.env'
-    if _env_file.exists():
+_env_file = BASE_DIR / '.env'
+if _env_file.exists():
+    try:
         with open(_env_file, encoding='utf-8') as _f:
             for _line in _f:
-                if _line.startswith('GEMINI_API_KEY='):
-                    GEMINI_API_KEY = _line.strip().split('=', 1)[1].strip(' "\'')
-                    break
+                _line = _line.strip()
+                if _line.startswith('#') or '=' not in _line:
+                    continue
+                _k, _v = _line.split('=', 1)
+                _k, _v = _k.strip(), _v.strip(' "\'')
+                if _k == 'GEMINI_API_KEY' and not GEMINI_API_KEY:
+                    GEMINI_API_KEY = _v
+                elif _k == 'MEDIA_SERVICE_URL' and not MEDIA_SERVICE_URL:
+                    MEDIA_SERVICE_URL = _v.rstrip('/')
+                elif _k == 'MEDIA_SERVICE_SECRET' and not MEDIA_SERVICE_SECRET:
+                    MEDIA_SERVICE_SECRET = _v
+    except Exception:
+        pass

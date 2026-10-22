@@ -25,6 +25,29 @@ from dashboard import videos          # the same stream and caption code the web
 SECRET = os.environ.get("MEDIA_SERVICE_SECRET", "").strip()
 ORIGINS = [o.strip().rstrip("/") for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()]
 
+if not SECRET or not ORIGINS:
+    for _env_path in [
+        os.path.join(os.path.dirname(__file__), "..", ".env"),
+        os.path.join(os.path.dirname(__file__), ".env"),
+    ]:
+        if os.path.exists(_env_path):
+            try:
+                with open(_env_path, encoding="utf-8") as _f:
+                    for _l in _f:
+                        _l = _l.strip()
+                        if _l.startswith("#") or "=" not in _l:
+                            continue
+                        _k, _v = _l.split("=", 1)
+                        _k, _v = _k.strip(), _v.strip(' "\'')
+                        if _k == "MEDIA_SERVICE_SECRET" and not SECRET:
+                            SECRET = _v
+                        elif _k == "ALLOWED_ORIGINS" and not ORIGINS:
+                            ORIGINS = [o.strip().rstrip("/") for o in _v.split(",") if o.strip()]
+            except Exception:
+                pass
+            if SECRET and ORIGINS:
+                break
+
 app = FastAPI(title="Study Portal video service", docs_url=None, redoc_url=None, openapi_url=None)
 app.add_middleware(
     CORSMiddleware, allow_origins=ORIGINS or ["*"], allow_methods=["GET", "OPTIONS"], allow_headers=["Range"],
