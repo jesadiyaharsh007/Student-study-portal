@@ -852,7 +852,7 @@ def _ytdlp_info(video_id: str, client: Optional[str] = None) -> Dict:
     if not client:
         try:
             with yt_dlp.YoutubeDL(base_opts) as ydl:
-                res = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False, process=True)
+                res = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
                 if res and res.get("formats"):
                     has_dash = any(f.get("ext") == "mp4" and (f.get("vcodec") or "").startswith("avc1") and f.get("acodec") == "none" for f in res.get("formats", []))
                     if has_dash:
@@ -878,7 +878,7 @@ def _ytdlp_info(video_id: str, client: Optional[str] = None) -> Dict:
         }
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
-                res = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False, process=True)
+                res = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
                 if res and res.get("formats"):
                     has_hd = any((f.get("height") or 0) >= 720 for f in res.get("formats", []))
                     if has_hd or not best_res:
