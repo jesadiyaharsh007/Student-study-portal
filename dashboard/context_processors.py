@@ -42,5 +42,5 @@ def navigation(request):
         "nav_tools": [t for t in tools if t["key"] in NAV_DROPDOWN],
         "nav_main": [t for t in tools if t["key"] in NAV_TOP],
         "current": match.url_name if match else "",
-        "player_mode": "service" if (settings.MEDIA_SERVICE_URL and settings.MEDIA_SERVICE_SECRET) else settings.PLAYER_MODE,
+        "player_mode": "service" if getattr(settings, "MEDIA_SERVICE_URL", "") else getattr(settings, "PLAYER_MODE", "auto"),
     }

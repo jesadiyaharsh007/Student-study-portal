@@ -76,7 +76,7 @@ def relay(request: Request, url: str, **kw):
 @app.get("/media/{video_id}/{itag}")
 def media(video_id: str, itag: str, request: Request, token: str = ""):
     check(token); need_id(video_id)
-    if not itag.isdigit():
+    if not re.match(r"^[\w-]+$", itag):
         raise HTTPException(400, "bad stream")
     try:
         upstream = relay(request, videos.media_url(video_id, itag))

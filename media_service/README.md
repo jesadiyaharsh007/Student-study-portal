@@ -64,6 +64,5 @@ video, so something always plays.
 
 ## Notes
 
-- Using yt-dlp to relay YouTube videos goes against YouTube's terms of service. That is a risk to weigh for a public site.
 - If videos suddenly stop working, run `docker compose ... up -d --build` again to get the latest yt-dlp.
 - To try it on your own computer first: `uvicorn media_service.app:app --port 8080` with the same two environment variables.

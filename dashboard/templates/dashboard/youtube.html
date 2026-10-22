@@ -2,9 +2,9 @@
 {% load static ui %}
 {% block title %}Videos{% if q %} — {{ q }}{% elif topic_label %} — {{ topic_label }}{% endif %}{% endblock %}
 {% block robots %}noindex,nofollow{% endblock %}
-{% block head %}<link rel="stylesheet" href="{% static 'css/media.css' %}?v=4"><link rel="stylesheet" href="{% static 'css/yt.css' %}?v=14">{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% static 'css/media.css' %}?v=4"><link rel="stylesheet" href="{% static 'css/yt.css' %}?v=32">{% endblock %}
 {% block content %}
-<div class="wrap-n yt" id="yt" data-watch-url="{% url 'youtube-watch' 'XXXXXXXXXXX' %}" data-lexi-url="{% url 'youtube-lexi' %}" data-start="{{ start_video }}" data-csrf="{{ csrf_token }}">
+<div class="wrap-n yt" id="yt" data-watch-url="{% url 'youtube-watch' 'XXXXXXXXXXX' %}" data-channel-url="{% url 'youtube-channel' 'UC0000000000000000000000' %}" data-playlist-url="{% url 'youtube-playlist' 'PL00000000000000000000000000000000' %}" data-channels-url="{% url 'youtube-channels' %}" data-video-channels-url="{% url 'youtube-video-channels' %}" data-suggest-url="{% url 'youtube-suggest' %}" data-lexi-url="{% url 'youtube-lexi' %}" data-start="{{ start_video }}" data-start-list="{{ start_list }}" data-csrf="{{ csrf_token }}">
 
   <header class="books-hero">
     <h1 class="books-title">Videos</h1>
@@ -38,7 +38,7 @@
         <h2 class="yt-title" id="ytTitle"></h2>
         <div class="yt-anchor">
         <div class="yt-row">
-          <div class="yt-chan"><span class="yt-avatar" id="ytAvatar"></span><div><b id="ytChannel"></b><small id="ytSubs"></small></div></div>
+          <a class="yt-chan yt-chan-link" id="ytChanLink" href="#"><span class="yt-avatar" id="ytAvatar"></span><div><b id="ytChannel"></b><small id="ytSubs"></small></div></a>
           <div class="yt-actions">
             <button type="button" class="yt-pill" id="ytShare"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4m0 0L8 8m4-4l4 4M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Share</span></button>
             <button type="button" class="yt-pill yt-pill-lexi" id="ytLexiBtn" aria-expanded="false" aria-controls="ytLexi"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z" fill="currentColor"/></svg><span>Ask Lexi AI</span></button>
@@ -72,14 +72,12 @@
       </div>
     </div>
 
-    <aside class="yt-next" aria-label="Up next and history">
-      <div class="yt-tabs" role="tablist">
-        <button type="button" role="tab" id="ytTabNext" aria-selected="true">Up next</button>
-        <button type="button" role="tab" id="ytTabHist" aria-selected="false">History</button>
+    <aside class="yt-next" aria-label="Up next">
+      <div class="yt-tabs">
+        <span class="yt-tab-pill" id="ytTabNext">Up next</span>
         <label class="yt-switch" id="ytAutoWrap"><input type="checkbox" id="ytAuto" checked><span class="yt-track"><i></i></span><span>Autoplay</span></label>
       </div>
-      <div class="yt-next-list" id="ytNext" role="tabpanel"></div>
-      <div class="yt-next-list" id="ytHistList" role="tabpanel" hidden></div>
+      <div class="yt-next-list" id="ytNext"></div>
     </aside>
   </section>
 
@@ -94,4 +92,4 @@
 </div>
 {% endblock %}
 
-{% block scripts %}<script src="{% static 'js/yt.js' %}?v=12" defer></script>{% endblock %}
+{% block scripts %}<script src="{% static 'js/yt.js' %}?v=41" defer></script>{% endblock %}

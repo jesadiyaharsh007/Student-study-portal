@@ -16,7 +16,7 @@ from django.contrib import messages
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.http import JsonResponse, StreamingHttpResponse
+from django.http import Http404, JsonResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -377,6 +377,17 @@ def _query(request):
     return request.GET.get("q", "").strip()[:100]
 
 
+def _mix_results(results, playlists):
+    """One list, like YouTube's results: a playlist after every few videos (and any left over at the end)."""
+    items, pl = [], list(playlists)
+    for i, r in enumerate(results):
+        items.append({"kind": "video", "v": r})
+        if pl and (i + 1) % 4 == 0:
+            items.append({"kind": "playlist", "p": pl.pop(0)})
+    items.extend({"kind": "playlist", "p": p} for p in pl)
+    return items
+
+
 def _youtube_context(request):
     q = _query(request)
     topic = request.GET.get("topic", "").strip().lower()
@@ -391,6 +402,7 @@ def _youtube_context(request):
         "q": q, "topic": topic, "topic_label": topic_label,
         "topics": [(k, l) for k, l, _ in videos.TOPICS],
         "results": results, "error": error,
+        "items": _mix_results(results, videos.playlist_search(search_query) if search_query else []),
     }
 
 
@@ -402,18 +414,97 @@ def youtube(request):
         return render(request, "dashboard/partials/yt_results.html", ctx)
     v = request.GET.get("v", "").strip()
     ctx["start_video"] = v if videos.valid_id(v) else ""
+    list_id = request.GET.get("list", "").strip()
+    ctx["start_list"] = list_id if videos._PLAYLIST_ID_RE.match(list_id) else ""
+    if not ctx["start_video"] and ctx["start_list"]:
+        pl = videos.playlist_page(ctx["start_list"])
+        if pl and pl.get("videos"):
+            ctx["start_video"] = pl["videos"][0]["id"]
     return render(request, "dashboard/youtube.html", ctx)
 
 
 @student_required
 def youtube_watch(request, video_id):
     """Details and up-next for the watch panel (fetched by the page when a video is opened)."""
-    info = videos.video_details(video_id)
+    header_only = request.GET.get("part") == "header"
+    info = videos.video_details(video_id, header_only=header_only)
     if not info:
         return JsonResponse({"error": "This video is not available."}, status=404)
     # Warm the captions so Lexi answers quickly if the student asks about this video.
     threading.Thread(target=videos.transcript_text, args=(video_id,), daemon=True).start()
+
+    list_id = request.GET.get("list", "").strip()
+    next_vid = None
+    if list_id and videos._PLAYLIST_ID_RE.match(list_id):
+        pl = videos.playlist_page(list_id)
+        if pl and pl.get("videos"):
+            res = dict(info)
+            res["playlist"] = {
+                "id": pl["id"],
+                "title": pl.get("title") or "Playlist",
+                "count": len(pl["videos"]),
+            }
+            if not header_only:
+                pl_videos = [dict(v) for v in pl["videos"]]
+                res["playlist_videos"] = pl_videos
+                # Keep video's recommendations in res["related"] so "More videos" below is populated!
+                if not res.get("related"):
+                    res["related"] = pl_videos[:24]
+                p_ids = [v["id"] for v in pl_videos]
+                if video_id in p_ids:
+                    idx = p_ids.index(video_id)
+                    if idx + 1 < len(p_ids):
+                        next_vid = p_ids[idx + 1]
+                elif pl_videos:
+                    next_vid = pl_videos[0]["id"]
+            if next_vid and next_vid != video_id:
+                threading.Thread(target=videos.stream_manifest, args=(next_vid,), daemon=True).start()
+            return JsonResponse(res)
+
+    if not header_only and info.get("related"):
+        next_vid = info["related"][0]["id"]
+        if next_vid and next_vid != video_id:
+            threading.Thread(target=videos.stream_manifest, args=(next_vid,), daemon=True).start()
+
     return JsonResponse(info)
+
+
+@student_required
+def youtube_channels(request):
+    """Subscriber counts and pictures for the channels shown in the search results (filled in after the results appear)."""
+    ids = [i for i in request.GET.get("ids", "").split(",") if i][:24]
+    return JsonResponse({"channels": videos.channel_summaries(ids)})
+
+
+@student_required
+def youtube_playlist(request, playlist_id):
+    """A playlist's page: its title and videos."""
+    pl = videos.playlist_page(playlist_id)
+    if not pl:
+        raise Http404("This playlist is not available.")
+    return render(request, "dashboard/youtube_playlist.html", {"pl": pl})
+
+
+@student_required
+def youtube_suggest(request):
+    """Search suggestions for the Videos search box."""
+    return JsonResponse({"suggestions": videos.search_suggestions(request.GET.get("q", ""))})
+
+
+@student_required
+def youtube_video_channels(request):
+    """Channel, picture and subscribers for the videos in the up-next list and the grid under the video."""
+    ids = [i for i in request.GET.get("ids", "").split(",") if i][:24]
+    return JsonResponse({"videos": videos.video_channels(ids)})
+
+
+@student_required
+def youtube_channel(request, channel_id):
+    """A channel's profile page: picture, name, subscribers and its videos."""
+    ch = videos.channel_page(channel_id)
+    if not ch:
+        raise Http404("This channel is not available.")
+    return render(request, "dashboard/youtube_channel.html", {"ch": ch})
 
 
 @student_required
@@ -453,7 +544,7 @@ def _proxy(request, url, extra_headers=None):
 @student_required
 def youtube_media(request, video_id, itag):
     """The video or audio bytes of one stream, relayed with Range support (browsers may not fetch YouTube's servers directly)."""
-    if not itag.isdigit():
+    if not re.match(r"^[\w-]+$", itag):
         return JsonResponse({"ok": False}, status=400)
     try:
         upstream = _proxy(request, videos.media_url(video_id, itag))

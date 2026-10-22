@@ -1,5 +1,5 @@
 /* The site-wide video player (player.js / ytengine.js): picture, custom controls, mini player. Motion is transform/opacity. */
-.yt-player { --bar: 0px; --out: cubic-bezier(.23, 1, .32, 1); position: fixed; left: 0; top: 0; z-index: 55; border-radius: 18px; overflow: hidden; background: #000; color: #fff; box-shadow: 0 30px 60px -20px rgb(0 0 0 / .6);
+.yt-player { --bar: 0px; --out: cubic-bezier(.23, 1, .32, 1); position: fixed; left: 0; top: 0; z-index: 55; border-radius: 18px; overflow: hidden; background: #000; color: #fff; box-shadow: 0 10px 24px -16px rgb(0 0 0 / .35);
   transition: transform .45s var(--out), width .45s var(--out), height .45s var(--out), border-radius .3s, opacity .2s; will-change: transform; outline: 0; }
 .yt-player[hidden] { display: none; }
 .yt-player.sync { transition: none; }
@@ -10,12 +10,12 @@
 .yt-frame { position: absolute; left: 0; right: 0; top: 0; bottom: var(--bar); background: #000; }
 .yt-player:fullscreen .yt-frame { bottom: 0; }
 .yt-video { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: #000; object-fit: contain; }
-.yt-embed { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: #000; overflow: hidden; }
+.yt-embed { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: #000; overflow: hidden; z-index: 1; }
 .yt-embed[hidden] { display: none; }
-.yt-embed iframe { width: 100%; height: 100%; border: 0; display: block; pointer-events: auto; }
+.yt-embed iframe { width: 100%; height: 100%; border: 0; display: block; pointer-events: none; }
 
 /* ---- overlay UI ---- */
-.yt-ui { position: absolute; inset: 0; user-select: none; -webkit-user-select: none; }
+.yt-ui { position: absolute; inset: 0; z-index: 10; user-select: none; -webkit-user-select: none; }
 .yt-ui::before, .yt-ui::after { content: ""; position: absolute; left: 0; right: 0; pointer-events: none; opacity: 0; transition: opacity .25s; }
 .yt-ui::before { top: 0; height: 30%; background: linear-gradient(to bottom, rgb(0 0 0 / .75), transparent); }
 .yt-ui::after { bottom: 0; height: 58%; background: linear-gradient(to top, rgb(0 0 0 / .92), rgb(0 0 0 / .6) 40%, rgb(0 0 0 / 0)); }
@@ -92,7 +92,7 @@
 .yt-mi small { color: var(--muted, #666); background: var(--sunk, rgb(0 0 0 / .06)); padding: .05rem .4rem; border-radius: 99px; font-size: .68rem; margin-left: .3rem; }
 
 /* ---- error panel ---- */
-.yt-err { position: absolute; left: 0; right: 0; top: 0; bottom: var(--bar); z-index: 3; display: grid; align-content: center; justify-items: start; gap: .5rem; padding: 7%; background: radial-gradient(circle at 70% 40%, #2a1442, #0c0c0f 70%); color: #fff; }
+.yt-err { position: absolute; left: 0; right: 0; top: 0; bottom: var(--bar); z-index: 25; display: grid; align-content: center; justify-items: start; gap: .5rem; padding: 7%; background: radial-gradient(circle at 70% 40%, #2a1442, #0c0c0f 70%); color: #fff; }
 .yt-err[hidden] { display: none; }
 .yt-err b { font-size: clamp(.95rem, 2vw, 1.3rem); } .yt-err span { color: rgb(255 255 255 / .7); font-size: .85rem; max-width: 42ch; }
 .yt-err-actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .4rem; }
@@ -101,7 +101,7 @@
 .yt-player.mini .yt-err span { display: none; } .yt-player.mini .yt-err { padding: 6%; }
 
 /* ---- mini player bar ---- */
-.yt-mini-ui { position: absolute; left: 0; right: 0; bottom: 0; height: 52px; display: flex; align-items: center; gap: .2rem; padding: 0 .4rem 0 .8rem; background: var(--core, #fff); color: var(--ink, #111); opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 4; }
+.yt-mini-ui { position: absolute; left: 0; right: 0; bottom: 0; height: 52px; display: flex; align-items: center; gap: .2rem; padding: 0 .4rem 0 .8rem; background: var(--core, #fff); color: var(--ink, #111); opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 26; }
 .yt-player.mini { border-radius: 14px; }
 .yt-player.mini .yt-mini-ui { opacity: 1; pointer-events: auto; }
 .yt-prog { position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--accent, #e8602a); transform-origin: left; transform: scaleX(0); transition: transform .3s linear; }
@@ -150,6 +150,6 @@
 @container (max-width: 520px) { .yt-grp .yt-cb { width: 38px; height: 38px; } .yt-grp .yt-cb svg { width: 23px; height: 23px; } .yt-vol .yt-volr { display: none; } .yt-row { gap: .4rem; } .yt-grp .yt-primary { width: 42px; height: 42px; } }
 @container (max-width: 400px) { .yt-time { display: none; } }
 
-/* YouTube's embed fills the frame; our own controls step aside */
-.yt-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; background: #000; }
-.yt-player.embed .yt-ui, .yt-player.embed .yt-video { display: none; }
+/* In embed mode, hide the HTML5 video element but keep our custom controls UI completely visible on top */
+.yt-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; background: #000; pointer-events: none; }
+.yt-player.embed .yt-video { display: none; }

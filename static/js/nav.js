@@ -84,7 +84,7 @@
     document.documentElement.style.overflow = '';
     syncNav(doc);
 
-    if (opts.push !== false) history.pushState({ pjax: true }, '', u.pathname + u.search + u.hash);
+    if (opts.push !== false) history.pushState({ pjax: true, from: current }, '', u.pathname + u.search + u.hash);
     current = u.pathname + u.search;
     scrollTo({ top: opts.scroll || 0, behavior: 'auto' });
     runScripts(doc);

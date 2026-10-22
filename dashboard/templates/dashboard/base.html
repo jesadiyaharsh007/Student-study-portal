@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="referrer" content="no-referrer-when-downgrade">
   <title>{% block title %}Study Portal{% endblock %} | Student Study Portal</title>
   <meta name="description" content="{% block description %}Notes, homework, tasks, Lexi AI and research tools in one quiet, fast workspace for students.{% endblock %}">
   <meta name="robots" content="{% block robots %}index,follow{% endblock %}">
@@ -32,9 +33,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="{% static 'css/studydesk.css' %}?v=8.5">
   <link rel="stylesheet" href="{% static 'css/controls.css' %}?v=4">
-  {% if user.is_authenticated %}<link rel="stylesheet" href="{% static 'css/player.css' %}?v=12">{% endif %}
+  {% if user.is_authenticated %}<link rel="stylesheet" href="{% static 'css/player.css' %}?v=25">{% endif %}
   {% block head %}{% endblock %}
   <link rel="stylesheet" href="{% static 'css/compact.css' %}?v=2">
+  <link rel="stylesheet" href="{% static 'css/footer.css' %}?v=3">
 </head>
 <body{% if user.is_authenticated %} data-shell="student" data-csrf="{{ csrf_token }}" data-initial="{{ user.username|initial }}"{% endif %}>
   {% include 'dashboard/partials/icons.html' %}
@@ -111,11 +113,74 @@
 
   {% if user.is_authenticated %}{% include 'dashboard/partials/player.html' %}{% endif %}
 
-  <footer class="footer">
+  <footer class="footer site-foot" id="siteFoot">
     <div class="wrap">
-      <div class="footer-grid">
-        <div class="word">Study Portal.</div>
-        <nav aria-label="Footer"><a class="link" href="{% if user.is_authenticated %}{% url 'profile' %}{% else %}{% url 'home' %}{% endif %}">{% if user.is_authenticated %}Dashboard{% else %}Home{% endif %}</a><a class="link" href="{% url 'about' %}">About</a><a class="link" href="{% url 'privacy' %}">Privacy</a><a class="link" href="{% url 'terms' %}">Terms</a>{% if user.is_authenticated %}<a class="link" href="{% url 'profile' %}">Dashboard</a>{% else %}<a class="link" href="{% url 'login' %}">Log in</a>{% endif %}</nav>
+      <div class="site-foot-top">
+        <a class="site-foot-brand" href="{% if user.is_authenticated %}{% url 'profile' %}{% else %}{% url 'home' %}{% endif %}" aria-label="Study Portal home">
+          <span class="site-foot-mark sf-r" style="--i:0" aria-hidden="true">{% icon "cap" %}</span>
+          <span class="site-foot-word" aria-hidden="true">{% for ch in "Study Portal." %}<span class="sf-letter" style="--i:{{ forloop.counter0 }}">{{ ch }}</span>{% endfor %}</span>
+        </a>
+        <button type="button" class="site-foot-up" aria-label="Back to top">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5.5 11.5L12 5l6.5 6.5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+
+      <p class="site-foot-tag sf-r" style="--i:1">Videos, books, notes and study tools in one calm place, built for students.</p>
+
+      <div class="site-foot-cols">
+        {% if user.is_authenticated %}
+        <div class="site-foot-col sf-r" style="--i:2">
+          <h3>Study</h3>
+          <ul>
+            <li><a class="site-foot-link" href="{% url 'profile' %}">Dashboard</a></li>
+            <li><a class="site-foot-link" href="{% url 'youtube' %}">Videos</a></li>
+            <li><a class="site-foot-link" href="{% url 'books' %}">Books</a></li>
+            <li><a class="site-foot-link" href="{% url 'notes' %}">Notes</a></li>
+            <li><a class="site-foot-link" href="{% url 'homework' %}">Homework</a></li>
+            <li><a class="site-foot-link" href="{% url 'todo' %}">To-do</a></li>
+          </ul>
+        </div>
+        <div class="site-foot-col sf-r" style="--i:3">
+          <h3>Tools</h3>
+          <ul>
+            <li><a class="site-foot-link" href="{% url 'wiki' %}">Encyclopedia</a></li>
+            <li><a class="site-foot-link" href="{% url 'dictionary' %}">Dictionary</a></li>
+            <li><a class="site-foot-link" href="{% url 'conversion' %}">Conversions</a></li>
+            <li><a class="site-foot-link" href="{% url 'chatbot' %}">Lexi, your study assistant</a></li>
+          </ul>
+        </div>
+        <div class="site-foot-col sf-r" style="--i:4">
+          <h3>Account</h3>
+          <ul>
+            <li><a class="site-foot-link" href="{% url 'profile' %}">Your profile</a></li>
+            <li><a class="site-foot-link" href="{% url 'logout' %}" data-noprefetch>Log out</a></li>
+          </ul>
+        </div>
+        {% else %}
+        <div class="site-foot-col sf-r" style="--i:2">
+          <h3>Start</h3>
+          <ul>
+            <li><a class="site-foot-link" href="{% url 'home' %}">Home</a></li>
+            <li><a class="site-foot-link" href="{% url 'login' %}">Log in</a></li>
+            <li><a class="site-foot-link" href="{% url 'register' %}">Create an account</a></li>
+          </ul>
+        </div>
+        {% endif %}
+        <div class="site-foot-col sf-r" style="--i:5">
+          <h3>Site</h3>
+          <ul>
+            <li><a class="site-foot-link" href="{% url 'about' %}">About</a></li>
+            <li><a class="site-foot-link" href="{% url 'privacy' %}">Privacy</a></li>
+            <li><a class="site-foot-link" href="{% url 'terms' %}">Terms</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="site-foot-bottom sf-r" style="--i:6">
+        <span class="site-foot-dot" aria-hidden="true"></span>
+        <span>Study Portal &middot; {% now "Y" %}</span>
+        <span class="site-foot-sep" aria-hidden="true"></span>
+        <a class="site-foot-link" href="#" data-foot-top>Back to top</a>
       </div>
     </div>
   </footer>
@@ -151,9 +216,10 @@
     </div></div></div>
   </dialog>
 
-  {% if user.is_authenticated %}<script src="{% static 'js/ytengine.js' %}?v=2" defer data-once></script><script src="{% static 'js/player.js' %}?v=13" defer data-once></script><script src="{% static 'js/nav.js' %}?v=1" defer data-once></script>{% endif %}
+  {% if user.is_authenticated %}<script src="{% static 'js/ytengine.js' %}?v=4" defer data-once></script><script src="{% static 'js/player.js' %}?v=34" defer data-once></script><script src="{% static 'js/nav.js' %}?v=2" defer data-once></script>{% endif %}
   {% block scripts %}{% endblock %}
   <script src="{% static 'js/app.js' %}?v=7.0" defer></script>
   <script src="{% static 'js/controls.js' %}?v=1" defer data-once></script>
+  <script src="{% static 'js/footer.js' %}?v=3" defer data-once></script>
 </body>
 </html>

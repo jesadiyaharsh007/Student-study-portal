@@ -34,11 +34,14 @@ ALLOWED_HOSTS = ['*']
 CSRF_TRUSTED_ORIGINS = [
     'https://*.vercel.app',
     'https://*.now.sh',
+    'https://*.onrender.com',
     'http://localhost',
     'http://127.0.0.1',
 ]
 if os.environ.get('VERCEL_URL'):
     CSRF_TRUSTED_ORIGINS.append(f"https://{os.environ.get('VERCEL_URL')}")
+if os.environ.get('RENDER_EXTERNAL_HOSTNAME'):
+    CSRF_TRUSTED_ORIGINS.append(f"https://{os.environ.get('RENDER_EXTERNAL_HOSTNAME')}")
 
 
 # Application definition
@@ -62,6 +65,7 @@ MESSAGE_TAGS = {
 MIDDLEWARE = [
     'django.middleware.gzip.GZipMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -189,6 +193,16 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATICFILES_DIRS=[BASE_DIR/"static"]
 STATIC_ROOT = BASE_DIR / 'staticfiles_build' / 'static'
+
+# WhiteNoise storage for compressed, efficient static file serving in production
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+    },
+}
 
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap4"
 CRISPY_TEMPLATE_PACK = "bootstrap4"

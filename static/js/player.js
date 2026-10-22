@@ -1,6 +1,6 @@
 /* StudyPlayer: the one video player for the whole site, with its own controls (quality, speed, captions, download, fullscreen).
    On the Videos page it sits over the watch stage; everywhere else it docks bottom-right as a mini player and keeps going.
-   Playback is done by YTEngine (ytengine.js). State is saved per tab, so moving to another section resumes where it was. */
+   Playback is done by YTEngine (ytengine.js) using Media Source Extensions, with seamless fallback to embed when needed. State is saved per tab, so moving to another section resumes where it was. */
 (() => {
   'use strict';
   const host = document.getElementById('ytPlayer');
@@ -33,7 +33,7 @@
   };
 
   const read = (store, k, d) => { try { return JSON.parse(store.getItem(k) || 'null') || d; } catch (e) { return d; } };
-  const prefs = Object.assign({ vol: 1, muted: false, rate: 1, quality: 'auto', cc: '' }, read(localStorage, PREFS, {}));
+  const prefs = Object.assign({ vol: 1, muted: false, rate: 1, quality: 'auto', cc: '', autoplay: true }, read(localStorage, PREFS, {}));
   const savePrefs = () => { try { localStorage.setItem(PREFS, JSON.stringify(prefs)); } catch (e) { /* storage blocked */ } };
 
   /* ------------------------------------------------------------------ markup */
@@ -85,7 +85,29 @@
 
   const state = { id: null, meta: {}, mode: 'none', playing: false, time: 0, duration: 0, stage: null, tok: 0, manifest: null, cues: [], tracks: [], ccLang: '', quality: 'auto', height: 0, engineType: 'mse' };
   const listeners = {};
-  const emit = (name, arg) => (listeners[name] || []).forEach(fn => fn(arg));
+  const emit = (name, arg) => {
+    (listeners[name] || []).forEach(fn => fn(arg));
+    if (name === 'ended' && state.mode === 'mini' && prefs.autoplay) autoNext();   // a docked player goes on to the next video by itself
+  };
+  // The next video comes from the list the Videos page saved with this video (see renderNext in yt.js), so it works on every page.
+  function autoNext() {
+    const q = state.meta.related || [];                       // the queue the Videos page made
+    const i = q.findIndex(v => v && v.id === state.id);
+    let list = q, n = i >= 0 ? q[i + 1] : null;
+    if (!n) { list = (state.meta.fresh || []).filter(v => v && v.id && v.id !== state.id); n = list[0]; }   // queue done: last video's suggestions
+    if (!n) return;
+    const pl = state.meta.playlist, plList = state.meta.list;
+    api.open(n.id, {
+      title: n.title, channel: n.channel, channel_id: n.channel_id,
+      avatar: n.avatar, views: n.views, published: n.published,
+      duration: n.duration, thumb: n.thumbnail || n.thumb,
+      list: plList, playlist: pl
+    }, { autoplay: true });
+    state.meta.related = list;
+    if (pl) state.meta.playlist = pl;
+    if (plList) state.meta.list = plList;
+    save();
+  }
   let engine = null, embedPlayer = null, embedTimer = 0;
 
   let ytApiReady = false, ytApiQueue = [];
@@ -279,9 +301,17 @@
   video.volume = prefs.vol; video.muted = prefs.muted; paintVolume();
 
   /* ------------------------------------------------------------------ video events */
-  video.addEventListener('play', () => { hideError(); setPlaying(true); });
-  video.addEventListener('pause', () => { if (!video.ended) setPlaying(false); });
-  video.addEventListener('ended', () => { setPlaying(false); ui.dataset.state = 'ended'; emit('ended'); });
+  let endingTriggered = false;
+  video.addEventListener('play', () => { hideError(); setPlaying(true); endingTriggered = false; });
+  video.addEventListener('pause', () => { if (!video.ended && !endingTriggered) setPlaying(false); });
+  video.addEventListener('ended', () => {
+    if (!endingTriggered) {
+      endingTriggered = true;
+      setPlaying(false);
+      ui.dataset.state = 'ended';
+      emit('ended');
+    }
+  });
   video.addEventListener('playing', () => { state.ready = true; setWaiting(false); });
   video.addEventListener('durationchange', () => { state.duration = video.duration || state.duration; paint(); });
   video.addEventListener('progress', paint);
@@ -289,11 +319,17 @@
     state.time = video.currentTime;
     paint();
     if (Date.now() - lastSave > 2000) { lastSave = Date.now(); save(); }
+    if (prefs.autoplay && state.duration > 2 && state.time >= state.duration - 0.35 && !endingTriggered) {
+      endingTriggered = true;
+      setPlaying(false);
+      ui.dataset.state = 'ended';
+      emit('ended');
+    }
   });
   video.addEventListener('seeking', () => { if (state.ready) setWaiting(true); });
   video.addEventListener('seeked', () => setWaiting(false));
   video.addEventListener('error', () => {
-    if (state.engineType === 'native' && state.id) {
+    if ((state.engineType === 'native' || state.engineType === 'mse') && state.id) {
       startEmbedEngine(state.id, video.currentTime || state.time || 0, true);
     }
   });
@@ -497,10 +533,15 @@
   /* ------------------------------------------------------------------ engine */
   function teardown() {
     state.tok++;
+    endingTriggered = false;
     stopEmbedTimer();
     if (embedPlayer) {
       try { embedPlayer.destroy(); } catch (e) {}
       embedPlayer = null;
+    }
+    if (engine) {
+      engine.destroy();
+      engine = null;
     }
     if (el.embed) {
       el.embed.innerHTML = '';
@@ -513,7 +554,6 @@
     video.pause();
     video.removeAttribute('src');
     video.load();
-    if (engine) { engine.destroy(); engine = null; }
     state.engineType = 'mse';
     state.manifest = null; state.ready = false; state.height = 0; state.cues = []; state.tracks = [];
     closeMenu(); hideError(); el.cc.hidden = true; setWaiting(false);
@@ -527,17 +567,18 @@
     const iframe = document.createElement('iframe');
     const origin = encodeURIComponent(window.location.origin || '');
     host.classList.add('embed');
-    iframe.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=${autoplay ? 1 : 0}&start=${Math.floor(start || 0)}&rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&origin=${origin}`;
-    iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+    const startSec = Math.floor(start || 0);
+    iframe.src = `https://www.youtube.com/embed/${encodeURIComponent(id)}?enablejsapi=1&origin=${origin}&controls=0&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&fs=0${startSec > 0 ? '&start=' + startSec : ''}`;
+    iframe.referrerPolicy = 'no-referrer-when-downgrade';
     iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
     iframe.allowFullscreen = true;
     iframe.style.width = '100%';
     iframe.style.height = '100%';
     iframe.style.border = '0';
-    iframe.style.pointerEvents = 'auto';
+    iframe.style.pointerEvents = 'none';
     el.embed.appendChild(iframe);
-    ui.hidden = true;
-    ui.style.display = 'none';
+    ui.hidden = false;
+    ui.style.display = '';
     setWaiting(false);
     hideError();
     state.ready = true;
@@ -548,7 +589,6 @@
     const tok = state.tok;
     state.engineType = 'embed';
     host.classList.add('embed');
-    if (engine) { engine.destroy(); engine = null; }
     video.pause();
     video.removeAttribute('src');
     video.hidden = true;
@@ -564,33 +604,29 @@
     ensureYTApi(() => {
       if (tok !== state.tok) return;
       if (el.embed) el.embed.innerHTML = '';
-      const hostDiv = document.createElement('div');
-      hostDiv.id = 'ytIframeHost';
-      if (el.embed) el.embed.appendChild(hostDiv);
+      const iframe = document.createElement('iframe');
+      iframe.id = 'ytIframeHost';
+      iframe.referrerPolicy = 'no-referrer-when-downgrade';
+      iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+      iframe.style.width = '100%';
+      iframe.style.height = '100%';
+      iframe.style.border = '0';
+      iframe.style.pointerEvents = 'none';
+
+      const origin = encodeURIComponent(window.location.origin || '');
+      const startSec = Math.floor(start || 0);
+      iframe.src = `https://www.youtube.com/embed/${encodeURIComponent(id)}?enablejsapi=1&origin=${origin}&controls=0&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&fs=0${startSec > 0 ? '&start=' + startSec : ''}`;
+
+      if (el.embed) el.embed.appendChild(iframe);
 
       try {
-        embedPlayer = new YT.Player(hostDiv, {
-          host: 'https://www.youtube-nocookie.com',
-          videoId: id,
-          width: '100%',
-          height: '100%',
-          playerVars: {
-            autoplay: autoplay ? 1 : 0,
-            controls: 1,
-            modestbranding: 1,
-            rel: 0,
-            iv_load_policy: 3,
-            playsinline: 1,
-            disablekb: 1,
-            fs: 0,
-            origin: window.location.origin || undefined,
-            start: Math.floor(start || 0),
-          },
+        embedPlayer = new YT.Player(iframe, {
           events: {
             onReady: () => {
               if (tok !== state.tok) return;
               state.ready = true;
               setWaiting(false);
+              ui.dataset.state = autoplay ? 'playing' : 'paused';
               state.duration = (embedPlayer.getDuration && embedPlayer.getDuration()) || state.duration || 0;
               if (embedPlayer.setPlaybackRate) embedPlayer.setPlaybackRate(prefs.rate);
               if (embedPlayer.setVolume) embedPlayer.setVolume(prefs.vol * 100);
@@ -642,7 +678,7 @@
             onError: ev => {
               if (tok !== state.tok) return;
               if (ev.data === 101 || ev.data === 150) {
-                showError('Embedding restricted', 'The video creator has restricted playback outside YouTube.');
+                showError("This video can't be played here", 'Playback is restricted on this video by YouTube.');
               } else if (ev.data === 100 || ev.data === 2) {
                 showError('Video not found', 'This video may be private or removed.');
               } else {
@@ -674,21 +710,42 @@
     if (embedTimer) { clearInterval(embedTimer); embedTimer = 0; }
   }
 
+  const manifestCache = new Map();
+  async function preloadManifest(id) {
+    if (!id || manifestCache.has(id)) return;
+    try {
+      await ensureService();
+      const r = await fetch(urlFor('streamUrl', id), { credentials: 'same-origin' });
+      if (r.ok) {
+        const d = await r.json();
+        if (d && d.ok && d.fallback !== 'embed') {
+          if (manifestCache.size > 8) manifestCache.clear();
+          manifestCache.set(id, d);
+        }
+      }
+    } catch (e) { /* ignore */ }
+  }
+
   async function startEngine(id, start, autoplay) {
+    endingTriggered = false;
     const tok = ++state.tok;
     if (host.dataset.mode === 'embed') { startEmbedEngine(id, start, autoplay); return; }
     hideError(); setWaiting(true); ui.dataset.state = 'loading';
     el.buf.style.transform = el.played.style.transform = 'scaleX(0)';
-    let mf;
-    try {
-      await ensureService();
-      const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 9000);
-      const r = await fetch(urlFor('streamUrl', id), { credentials: 'same-origin', signal: ctl.signal });
-      clearTimeout(timer);
-      mf = await r.json();
-    } catch (e) {
-      if (tok === state.tok) startEmbedEngine(id, start, autoplay);
-      return;
+    let mf = manifestCache.get(id);
+    if (mf) {
+      manifestCache.delete(id);
+    } else {
+      try {
+        await ensureService();
+        const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 6000);
+        const r = await fetch(urlFor('streamUrl', id), { credentials: 'same-origin', signal: ctl.signal });
+        clearTimeout(timer);
+        mf = await r.json();
+      } catch (e) {
+        if (tok === state.tok) startEmbedEngine(id, start, autoplay);
+        return;
+      }
     }
     if (tok !== state.tok) return;
 
@@ -739,13 +796,20 @@
     try {
       await engine.load(mf, { quality: prefs.quality, start, targetHeight: Math.max(480, Math.min(1080, Math.round((host.clientHeight || 360) * (devicePixelRatio || 1)))) });
     } catch (e) {
-      if (tok === state.tok) startEmbedEngine(id, start, autoplay);
+      if (tok === state.tok) startEmbedEngine(id, video.currentTime || start, true);
       return;
     }
     if (tok !== state.tok) return;
     if (autoplay) { video.play().catch(() => { setPlaying(false); ui.dataset.state = 'paused'; state.ready = true; setWaiting(false); }); }
     else { setPlaying(false); ui.dataset.state = 'paused'; state.ready = true; setWaiting(false); }
     loadCaptionTracks(id);
+
+    // Auto-preload the next item in the queue
+    const q = state.meta.related || [];
+    const idx = q.findIndex(v => v && v.id === id);
+    if (idx >= 0 && idx + 1 < q.length && q[idx + 1] && q[idx + 1].id) {
+      setTimeout(() => preloadManifest(q[idx + 1].id), 800);
+    }
   }
 
   /* ------------------------------------------------------------------ public API */
@@ -755,9 +819,23 @@
     /** Play a video. With a stage the player sits over it (watch mode); without, it docks as the mini player. */
     open(id, meta = {}, opts = {}) {
       const first = state.mode === 'none';
-      const reuse = state.id === id && (engine || state.tok);
+      const reuse = state.id === id && ui.dataset.state !== 'error' && (engine || (embedPlayer && state.ready));
+      const prevPlaylist = state.meta && state.meta.playlist;
+      const prevList = state.meta && state.meta.list;
+      const prevRelated = state.meta && state.meta.related;
       state.id = id;
       state.meta = Object.assign({}, reuse ? state.meta : {}, meta);
+      if (meta && meta.list && prevPlaylist && meta.list === prevPlaylist.id) {
+        state.meta.playlist = prevPlaylist;
+        state.meta.list = prevPlaylist.id;
+        if (prevRelated && (!state.meta.related || !state.meta.related.length)) {
+          state.meta.related = prevRelated;
+        }
+      } else if (!meta || !meta.list) {
+        delete state.meta.playlist;
+        delete state.meta.list;
+        delete state.meta.related;
+      }
       state.stage = opts.stage || null;
       state.mode = state.stage ? 'watch' : 'mini';
       host.hidden = false;
@@ -767,7 +845,14 @@
       place(false); track(900); save();
       return !!reuse;
     },
-    update(meta) { state.meta = Object.assign({}, state.meta, meta); if (meta.title) el.title.textContent = el.vtitle.textContent = meta.title; save(); },
+    update(meta) {
+      state.meta = Object.assign({}, state.meta, meta);
+      if (meta.playlist === null) delete state.meta.playlist;
+      if (meta.list === null) delete state.meta.list;
+      if (meta.related === null) delete state.meta.related;
+      if (meta.title) el.title.textContent = el.vtitle.textContent = meta.title;
+      save();
+    },
     attach(stage) { if (state.mode === 'none') return; state.stage = stage; state.mode = 'watch'; place(false); track(900); },
     minimize() { if (state.mode === 'none') return; if (fsActive()) document.exitFullscreen(); state.mode = 'mini'; closeMenu(); place(true); save(); },
     close() {
@@ -787,6 +872,9 @@
     track,
     get video() { return video; },
     get active() { return state.mode !== 'none'; },
+    get autoplay() { return prefs.autoplay !== false; },
+    set autoplay(on) { prefs.autoplay = !!on; savePrefs(); },
+    preload(id) { preloadManifest(id); },
   };
   window.StudyPlayer = api;
 
