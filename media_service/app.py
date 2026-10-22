@@ -74,6 +74,11 @@ def need_id(video_id: str) -> None:
         raise HTTPException(400, "bad video id")
 
 
+@app.get("/")
+def index():
+    return {"service": "Student Study Portal Video Relay", "status": "active", "health": "/health"}
+
+
 @app.get("/health")
 def health():
     return {"ok": True, "yt_dlp": getattr(__import__("yt_dlp").version, "__version__", "?")}
