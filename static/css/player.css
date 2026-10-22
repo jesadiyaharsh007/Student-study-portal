@@ -153,3 +153,5 @@
 /* In embed mode, hide the HTML5 video element but keep our custom controls UI completely visible on top */
 .yt-frame iframe { position: absolute; top: -60px; left: 0; width: 100%; height: calc(100% + 120px); border: 0; display: block; background: #000; pointer-events: none; }
 .yt-player.embed .yt-video { display: none; }
+.yt-player.embed .yt-spin { display: none !important; }
+.yt-player.embed:not(.fs):not(:fullscreen) .yt-top { display: none !important; }
