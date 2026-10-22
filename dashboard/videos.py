@@ -827,6 +827,11 @@ def _ytdlp_info(video_id: str, client: Optional[str] = None) -> Dict:
         "skip_download": True,
         "noplaylist": True,
         "socket_timeout": 12,
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["visionos", "tv_samsung"],
+            }
+        },
     }
     if node_path:
         base_opts["js_runtimes"] = {"node": {}}
@@ -836,13 +841,14 @@ def _ytdlp_info(video_id: str, client: Optional[str] = None) -> Dict:
         os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "yt_cookies.txt")),
         os.path.abspath(os.path.join(os.path.dirname(__file__), "yt_cookies.txt")),
         os.path.abspath("yt_cookies.txt"),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "media_service", "yt_cookies.txt")),
     ]
     for cp in cookie_paths:
         if os.path.exists(cp) and os.path.getsize(cp) > 10:
             base_opts["cookiefile"] = cp
             break
 
-    # 1. Try standard default extraction first (gets full 1080p, 720p, 480p, 360p, 240p, 144p DASH sets)
+    # 1. Try visionos / tv_samsung extraction first (gets full 1080p, 720p, 480p, 360p, 240p, 144p DASH sets without JS requirement)
     if not client:
         try:
             with yt_dlp.YoutubeDL(base_opts) as ydl:
@@ -860,7 +866,7 @@ def _ytdlp_info(video_id: str, client: Optional[str] = None) -> Dict:
         best_res = None
 
     # 2. Try specific client fallbacks in fast order
-    clients_to_try = [client] if client else ["android", "ios", "web_embedded"]
+    clients_to_try = [client] if client else ["visionos", "tv_samsung", "android"]
     last_exc = None
     for c in clients_to_try:
         opts = dict(base_opts)
@@ -881,7 +887,6 @@ def _ytdlp_info(video_id: str, client: Optional[str] = None) -> Dict:
             last_exc = exc
             err_str = str(exc)
             if "Sign in to confirm" in err_str:
-                # Bot verification challenge triggered for this video on this IP; fall back immediately
                 break
             continue
 

@@ -738,7 +738,7 @@
     } else {
       try {
         await ensureService();
-        const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 6000);
+        const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 20000);
         const r = await fetch(urlFor('streamUrl', id), { credentials: 'same-origin', signal: ctl.signal });
         clearTimeout(timer);
         mf = await r.json();
