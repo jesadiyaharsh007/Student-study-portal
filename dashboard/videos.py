@@ -819,16 +819,28 @@ def _ytdlp_info(video_id: str, client: Optional[str] = None) -> Dict:
         raise StreamUnavailable("yt-dlp is not installed") from exc
 
     import shutil
+    import os
     node_path = shutil.which("node")
     base_opts = {
         "quiet": True,
         "no_warnings": True,
         "skip_download": True,
         "noplaylist": True,
-        "socket_timeout": 4,
+        "socket_timeout": 12,
     }
     if node_path:
         base_opts["js_runtimes"] = {"node": {}}
+
+    # Load Netscape cookies if available to prevent YouTube bot verification and timeouts
+    cookie_paths = [
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "yt_cookies.txt")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "yt_cookies.txt")),
+        os.path.abspath("yt_cookies.txt"),
+    ]
+    for cp in cookie_paths:
+        if os.path.exists(cp) and os.path.getsize(cp) > 10:
+            base_opts["cookiefile"] = cp
+            break
 
     # 1. Try standard default extraction first (gets full 1080p, 720p, 480p, 360p, 240p, 144p DASH sets)
     if not client:
@@ -855,6 +867,7 @@ def _ytdlp_info(video_id: str, client: Optional[str] = None) -> Dict:
         opts["extractor_args"] = {
             "youtube": {
                 "player_client": [c],
+                "player_skip": ["webpage", "configs"],
             }
         }
         try:
