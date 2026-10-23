@@ -7,12 +7,24 @@
 .yt-player.gone { opacity: 0; }
 .yt-player:fullscreen { width: 100vw !important; height: 100vh !important; transform: none !important; border-radius: 0; box-shadow: none; --bar: 0px !important; }
 @keyframes yt-pop { from { opacity: 0; } to { opacity: 1; } }
-.yt-frame { position: absolute; left: 0; right: 0; top: 0; bottom: var(--bar); background: #000; }
+.yt-frame { position: absolute; left: 0; right: 0; top: 0; bottom: var(--bar); background: #000; filter: brightness(var(--yt-bright, 1)); }
 .yt-player:fullscreen .yt-frame { bottom: 0; }
 .yt-video { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: #000; object-fit: contain; }
 .yt-embed { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: #000; overflow: hidden; z-index: 1; opacity: 0; transition: opacity .25s ease; }
 .yt-embed.ready { opacity: 1; }
 .yt-embed iframe { position: absolute; top: -72px; left: -4px; width: calc(100% + 8px); height: calc(100% + 144px); border: 0; display: block; pointer-events: none; }
+
+/* ---- HUD indicators for brightness, volume & settings gestures ---- */
+.yt-hud { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%) scale(.9);
+  display: flex; align-items: center; gap: .75rem; padding: .65rem 1.15rem; border-radius: 99px;
+  background: rgb(15 15 20 / .85); border: 1px solid rgb(255 255 255 / .22);
+  box-shadow: 0 12px 32px rgb(0 0 0 / .65); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+  color: #fff; font-size: .95rem; font-weight: 600; pointer-events: none; opacity: 0;
+  transition: opacity .18s ease, transform .18s ease; z-index: 35; }
+.yt-hud.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.yt-hud svg { width: 22px; height: 22px; flex: none; color: #fff; }
+.yt-hud-bar { width: 75px; height: 5px; border-radius: 99px; background: rgb(255 255 255 / .25); overflow: hidden; position: relative; }
+.yt-hud-fill { display: block; height: 100%; width: 100%; border-radius: 99px; background: var(--accent, #ff2a4f); transform-origin: left; transition: transform .05s linear; }
 
 /* ---- overlay UI ---- */
 .yt-ui { position: absolute; inset: 0; z-index: 10; user-select: none; -webkit-user-select: none; transition: background .25s ease; }
@@ -115,7 +127,12 @@
 .yt-pill { display: inline-flex; align-items: center; gap: .45rem; padding: .5rem .95rem; border-radius: 99px; background: var(--sunk); color: var(--ink); box-shadow: inset 0 0 0 1px var(--hair); font-size: .85rem; font-weight: 550; cursor: pointer; transition: transform .25s cubic-bezier(.23, 1, .32, 1), background .25s; }
 .yt-pill:active { transform: scale(.96); }
 
-@media (max-width: 560px) { .yt-skip, .yt-vol .yt-volr { display: none; } .yt-time { margin: 0 .2rem; font-size: .76rem; } .yt-cb { width: 36px; height: 36px; } .yt-cb svg { width: 22px; height: 22px; } }
+@media (max-width: 560px) {
+  .yt-skip, .yt-vol .yt-volr { display: none; }
+  .yt-time { margin: 0 .2rem; font-size: .76rem; }
+  .yt-cb { width: 42px; height: 42px; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  .yt-cb svg { width: 24px; height: 24px; }
+}
 @media (prefers-reduced-motion: reduce) { .yt-player, .yt-ctrl, .yt-top, .yt-menu { transition: none; animation: none; } .yt-player.pop { animation: none; } }
 .yt-ck { display: inline-block; width: 17px; height: 17px; flex: none; }
 
@@ -133,7 +150,7 @@
 .yt-grp { display: flex; align-items: center; gap: .1rem; padding: 4px; border-radius: 99px; flex: 0 1 auto; min-width: 0;
   background: rgb(14 14 18 / .6); border: 1px solid rgb(255 255 255 / .16); box-shadow: 0 8px 24px -8px rgb(0 0 0 / .6);
   -webkit-backdrop-filter: blur(16px) saturate(170%); backdrop-filter: blur(16px) saturate(170%); }
-.yt-grp .yt-cb { width: 42px; height: 42px; filter: none; background: transparent; }
+.yt-grp .yt-cb { width: 42px; height: 42px; filter: none; background: transparent; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 .yt-grp .yt-cb svg { width: 26px; height: 26px; }
 .yt-grp .yt-cb:hover { background: rgb(255 255 255 / .2); }
 .yt-grp .yt-nav svg { width: 30px; height: 30px; }
@@ -148,7 +165,13 @@
 .yt-cb.on::after { display: none; }
 .yt-cb.on svg { color: #ff6b87; }
 @container (max-width: 700px) { .yt-time { margin: 0 .5rem 0 .2rem; font-size: .84rem; } .yt-pipb { display: none; } }
-@container (max-width: 520px) { .yt-grp .yt-cb { width: 38px; height: 38px; } .yt-grp .yt-cb svg { width: 23px; height: 23px; } .yt-vol .yt-volr { display: none; } .yt-row { gap: .4rem; } .yt-grp .yt-primary { width: 42px; height: 42px; } }
+@container (max-width: 520px) {
+  .yt-grp .yt-cb { width: 40px; height: 40px; touch-action: manipulation; }
+  .yt-grp .yt-cb svg { width: 24px; height: 24px; }
+  .yt-vol .yt-volr { display: none; }
+  .yt-row { gap: .35rem; }
+  .yt-grp .yt-primary { width: 44px; height: 44px; }
+}
 @container (max-width: 400px) { .yt-time { display: none; } }
 
 /* In embed mode, hide the HTML5 video element but keep our custom controls UI completely visible on top */

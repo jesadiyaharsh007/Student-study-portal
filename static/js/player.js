@@ -29,6 +29,7 @@
     check: fill('M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z'),
     chev: fill('M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z'),
     chevl: fill('M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z'),
+    sun: fill('M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41L5.99 4.58zm12.37 12.37c-.39-.39-1.03-.39-1.41 0s-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41l-1.06-1.06zm1.06-10.96c.39-.39.39-1.03 0-1.41s-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06zM7.05 18.36c.39-.39.39-1.03 0-1.41s-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0l1.06-1.06z'),
   };
 
   const read = (store, k, d) => { try { return JSON.parse(store.getItem(k) || 'null') || d; } catch (e) { return d; } };
@@ -41,6 +42,7 @@
     <video class="yt-video" playsinline preload="auto"></video>
     <div class="yt-embed" id="ytEmbed" hidden></div>
     <div class="yt-ui" data-state="idle">
+      <div class="yt-hud" hidden><span class="yt-hud-icon"></span><span class="yt-hud-text"></span><div class="yt-hud-bar"><i class="yt-hud-fill"></i></div></div>
       <div class="yt-cc" hidden><span></span></div>
       <div class="yt-spin" hidden><i></i></div>
       <button type="button" class="yt-bigplay" aria-label="Play">${ICON.play}</button>
@@ -78,8 +80,44 @@
     seek: q('.yt-seek'), buf: q('.yt-buf'), played: q('.yt-played'), knob: q('.yt-knob'), tip: q('.yt-tip'),
     time: q('.yt-time'), volr: q('.yt-volr'), menu: q('.yt-menu'),
     bPlay: q('[data-a=play]'), bMute: q('[data-a=mute]'), bFs: q('[data-a=fs]'), bCc: q('[data-a=cc]'),
+    hud: q('.yt-hud'), hudIcon: q('.yt-hud-icon'), hudText: q('.yt-hud-text'), hudFill: q('.yt-hud-fill'),
   };
   if (!document.pictureInPictureEnabled) q('.yt-pipb').hidden = true;
+
+  let hudTimer = 0;
+  function showHud(iconHtml, text, percent) {
+    if (!el.hud) return;
+    el.hudIcon.innerHTML = iconHtml;
+    el.hudText.textContent = text;
+    el.hudFill.style.transform = `scaleX(${Math.max(0, Math.min(1, percent))})`;
+    el.hud.hidden = false;
+    el.hud.classList.add('show');
+    clearTimeout(hudTimer);
+    hudTimer = setTimeout(() => {
+      el.hud.classList.remove('show');
+      setTimeout(() => { if (!el.hud.classList.contains('show')) el.hud.hidden = true; }, 200);
+    }, 900);
+  }
+
+  let currentBrightness = 1.0;
+  function setBrightness(val) {
+    currentBrightness = Math.max(0.15, Math.min(1.8, val));
+    frame.style.setProperty('--yt-bright', currentBrightness);
+    const percent = (currentBrightness - 0.15) / (1.8 - 0.15);
+    showHud(ICON.sun, `${Math.round(currentBrightness * 100)}%`, percent);
+  }
+
+  function setGestureVolume(val) {
+    const v = Math.max(0, Math.min(1, val));
+    video.muted = false;
+    video.volume = v;
+    prefs.vol = v;
+    prefs.muted = false;
+    savePrefs();
+    paintVolume();
+    const icon = v === 0 ? ICON.mute : (v < 0.5 ? ICON.low : ICON.vol);
+    showHud(icon, `${Math.round(v * 100)}%`, v);
+  }
 
   const state = { id: null, meta: {}, mode: 'none', playing: false, time: 0, duration: 0, stage: null, tok: 0, manifest: null, cues: [], tracks: [], ccLang: '', quality: 'auto', height: 0, engineType: 'mse' };
   const listeners = {};
@@ -269,18 +307,43 @@
 
   const iconVol = () => (video.muted || video.volume === 0) ? ICON.mute : (video.volume < .5 ? ICON.low : ICON.vol);
   function paintVolume() {
-    el.volr.value = video.muted ? 0 : video.volume;
-    el.volr.style.setProperty('--v', `${(video.muted ? 0 : video.volume) * 100}%`);
-    el.bMute.innerHTML = iconVol();
-    el.bMute.setAttribute('aria-label', video.muted ? 'Unmute' : 'Mute');
+    const isMuted = !!(video.muted || video.volume === 0);
+    el.volr.value = isMuted ? 0 : video.volume;
+    el.volr.style.setProperty('--v', `${(isMuted ? 0 : video.volume) * 100}%`);
+    el.bMute.innerHTML = isMuted ? ICON.mute : (video.volume < .5 ? ICON.low : ICON.vol);
+    el.bMute.setAttribute('aria-label', isMuted ? 'Unmute' : 'Mute');
     if (state.engineType === 'embed' && embedPlayer) {
-      if (embedPlayer.setVolume) embedPlayer.setVolume(video.volume * 100);
-      if (embedPlayer.mute && embedPlayer.unMute) {
-        if (video.muted) embedPlayer.mute(); else embedPlayer.unMute();
+      if (isMuted) {
+        if (typeof embedPlayer.mute === 'function') embedPlayer.mute();
+        if (typeof embedPlayer.setVolume === 'function') embedPlayer.setVolume(0);
+      } else {
+        if (typeof embedPlayer.unMute === 'function') embedPlayer.unMute();
+        const targetVol = Math.round((video.volume || prefs.vol || 1) * 100);
+        if (typeof embedPlayer.setVolume === 'function') embedPlayer.setVolume(targetVol);
+      }
+      const iframe = document.getElementById('ytIframeHost');
+      if (iframe && iframe.contentWindow) {
+        try {
+          if (isMuted) {
+            iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'mute', args: [] }), '*');
+            iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'setVolume', args: [0] }), '*');
+          } else {
+            const targetVol = Math.round((video.volume || prefs.vol || 1) * 100);
+            iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'unMute', args: [] }), '*');
+            iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'setVolume', args: [targetVol] }), '*');
+          }
+        } catch (e) {}
       }
     }
   }
-  el.volr.addEventListener('input', () => { video.muted = false; video.volume = +el.volr.value; prefs.vol = video.volume; prefs.muted = false; savePrefs(); });
+  el.volr.addEventListener('input', () => {
+    video.muted = false;
+    video.volume = +el.volr.value;
+    prefs.vol = video.volume;
+    prefs.muted = false;
+    savePrefs();
+    paintVolume();
+  });
   video.addEventListener('volumechange', paintVolume);
   video.volume = prefs.vol; video.muted = prefs.muted; paintVolume();
 
@@ -349,12 +412,30 @@
     state.ccLang = lang; state.cues = [];
     el.bCc.classList.toggle('on', !!lang);
     prefs.cc = lang; savePrefs();
-    if (state.engineType === 'embed' && embedPlayer && typeof embedPlayer.setOption === 'function') {
+    if (state.engineType === 'embed' && embedPlayer) {
       try {
-        embedPlayer.setOption('captions', 'track', lang ? { languageCode: lang } : {});
+        if (typeof embedPlayer.loadModule === 'function') embedPlayer.loadModule('captions');
+        if (typeof embedPlayer.setOption === 'function') {
+          embedPlayer.setOption('captions', 'track', lang ? { languageCode: lang } : {});
+          embedPlayer.setOption('captions', 'reload', true);
+        }
       } catch (e) {}
+      const iframe = document.getElementById('ytIframeHost');
+      if (iframe && iframe.contentWindow) {
+        try {
+          iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'loadModule', args: ['captions'] }), '*');
+          iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'setOption', args: ['captions', 'track', lang ? { languageCode: lang } : {}] }), '*');
+          iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'setOption', args: ['captions', 'reload', true] }), '*');
+        } catch (e) {}
+      }
     }
-    if (!lang) { el.cc.hidden = true; return; }
+    if (!lang) {
+      el.cc.hidden = true;
+      if (el.ccText) el.ccText.textContent = '';
+      showHud(ICON.cc, 'Captions: Off', 0);
+      return;
+    }
+    showHud(ICON.cc, `Captions: ${lang.toUpperCase()}`, 1);
     const id = state.id;
     try {
       const r = await fetch(urlFor('cuesUrl', id, { LANG: encodeURIComponent(lang) }), { credentials: 'same-origin' });
@@ -429,17 +510,30 @@
   };
   function setEmbedQuality(q) {
     if (!embedPlayer) return;
+    const cur = (embedPlayer.getCurrentTime && embedPlayer.getCurrentTime()) || state.time || 0;
+    const ytQ = q === 'auto' ? 'default' : (HEIGHT_TO_YT_QUALITY[+q] || 'default');
+    state.quality = q;
     if (q === 'auto') {
-      state.quality = 'auto';
-      if (embedPlayer.setPlaybackQuality) embedPlayer.setPlaybackQuality('default');
+      if (typeof embedPlayer.setPlaybackQuality === 'function') embedPlayer.setPlaybackQuality('default');
     } else {
-      state.quality = q;
       state.height = +q;
-      const ytQ = HEIGHT_TO_YT_QUALITY[+q] || 'default';
-      if (embedPlayer.setPlaybackQuality) embedPlayer.setPlaybackQuality(ytQ);
-      if (embedPlayer.setPlaybackQualityRange) embedPlayer.setPlaybackQualityRange(ytQ, ytQ);
+      if (typeof embedPlayer.setPlaybackQuality === 'function') embedPlayer.setPlaybackQuality(ytQ);
+      if (typeof embedPlayer.setPlaybackQualityRange === 'function') embedPlayer.setPlaybackQualityRange(ytQ, ytQ);
+    }
+
+    const iframe = document.getElementById('ytIframeHost');
+    if (iframe && iframe.contentWindow) {
+      try {
+        iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'setPlaybackQuality', args: [ytQ] }), '*');
+        iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'setPlaybackQualityRange', args: [ytQ, ytQ] }), '*');
+      } catch (e) {}
+    }
+
+    if (cur > 0 && typeof embedPlayer.seekTo === 'function') {
+      try { embedPlayer.seekTo(cur, true); } catch (e) {}
     }
     savePrefs();
+    showHud(ICON.gear, q === 'auto' ? 'Quality: Auto' : `Quality: ${q}p`, 1);
   }
 
   /* ------------------------------------------------------------------ menus */
@@ -526,7 +620,7 @@
     if (a === 'play') toggle();
     else if (a === 'prev') emit('prev');
     else if (a === 'next') emit('next');
-    else if (a === 'mute') { video.muted = !video.muted; prefs.muted = video.muted; savePrefs(); }
+    else if (a === 'mute') { video.muted = !video.muted; prefs.muted = video.muted; savePrefs(); paintVolume(); }
     else if (a === 'cc') {
       if (state.ccLang) {
         setCaptions('');
@@ -540,11 +634,85 @@
     else if (a === 'fs') fullscreen();
   });
   q('.yt-bigplay').addEventListener('click', toggle);
-  ui.addEventListener('click', e => {
-    if (state.mode === 'mini' && !e.target.closest('#ytToggle, #ytClose, .yt-cb, .yt-vol')) { expand(); return; }
-    if (e.target === ui || e.target.closest('.yt-cc') || e.target.classList.contains('yt-top')) { if (!el.menu.hidden) closeMenu(); else if (state.mode !== 'none') toggle(); }
+
+  /* Touch & drag gestures: left side = brightness, right side = volume */
+  let clickTimer = 0;
+  let clickCount = 0;
+  let gestureActive = false;
+  let gestureType = null;
+  let gestureStartY = 0;
+  let gestureStartVal = 0;
+  let gestureMoved = false;
+
+  ui.addEventListener('pointerdown', e => {
+    if (state.mode === 'mini') return;
+    if (e.target.closest('.yt-ctrl, .yt-menu, .yt-mini-ui, .yt-bigplay, .yt-err')) return;
+    const rect = ui.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const x = e.clientX - rect.left;
+    gestureStartY = e.clientY;
+    gestureMoved = false;
+    gestureActive = true;
+    if (x < rect.width / 2) {
+      gestureType = 'brightness';
+      gestureStartVal = currentBrightness;
+    } else {
+      gestureType = 'volume';
+      gestureStartVal = video.muted ? 0 : video.volume;
+    }
   });
-  ui.addEventListener('dblclick', e => { if (e.target === ui || e.target.closest('.yt-cc')) fullscreen(); });
+
+  ui.addEventListener('pointermove', e => {
+    if (!gestureActive) return;
+    const dy = gestureStartY - e.clientY; // upward drag is positive
+    if (!gestureMoved && Math.abs(dy) > 12) {
+      gestureMoved = true;
+    }
+    if (gestureMoved) {
+      try { e.preventDefault(); } catch (_) {}
+      const delta = dy / 200; // 200px drag = full 100% swing
+      if (gestureType === 'brightness') {
+        setBrightness(gestureStartVal + delta * 1.0);
+      } else if (gestureType === 'volume') {
+        setGestureVolume(gestureStartVal + delta);
+      }
+    }
+  });
+
+  const endGesture = () => {
+    gestureActive = false;
+    gestureType = null;
+  };
+  ui.addEventListener('pointerup', endGesture);
+  ui.addEventListener('pointercancel', endGesture);
+
+  /* Single tap to play/pause, double click/tap to toggle fullscreen without pausing */
+  ui.addEventListener('click', e => {
+    if (gestureMoved) { gestureMoved = false; return; }
+    if (state.mode === 'mini' && !e.target.closest('#ytToggle, #ytClose, .yt-cb, .yt-vol')) { expand(); return; }
+    if (e.target.closest('.yt-ctrl, .yt-menu, .yt-mini-ui, .yt-bigplay, .yt-err')) return;
+    if (!el.menu.hidden) { closeMenu(); return; }
+
+    clickCount++;
+    if (clickCount === 1) {
+      clearTimeout(clickTimer);
+      clickTimer = setTimeout(() => {
+        clickCount = 0;
+        if (state.mode !== 'none') toggle();
+      }, 260);
+    } else if (clickCount >= 2) {
+      clearTimeout(clickTimer);
+      clickCount = 0;
+      fullscreen();
+    }
+  });
+
+  ui.addEventListener('dblclick', e => {
+    if (e.target.closest('.yt-ctrl, .yt-menu, .yt-mini-ui, .yt-bigplay, .yt-err')) return;
+    clearTimeout(clickTimer);
+    clickCount = 0;
+    fullscreen();
+  });
 
   /* controls fade out while playing and the pointer is still */
   let hideT = 0;
@@ -664,9 +832,12 @@
               }
               state.duration = (embedPlayer.getDuration && embedPlayer.getDuration()) || state.duration || 0;
               if (embedPlayer.setPlaybackRate) embedPlayer.setPlaybackRate(prefs.rate);
-              if (embedPlayer.setVolume) embedPlayer.setVolume(prefs.vol * 100);
-              if (embedPlayer.mute && embedPlayer.unMute) {
-                if (prefs.muted) embedPlayer.mute(); else embedPlayer.unMute();
+              if (prefs.muted) {
+                if (typeof embedPlayer.mute === 'function') embedPlayer.mute();
+                if (typeof embedPlayer.setVolume === 'function') embedPlayer.setVolume(0);
+              } else {
+                if (typeof embedPlayer.unMute === 'function') embedPlayer.unMute();
+                if (typeof embedPlayer.setVolume === 'function') embedPlayer.setVolume(Math.round(prefs.vol * 100));
               }
               if (start > 0 && embedPlayer.seekTo) embedPlayer.seekTo(start, true);
               if (prefs.quality && prefs.quality !== 'auto') {
