@@ -276,10 +276,14 @@
       paintHeader(d);
       if (isSamePlaylist && currentList) {
         markCurrent();
-        if (d.related && d.related.length) {
-          $('ytMoreGrid').innerHTML = d.related.map(cardHtml).join('');
+        const moreVideos = (d.related && d.related.length ? d.related : d.playlist_videos || []).filter(v => v.id !== S.id).slice(0, 24);
+        if (moreVideos.length) {
+          $('ytMoreGrid').innerHTML = moreVideos.map(cardHtml).join('');
           $('ytMoreVideos').hidden = false;
           hydrateRelated();
+        } else {
+          $('ytMoreVideos').hidden = true;
+          $('ytMoreGrid').innerHTML = '';
         }
       } else if (isSameQueue) {
         // Normal video within the current queue: keep Up Next stable!
@@ -302,13 +306,67 @@
             }
           }
         }
+        // If more grid still has skeleton loaders, replace them with available queue items!
+        const mg = $('ytMoreGrid');
+        if (mg && mg.querySelector('.yt-sk')) {
+          const moreItems = queue.filter(v => v.id !== S.id).slice(0, 24);
+          if (moreItems.length) {
+            mg.innerHTML = moreItems.map(cardHtml).join('');
+            $('ytMoreVideos').hidden = false;
+            hydrateRelated();
+          } else {
+            $('ytMoreVideos').hidden = true;
+            mg.innerHTML = '';
+          }
+        }
         SP.update({ related: queue.slice(0, 100), fresh: (d.related || []).slice(0, 50), playlist: null, list: null });
       } else {
         renderNext(d.related || [], currentList ? d.playlist : null, d.playlist_videos);
       }
       saveHistory(S.meta, id);
     } catch (e) {
-      if (mine === reqId && !isSamePlaylist && !isSameQueue) el.next.innerHTML = '<p class="yt-next-empty">Could not load suggestions.</p>';
+      if (mine === reqId && !isSamePlaylist && !isSameQueue) {
+        // Fallback: try search using video title or channel if watch/details request failed
+        try {
+          const query = S.meta.title || S.meta.channel || '';
+          if (query) {
+            const fbResp = await fetch(`/youtube/?_part=1&q=${encodeURIComponent(query)}`, {
+              credentials: 'same-origin',
+              headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (fbResp.ok) {
+              const html = await fbResp.text();
+              const tmp = document.createElement('div');
+              tmp.innerHTML = html;
+              const cards = [...tmp.querySelectorAll('.yt-card')];
+              if (cards.length && mine === reqId && S.id === id) {
+                const fbItems = cards.map(c => ({
+                  id: c.dataset.id,
+                  title: c.dataset.title,
+                  channel: c.dataset.channel,
+                  duration: c.dataset.duration,
+                  views: c.dataset.views,
+                  published: c.dataset.published,
+                  thumbnail: c.dataset.thumb
+                })).filter(v => v.id && v.id !== id);
+                if (fbItems.length) {
+                  renderNext(fbItems, null, null);
+                  return;
+                }
+              }
+            }
+          }
+        } catch (_) {}
+
+        el.next.innerHTML = '<p class="yt-next-empty">Could not load suggestions. <button type="button" class="yt-retry-btn" style="margin-left:.5rem;padding:.2rem .6rem;background:var(--accent);color:#fff;border:none;border-radius:99px;cursor:pointer;font-size:.8rem;">Retry</button></p>';
+        const retryBtn = el.next.querySelector('.yt-retry-btn');
+        if (retryBtn) retryBtn.addEventListener('click', () => fetchDetails(id, listId));
+        const moreGrid = $('ytMoreGrid');
+        if (moreGrid && moreGrid.querySelector('.yt-sk')) {
+          $('ytMoreVideos').hidden = true;
+          moreGrid.innerHTML = '';
+        }
+      }
     }
   }
   // The channel picture in a card, or the first letter of the channel while there is no picture.

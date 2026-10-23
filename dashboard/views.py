@@ -427,46 +427,47 @@ def youtube(request):
 def youtube_watch(request, video_id):
     """Details and up-next for the watch panel (fetched by the page when a video is opened)."""
     header_only = request.GET.get("part") == "header"
-    info = videos.video_details(video_id, header_only=header_only)
+    list_id = request.GET.get("list", "").strip()
+    if list_id and not videos._PLAYLIST_ID_RE.match(list_id):
+        list_id = ""
+
+    info = videos.video_details(video_id, header_only=header_only, playlist_id=list_id)
     if not info:
         return JsonResponse({"error": "This video is not available."}, status=404)
     # Warm the captions so Lexi answers quickly if the student asks about this video.
     threading.Thread(target=videos.transcript_text, args=(video_id,), daemon=True).start()
 
-    list_id = request.GET.get("list", "").strip()
+    res = dict(info)
     next_vid = None
-    if list_id and videos._PLAYLIST_ID_RE.match(list_id):
-        pl = videos.playlist_page(list_id)
-        if pl and pl.get("videos"):
-            res = dict(info)
-            res["playlist"] = {
-                "id": pl["id"],
-                "title": pl.get("title") or "Playlist",
-                "count": len(pl["videos"]),
-            }
-            if not header_only:
-                pl_videos = [dict(v) for v in pl["videos"]]
-                res["playlist_videos"] = pl_videos
-                # Keep video's recommendations in res["related"] so "More videos" below is populated!
-                if not res.get("related"):
-                    res["related"] = pl_videos[:24]
-                p_ids = [v["id"] for v in pl_videos]
-                if video_id in p_ids:
-                    idx = p_ids.index(video_id)
-                    if idx + 1 < len(p_ids):
-                        next_vid = p_ids[idx + 1]
-                elif pl_videos:
-                    next_vid = pl_videos[0]["id"]
-            if next_vid and next_vid != video_id and not os.environ.get("VERCEL"):
-                threading.Thread(target=videos.stream_manifest, args=(next_vid,), daemon=True).start()
-            return JsonResponse(res)
 
-    if not header_only and info.get("related"):
-        next_vid = info["related"][0]["id"]
-        if next_vid and next_vid != video_id and not os.environ.get("VERCEL"):
-            threading.Thread(target=videos.stream_manifest, args=(next_vid,), daemon=True).start()
+    if list_id:
+        if not res.get("playlist") or not res.get("playlist_videos"):
+            pl = videos.playlist_page(list_id)
+            if pl and pl.get("videos"):
+                res["playlist"] = {
+                    "id": pl["id"],
+                    "title": pl.get("title") or "Playlist",
+                    "count": len(pl["videos"]),
+                }
+                if not header_only:
+                    pl_videos = [dict(v) for v in pl["videos"]]
+                    res["playlist_videos"] = pl_videos
+                    if not res.get("related"):
+                        res["related"] = pl_videos[:24]
 
-    return JsonResponse(info)
+        if res.get("playlist_videos"):
+            p_ids = [v["id"] for v in res["playlist_videos"]]
+            if video_id in p_ids:
+                idx = p_ids.index(video_id)
+                if idx + 1 < len(p_ids):
+                    next_vid = p_ids[idx + 1]
+            elif p_ids:
+                next_vid = p_ids[0]
+
+    if not next_vid and not header_only and res.get("related"):
+        next_vid = res["related"][0]["id"]
+
+    return JsonResponse(res)
 
 
 @student_required
