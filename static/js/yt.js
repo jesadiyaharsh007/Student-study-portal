@@ -205,8 +205,6 @@
   function openVideo(id, meta, opts = {}) {
     closeSuggest();
     pendingKeep = !!opts.keepQueue;
-    S.id = id;
-    if (meta) S.meta = Object.assign({}, S.meta || {}, meta);
     const targetList = opts.list !== undefined ? opts.list : (meta && meta.list ? meta.list : getActiveList());
     if (targetList) {
       meta = Object.assign({}, meta, { list: targetList });
