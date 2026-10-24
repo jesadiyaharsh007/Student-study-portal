@@ -983,6 +983,7 @@
             onReady: () => {
               if (tok !== state.tok) return;
               state.ready = true;
+              if (el.embed) el.embed.classList.add('ready');
               if (!autoplay) {
                 setWaiting(false);
                 ui.dataset.state = 'paused';

@@ -2,8 +2,17 @@
 (() => {
   'use strict';
   const root = document.getElementById('yt');
-  const SP = window.StudyPlayer;
-  if (!root || !SP) return;
+  if (!root) return;
+  const SP = window.StudyPlayer || {
+    state: { id: null, meta: {}, mode: 'none', playing: false, time: 0, duration: 0 },
+    open: (id) => {
+      const u = root.dataset.watchUrl ? root.dataset.watchUrl.replace('XXXXXXXXXXX', encodeURIComponent(id)) : `/youtube/?v=${encodeURIComponent(id)}`;
+      location.href = u;
+    },
+    on: () => () => {},
+    minimize: () => {},
+    attach: () => {}
+  };
   const $ = id => document.getElementById(id);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;

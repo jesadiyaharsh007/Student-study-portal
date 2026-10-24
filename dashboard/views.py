@@ -483,20 +483,17 @@ def youtube_playlist(request, playlist_id):
     return render(request, "dashboard/youtube_playlist.html", {"pl": pl})
 
 
-@student_required
 def youtube_suggest(request):
     """Search suggestions for the Videos search box."""
     return JsonResponse({"suggestions": videos.search_suggestions(request.GET.get("q", ""))})
 
 
-@student_required
 def youtube_video_channels(request):
     """Channel, picture and subscribers for the videos in the up-next list and the grid under the video."""
     ids = [i for i in request.GET.get("ids", "").split(",") if i][:24]
     return JsonResponse({"videos": videos.video_channels(ids)})
 
 
-@student_required
 def youtube_channel(request, channel_id):
     """A channel's profile page: picture, name, subscribers and its videos."""
     ch = videos.channel_page(channel_id)
