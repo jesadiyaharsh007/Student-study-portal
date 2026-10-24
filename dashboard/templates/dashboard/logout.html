@@ -6,7 +6,7 @@
 <div class="wrap-n">
   <div class="bz center-card"><div class="core">
     {% if done %}
-    <div class="done-mark">{% icon "check" %}</div>
+    <div class="done-mark" data-signed-out>{% icon "check" %}</div>
     <h1 class="h2">You are signed out.</h1>
     <p class="muted u-margin-p8rem-0-1p8rem">See you next time. Keep up the great work.</p>
     <div class="row u-justify-content-center"><a class="btn btn-ink" href="{% url 'login' %}"><span>Log in again</span><span class="btn-ico">{% icon "arrow-up-right" %}</span></a><a class="btn btn-line no-ico" href="{% url 'home' %}">Home</a></div>

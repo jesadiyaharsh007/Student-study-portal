@@ -13,7 +13,7 @@
     <div class="th-side">{% include 'dashboard/partials/ring.html' with pct=pct size="72px" %}</div>
   </header>
 
-  <form class="quick-add" method="post" action="{% url 'todo' %}" data-ajax="add" data-target="#todo-list" data-needs-data autocomplete="off">
+  <form class="quick-add" id="add" method="post" action="{% url 'todo' %}" data-ajax="add" data-target="#todo-list" data-needs-data autocomplete="off">
     {% csrf_token %}
     <label class="input-icon u-flex-1">{% icon "plus" %}{{ form.title }}<span class="sr">New task</span></label>
     <button class="btn btn-ink" type="submit"><span>Add task</span><span class="btn-ico">{% icon "arrow-up-right" %}</span></button>

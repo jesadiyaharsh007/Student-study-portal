@@ -79,3 +79,15 @@ class AdminSession(models.Model):
 
     def __str__(self):
         return f"{self.user_id}:{self.jti[:6]}"
+
+
+class Throttle(models.Model):
+    """A counter for one kind of attempt (sign-in by name, sign-in by address, Lexi questions) in a time window.
+    Kept in the database so every serverless instance sees the same count (see dashboard/throttle.py)."""
+    key = models.CharField(max_length=80, unique=True)
+    window_start = models.DateTimeField()
+    count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        verbose_name = "rate limit"
+        verbose_name_plural = "rate limits"

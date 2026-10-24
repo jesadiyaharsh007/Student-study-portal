@@ -5,13 +5,11 @@ Books   - Project Gutenberg: the official OPDS catalog feed for search, plain-te
 Everything has short timeouts and small caches so a slow source never hangs a page.
 """
 import html
-import json
 import logging
 import re
 import threading
 import time
 import xml.etree.ElementTree as ET
-from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 
 import requests

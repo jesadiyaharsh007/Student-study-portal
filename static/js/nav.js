@@ -15,6 +15,26 @@
   window.PageCleanup = window.PageCleanup || [];
 
   const css = () => new Set([...document.querySelectorAll('link[rel=stylesheet]')].map(l => (l.getAttribute('href') || '').split('?')[0]));
+  // The page's Content-Security-Policy only trusts inline scripts carrying the nonce of the first load.
+  const NONCE = (document.querySelector('script[nonce]') || {}).nonce || '';
+
+  // Prefetch: a page starts loading when the pointer rests on its link (or a finger touches it),
+  // so by the time the click lands the HTML is usually here. Kept for 10 seconds, used once.
+  const pre = new Map();
+  const keyOf = u => { const x = new URL(u, location.href); return x.origin + x.pathname + x.search; };
+  const fetchPage = href => fetch(href, { credentials: 'same-origin', headers: { 'X-Requested-With': 'pjax' } })
+    .then(async r => ({ ok: r.ok, redirected: r.redirected, type: r.headers.get('content-type') || '', text: r.ok && !r.redirected ? await r.text() : '' }));
+  function prefetch(href) {
+    const k = keyOf(href), hit = pre.get(k);
+    if (hit && Date.now() - hit.t < 10000) return;
+    if (pre.size > 8) pre.delete(pre.keys().next().value);
+    pre.set(k, { t: Date.now(), p: fetchPage(href).catch(() => null) });
+  }
+  function load(href) {
+    const k = keyOf(href), hit = pre.get(k);
+    pre.delete(k);
+    return hit && Date.now() - hit.t < 10000 ? hit.p : fetchPage(href).catch(() => null);
+  }
 
   function syncNav(doc) {
     const nav = 'header.nav-pill a, #overlay a, #palette a';
@@ -34,7 +54,8 @@
       const key = src && src.split('?')[0];
       if (old.hasAttribute('data-once') && key && ran.has(key)) continue;
       const s = document.createElement('script');
-      [...old.attributes].forEach(a => { if (a.name !== 'defer' && a.name !== 'async') s.setAttribute(a.name, a.value); });
+      [...old.attributes].forEach(a => { if (a.name !== 'defer' && a.name !== 'async' && a.name !== 'nonce') s.setAttribute(a.name, a.value); });
+      if (NONCE) s.nonce = NONCE;
       if (src) { s.async = false; if (key) ran.add(key); } else s.textContent = old.textContent;
       document.body.appendChild(s);
       if (!src) s.remove();                                     // inline code has already run
@@ -46,13 +67,10 @@
     if (u.origin !== location.origin || SKIP.test(u.pathname)) { location.href = u.href; return; }
     const mine = ++seq;
     const p = prog(); if (p) { p.className = ''; void p.offsetWidth; p.className = 'run'; }
-    let html;
-    try {
-      const r = await fetch(u.href, { credentials: 'same-origin', headers: { 'X-Requested-With': 'pjax' } });
-      if (r.redirected || !r.ok || !(r.headers.get('content-type') || '').includes('text/html')) { location.href = u.href; return; }
-      html = await r.text();
-    } catch (e) { location.href = u.href; return; }
+    const res = await load(u.href);
     if (mine !== seq) return;
+    if (!res || res.redirected || !res.ok || !res.type.includes('text/html')) { location.href = u.href; return; }
+    const html = res.text;
     const doc = new DOMParser().parseFromString(html, 'text/html');
     if (!doc.getElementById('main') || doc.body.dataset.shell !== body.dataset.shell) { location.href = u.href; return; }
 
@@ -92,12 +110,31 @@
     document.dispatchEvent(new CustomEvent('pjax:load', { detail: { url: u.href } }));
   }
 
+  // A link this script may handle: same site, not a download/new tab/log out, not a page that needs a full load.
+  const softLink = target => {
+    const a = target && target.closest && target.closest('a[href]');
+    if (!a || a.target || a.hasAttribute('download') || a.hasAttribute('data-noprefetch') || a.getAttribute('rel') === 'external') return null;
+    const u = new URL(a.href, location.href);
+    return u.origin === location.origin && !SKIP.test(u.pathname) && u.protocol.startsWith('http') ? a : null;
+  };
+  const saveData = navigator.connection && navigator.connection.saveData;
+  let hoverT = 0;
+  document.addEventListener('pointerover', e => {
+    const a = !saveData && e.pointerType !== 'touch' && softLink(e.target);
+    clearTimeout(hoverT);
+    if (a && keyOf(a.href) !== keyOf(location.href)) hoverT = setTimeout(() => prefetch(a.href), 65);
+  });
+  document.addEventListener('pointerout', () => clearTimeout(hoverT));
+  document.addEventListener('touchstart', e => {
+    const a = !saveData && softLink(e.target);
+    if (a && keyOf(a.href) !== keyOf(location.href)) prefetch(a.href);
+  }, { passive: true });
+
   document.addEventListener('click', e => {
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-    const a = e.target.closest && e.target.closest('a[href]');
-    if (!a || a.target || a.hasAttribute('download') || a.hasAttribute('data-noprefetch') || a.getAttribute('rel') === 'external') return;
+    const a = softLink(e.target);
+    if (!a) return;
     const u = new URL(a.href, location.href);
-    if (u.origin !== location.origin || SKIP.test(u.pathname)) return;
     if (u.pathname === location.pathname && u.search === location.search) { if (!u.hash) e.preventDefault(); return; }
     e.preventDefault();
     go(u.href);

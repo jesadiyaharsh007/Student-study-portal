@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Error{% endblock %} | Student Study Portal</title>
   <meta name="robots" content="noindex">
-  <script>(function(){var d=document.documentElement;d.classList.remove('no-js');try{var t=localStorage.getItem('theme');if(t)d.dataset.theme=t;}catch(e){}})();</script>
+  <script nonce="{{ csp_nonce }}">(function(){var d=document.documentElement;d.classList.remove('no-js');try{var t=localStorage.getItem('theme');if(t)d.dataset.theme=t;}catch(e){}})();</script>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&display=swap">
   <link rel="stylesheet" href="{% static 'css/studydesk.css' %}?v=6.0">
 </head>
@@ -16,7 +16,7 @@
         <div class="err-code err-code-accent" aria-hidden="true">{% block code %}500{% endblock %}</div>
         <h1>{% block heading %}Something went wrong{% endblock %}</h1>
         <p>{% block text %}Please try again in a moment.{% endblock %}</p>
-        <div class="row wrap-r"><a class="btn btn-line no-ico err-btn" href="/">Back to home</a><a class="btn btn-line no-ico err-btn" href="javascript:location.reload()">Try again</a></div>
+        <div class="row wrap-r"><a class="btn btn-line no-ico err-btn" href="/">Back to home</a><a class="btn btn-line no-ico err-btn" href="" data-reload>Try again</a></div>
       </div>
     </div></section>
   </main>

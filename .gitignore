@@ -38,3 +38,6 @@ ehthumbs.db
 scratch/
 staticfiles_build/
 
+.vercel
+.env*
+!.env.example

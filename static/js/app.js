@@ -131,6 +131,34 @@
   });
   $$('dialog[data-open-on-load]').forEach(d => openDlg(d));
 
+  // Deep links (Lexi gives these out): #note-dialog or #hw-dialog opens that form; any other id
+  // (#add, #continue, ...) is scrolled into view and its first field focused.
+  const openHash = () => {
+    const id = decodeURIComponent(location.hash.slice(1));
+    const el = /^[\w-]+$/.test(id) ? document.getElementById(id) : null;
+    if (!el || !el.closest('main, dialog')) return;
+    if (el.tagName === 'DIALOG') {
+      openDlg(el);
+      // drop the #id so saving (which redirects back here) or reloading does not open the form again
+      try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) { /* ignore */ }
+      const f = $('input:not([type=hidden]),textarea,select', el);
+      if (f) setTimeout(() => f.focus(), 120);
+      return;
+    }
+    el.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
+    (el.matches('input,textarea,select') ? el : $('input:not([type=hidden]),textarea,select', el))?.focus({ preventScroll: true });
+  };
+  openHash();
+  on(window, 'hashchange', openHash);
+
+  // Signed out: forget this student's cached chat and page data on this device.
+  if ($('[data-signed-out]')) {
+    try {
+      Object.keys(localStorage).filter(k => k.startsWith('lexi-chat-')).forEach(k => localStorage.removeItem(k));
+      Object.keys(sessionStorage).filter(k => k.startsWith('part:')).forEach(k => sessionStorage.removeItem(k));
+    } catch (e) { /* storage blocked */ }
+  }
+
   /* confirm dialog for destructive forms */
   const confirmDlg = $('#confirm');
   let pending = null;
@@ -500,11 +528,14 @@
   if (asyncRegion) {
     const gated = $$('[data-needs-data]');
     gated.forEach(el => el.setAttribute('inert', ''));
-    const reveal = region => {
+    // fresh=false: the copy from this tab's last visit, shown at once while the real data loads.
+    // Inputs stay locked until the fresh copy is in, so nothing typed is lost when it swaps in.
+    const reveal = (region, fresh = true, quiet = false) => {
       region.classList.add('loaded');
-      region.setAttribute('aria-busy', 'false');
-      gated.forEach(el => el.removeAttribute('inert'));
+      region.setAttribute('aria-busy', fresh ? 'false' : 'true');
+      if (fresh) gated.forEach(el => el.removeAttribute('inert'));
       $$('[data-filterable]', region).forEach(filterable);
+      if (quiet) { refreshCounts(); renderDue(); return; }
       // the overall ring on the dashboard lives inside the region: draw it from empty
       $$('#overall-ring', region).forEach(r => {
         const p = +r.style.getPropertyValue('--pct') || 0, n = $('[data-ring-num]', r);
@@ -528,16 +559,26 @@
       asyncRegion.innerHTML = '<div class="async-err"><h3>Could not load your data</h3><p>Check your connection and try again.</p><button class="btn btn-ink" type="button" data-retry><span>Try again</span></button></div>';
       on($('[data-retry]', asyncRegion), 'click', () => location.reload());
     };
+    const u = new URL(location.href);
+    u.searchParams.set('_part', '1');
+    const ckey = 'part:' + (document.body.dataset.uid || '') + ':' + location.pathname + location.search;
+    let cached = null;
+    try { cached = sessionStorage.getItem(ckey); } catch (e) { /* storage blocked */ }
+    if (cached) { asyncRegion.innerHTML = cached; reveal(asyncRegion, false); }
     (async () => {
-      const u = new URL(location.href);
-      u.searchParams.set('_part', '1');
       try {
         const r = await fetch(u, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' });
         if (r.redirected) { location.reload(); return; }       // session ended: let the server send us to login
         if (!r.ok) throw new Error(r.status);
-        asyncRegion.innerHTML = await r.text();
-        reveal(asyncRegion);
-      } catch (e) { fail(); }
+        const html = await r.text();
+        if (!asyncRegion.isConnected) return;                  // the student already moved to another page
+        try { sessionStorage.setItem(ckey, html); } catch (e) { /* full or blocked */ }
+        if (html !== cached) asyncRegion.innerHTML = html;
+        reveal(asyncRegion, true, html === cached || !!cached);
+      } catch (e) {
+        if (cached) { reveal(asyncRegion, true, true); toast('warning', 'Showing your last loaded data. Check your connection.'); }
+        else fail();
+      }
     })();
   }
 
@@ -651,6 +692,8 @@
       } else {
         html = fallbackParse(text);
       }
+      // Replies come from an AI that can be talked into writing HTML: keep only plain formatting.
+      html = cleanHtml(html);
 
       // 3. Math hydration via KaTeX
       mathTokens.forEach(({ id, expr, isDisplay }) => {
@@ -680,6 +723,36 @@
       html = html.replace(/<table>([\s\S]*?)<\/table>/g, '<div class="table-wrap"><table>$1</table></div>');
       return html;
     };
+
+    // Allowlist sanitizer: markdown's formatting tags survive, everything else is unwrapped to its text
+    // (or dropped entirely for scripts, frames, forms and media). Links only to this site, https or mail.
+    const KEEP = new Set(['P', 'BR', 'STRONG', 'EM', 'B', 'I', 'U', 'S', 'DEL', 'MARK', 'CODE', 'PRE', 'BLOCKQUOTE', 'UL', 'OL', 'LI',
+      'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'HR', 'TABLE', 'THEAD', 'TBODY', 'TR', 'TH', 'TD', 'A', 'SUP', 'SUB', 'SPAN', 'DIV']);
+    const DROP = new Set(['SCRIPT', 'STYLE', 'IFRAME', 'FRAME', 'OBJECT', 'EMBED', 'TEMPLATE', 'NOSCRIPT', 'LINK', 'META', 'BASE',
+      'FORM', 'INPUT', 'BUTTON', 'TEXTAREA', 'SELECT', 'SVG', 'MATH', 'IMG', 'PICTURE', 'VIDEO', 'AUDIO', 'SOURCE', 'CANVAS', 'DIALOG']);
+    const safeHref = h => /^(https:\/\/|\/(?!\/)|#|mailto:)/i.test((h || '').trim());
+    function cleanHtml(html) {
+      const tpl = document.createElement('template');         // template content is inert: nothing loads or runs
+      tpl.innerHTML = html;
+      const walk = parent => {
+        [...parent.children].forEach(el => {
+          const tag = el.tagName.toUpperCase();
+          if (DROP.has(tag)) { el.remove(); return; }
+          walk(el);
+          if (!KEEP.has(tag)) { el.replaceWith(...el.childNodes); return; }
+          [...el.attributes].forEach(({ name, value }) => {
+            const ok = (tag === 'A' && name === 'href' && safeHref(value))
+              || (tag === 'CODE' && name === 'class' && /^(lang|language)-[\w+#-]+$/.test(value))
+              || ((tag === 'TH' || tag === 'TD') && name === 'align' && /^(left|right|center)$/.test(value))
+              || (tag === 'OL' && name === 'start' && /^\d+$/.test(value));
+            if (!ok) el.removeAttribute(name);
+          });
+          if (tag === 'A' && /^https:/i.test(el.getAttribute('href') || '')) { el.target = '_blank'; el.rel = 'noopener noreferrer'; }
+        });
+      };
+      walk(tpl.content);
+      return tpl.innerHTML;
+    }
 
     function fallbackParse(src) {
       let h = esc(src);
@@ -979,19 +1052,49 @@
         word.classList.add('swap');
         setTimeout(() => { word.textContent = PHASES[step]; word.style.animation = ''; word.classList.remove('swap'); }, 180);
       }, 2200);
+      // The answer streams in as plain text and is drawn as it arrives (at most every 60ms);
+      // errors come back as JSON before anything is streamed.
+      let reply = '', bubble = null, msg = null, drawn = 0;
+      const draw = () => { drawn = Date.now(); bubble.innerHTML = md(reply); scrollEnd(); };
       try {
-        const fd = new FormData(); fd.append('prompt', text); fd.append('history', JSON.stringify(hist.slice(-6)));
+        const fd = new FormData();
+        fd.append('prompt', text); fd.append('history', JSON.stringify(hist.slice(-8))); fd.append('stream', '1');
         const r = await fetch(url, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrf() }, credentials: 'same-origin' });
-        const d = await r.json().catch(() => ({}));
-        clearInterval(phaseTimer); t.remove();
-        if (d.ok) {
-          addMsg('bot', d.reply);
-          hist.push({ role: 'user', text: text.trim() }, { role: 'model', text: d.reply });
-          saveHist();
-        } else { toast('danger', d.error || 'Lexi is unavailable right now.'); }
+        if (r.redirected) { location.href = r.url; return; }           // signed out meanwhile
+        if (!(r.headers.get('content-type') || '').startsWith('text/plain')) {
+          const d = await r.json().catch(() => ({}));
+          throw new Error(d.error || 'Lexi is unavailable right now.');
+        }
+        const reader = r.body.getReader(), dec = new TextDecoder();
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          reply += dec.decode(value, { stream: true });
+          if (!reply) continue;
+          if (!msg) {
+            clearInterval(phaseTimer); t.remove();
+            msg = addMsg('bot', ''); bubble = $('.bubble', msg);
+            msg.classList.add('streaming');
+          }
+          if (Date.now() - drawn > 60) draw();
+        }
+        reply += dec.decode();
+        if (!reply.trim()) throw new Error('Lexi had no answer. Please try again.');
+        if (!msg) { clearInterval(phaseTimer); t.remove(); msg = addMsg('bot', ''); bubble = $('.bubble', msg); }
+        draw();
+        msg.classList.remove('streaming');
+        enhanceBubble(bubble, reply);
+        hist.push({ role: 'user', text: text.trim() }, { role: 'model', text: reply });
+        saveHist();
       } catch (e) {
         clearInterval(phaseTimer); t.remove();
-        toast('danger', 'You appear to be offline.');
+        if (msg && reply.trim()) {                                       // keep what arrived before the break
+          draw(); msg.classList.remove('streaming'); enhanceBubble(bubble, reply);
+          toast('warning', 'The answer was cut off. You can ask again.');
+        } else {
+          msg?.remove();
+          toast('danger', navigator.onLine === false ? 'You appear to be offline.' : (e.message || 'Lexi is unavailable right now.'));
+        }
       }
       busy = false;
       if (send) send.disabled = !ta.value.trim();

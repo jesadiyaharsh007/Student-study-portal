@@ -22,12 +22,19 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY') or 'django-insecure-&m#j%)6)#sye5_uz#u1g!le6cx=w8sdjnvt#ki38w$!(c$@9bj'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', '').strip()
 
 # SECURITY WARNING: don't run with debug turned on in production!
 # DEBUG logs every SQL query in memory and renders slow debug pages, so it is off on Vercel.
 # Set DJANGO_DEBUG=1 to force it on.
 DEBUG = os.environ.get('DJANGO_DEBUG', '0' if os.environ.get('VERCEL') == '1' else '1') == '1'
+
+# Sign-ins are signed with SECRET_KEY, so production must never run on a key that is public.
+if not SECRET_KEY:
+    if not DEBUG:
+        from django.core.exceptions import ImproperlyConfigured
+        raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set in production (Vercel > Settings > Environment Variables).")
+    SECRET_KEY = 'django-insecure-local-development-only'
 
 # Only answer for the hosts the site really lives on (a custom domain can be added through the env var).
 ALLOWED_HOSTS = [h.strip() for h in os.environ.get(
@@ -76,6 +83,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'dashboard.middleware.FriendlyErrorPagesMiddleware',
     'dashboard.middleware.PrivatePagesMiddleware',
+    'django.middleware.csp.ContentSecurityPolicyMiddleware',
 ]
 
 AUTHENTICATION_BACKENDS = ['dashboard.auth_backend.CachedUserBackend']
@@ -93,6 +101,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'dashboard.context_processors.navigation',
+                'django.template.context_processors.csp',
             ],
         },
     },
@@ -215,6 +224,23 @@ LOGIN_URL = 'login'
 # Lexi (AI Bot) API Key
 # Load from environment variable (Vercel dashboard), or local .env file if present
 SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+# Content-Security-Policy: scripts only from this site or inline ones carrying this response's nonce,
+# so injected markup cannot run code. Styles allow inline (the design uses style="--i:..." attributes).
+from django.utils.csp import CSP  # noqa: E402
+SECURE_CSP = {
+    "default-src": [CSP.SELF],
+    "script-src": [CSP.SELF, CSP.NONCE],
+    "style-src": [CSP.SELF, CSP.UNSAFE_INLINE, "https://fonts.googleapis.com"],
+    "font-src": [CSP.SELF, "https://fonts.gstatic.com", "https://cdn.jsdelivr.net", "data:"],   # jsdelivr: KaTeX maths fonts
+    "img-src": [CSP.SELF, "data:", "https:"],
+    "media-src": [CSP.SELF, "https:"],
+    "connect-src": [CSP.SELF],
+    "frame-src": [CSP.NONE],
+    "frame-ancestors": [CSP.NONE],
+    "object-src": [CSP.NONE],
+    "base-uri": [CSP.SELF],
+    "form-action": [CSP.SELF],
+}
 # Production runs on HTTPS behind Vercel's proxy: cookies travel only over HTTPS.
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')

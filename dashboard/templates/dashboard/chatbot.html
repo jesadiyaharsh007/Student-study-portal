@@ -3,7 +3,7 @@
 {% block title %}Lexi{% endblock %}
 {% block robots %}noindex,nofollow{% endblock %}
 {% block head %}
-<link rel="stylesheet" href="{% static 'vendor/katex.min.css' %}">
+<link rel="stylesheet" href="{% static 'vendor/katex.min.css' %}?v=2">
 {% endblock %}
 {% block content %}
 <div class="wrap-n">
@@ -42,7 +42,7 @@
       </div>
     </div>
   </section>
-  <script>try{var h=JSON.parse(localStorage.getItem('lexi-chat-{{ user.pk }}')||'[]');if(h.length)document.getElementById('chat').classList.remove('is-empty')}catch(e){}</script>
+  <script nonce="{{ csp_nonce }}">try{var h=JSON.parse(localStorage.getItem('lexi-chat-{{ user.pk }}')||'[]');if(h.length)document.getElementById('chat').classList.remove('is-empty')}catch(e){}</script>
 </div>
 {% endblock %}
 {% block scripts %}

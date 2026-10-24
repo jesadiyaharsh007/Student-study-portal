@@ -149,7 +149,7 @@ class ViewTests(TestCase):
         self.assertEqual(res_clear.status_code, 302)
 
         # Verify system prompt has security guardrails, identity rules, and multi-line rules
-        from .views import AI_TUTOR_SYSTEM_PROMPT
+        from .lexi import SYSTEM_PROMPT as AI_TUTOR_SYSTEM_PROMPT
         self.assertIn("You are Lexi", AI_TUTOR_SYSTEM_PROMPT)
         self.assertIn("Your name is Lexi", AI_TUTOR_SYSTEM_PROMPT)
         self.assertIn("STRICT SECURITY & PRIVACY GUARDRAILS", AI_TUTOR_SYSTEM_PROMPT)
@@ -646,3 +646,126 @@ class OwnershipTests(TestCase):
         self.client.login(username='owner', password='Owner-pass-123')
         self.assertEqual(self.client.get(reverse('delete-note', args=[self.note.pk])).status_code, 405)
         self.assertTrue(Notes.objects.filter(pk=self.note.pk).exists())
+
+
+class LoginThrottleTests(TestCase):
+    """Password guessing is stopped after 5 wrong tries for one account, even if the 6th is right."""
+
+    def setUp(self):
+        User.objects.create_user('target', 'target@example.com', 'Right-pass-123')
+
+    def test_lockout_after_five_failures_and_reset_on_success(self):
+        url = reverse('login')
+        for _ in range(5):
+            self.assertEqual(self.client.post(url, {'username': 'target', 'password': 'wrong'}).status_code, 200)
+        blocked = self.client.post(url, {'username': 'target', 'password': 'Right-pass-123'})
+        self.assertEqual(blocked.status_code, 429)
+        self.assertNotIn('_auth_user_id', self.client.session)
+
+    def test_success_clears_earlier_failures(self):
+        url = reverse('login')
+        for _ in range(3):
+            self.client.post(url, {'username': 'target', 'password': 'wrong'})
+        self.assertEqual(self.client.post(url, {'username': 'target', 'password': 'Right-pass-123'}).status_code, 302)
+        self.client.logout()
+        for _ in range(4):
+            self.client.post(url, {'username': 'target', 'password': 'wrong'})
+        self.assertEqual(self.client.post(url, {'username': 'target', 'password': 'Right-pass-123'}).status_code, 302)
+
+
+class FakeStream:
+    """Stands in for Gemini's streamed answer (server-sent events)."""
+
+    def __init__(self, pieces, fail_after=None):
+        self.pieces, self.fail_after = pieces, fail_after
+
+    def iter_lines(self, decode_unicode=True):
+        import json as _json
+        import requests as _requests
+        for n, p in enumerate(self.pieces):
+            if self.fail_after is not None and n == self.fail_after:
+                raise _requests.ConnectionError('dropped')
+            yield 'data: ' + _json.dumps({'candidates': [{'content': {'parts': [{'text': 'hidden', 'thought': True}, {'text': p}]}}]})
+
+    def close(self):
+        pass
+
+
+class LexiTests(TestCase):
+    def setUp(self):
+        User.objects.create_user('asker', 'asker@example.com', 'Asker-pass-123')
+        self.client.login(username='asker', password='Asker-pass-123')
+
+    def ask(self, **extra):
+        data = {'prompt': 'What is 2 + 2?', 'stream': '1', **extra}
+        return self.client.post(reverse('chatbot'), data, HTTP_X_REQUESTED_WITH='XMLHttpRequest')
+
+    def test_answer_streams_without_thoughts(self):
+        with self.settings(GEMINI_API_KEY='k'), mock.patch('dashboard.lexi.open_stream', return_value=FakeStream(['2 + 2 ', '= **4**'])):
+            res = self.ask()
+        self.assertTrue(res['Content-Type'].startswith('text/plain'))
+        self.assertEqual(b''.join(res.streaming_content).decode(), '2 + 2 = **4**')
+
+    def test_dropped_connection_says_so(self):
+        with self.settings(GEMINI_API_KEY='k'), mock.patch('dashboard.lexi.open_stream', return_value=FakeStream(['Half', 'rest'], fail_after=1)):
+            body = b''.join(self.ask().streaming_content).decode()
+        self.assertTrue(body.startswith('Half'))
+        self.assertIn('cut off', body)
+
+    def test_service_down_is_a_json_error(self):
+        from .lexi import LexiError
+        with self.settings(GEMINI_API_KEY='k'), mock.patch('dashboard.lexi.open_stream', side_effect=LexiError('down')):
+            res = self.ask()
+        self.assertEqual(res.status_code, 503)
+        self.assertFalse(res.json()['ok'])
+
+    def test_questions_are_rate_limited_per_student(self):
+        from . import views
+        with self.settings(GEMINI_API_KEY='k'), mock.patch.object(views, 'LEXI_LIMIT_BURST', (2, 600)), \
+                mock.patch('dashboard.lexi.open_stream', side_effect=lambda *a: FakeStream(['ok'])):
+            self.assertEqual(self.ask().status_code, 200)
+            self.assertEqual(self.ask().status_code, 200)
+            third = self.ask()
+        self.assertEqual(third.status_code, 429)
+        self.assertIn('try again', third.json()['error'])
+
+    def test_empty_question_and_missing_key(self):
+        self.assertEqual(self.ask(prompt='  ').status_code, 400)
+        with self.settings(GEMINI_API_KEY=''):
+            self.assertEqual(self.ask().status_code, 503)
+
+    def test_history_is_cleaned(self):
+        from .lexi import clean_history
+        raw = '[{"role":"user","text":"hi"},{"role":"evil","text":"x"},{"text":5},"junk",{"role":"model","text":"   "}]'
+        self.assertEqual(clean_history(raw), [{'role': 'user', 'text': 'hi'}, {'role': 'model', 'text': 'x'}])
+        self.assertEqual(clean_history('not json'), [])
+
+    def test_prompt_guards_privacy_and_knows_the_site(self):
+        from .lexi import SYSTEM_PROMPT
+        self.assertIn('NO ACCESS TO ACCOUNTS', SYSTEM_PROMPT)
+        self.assertIn('Never ask for a password', SYSTEM_PROMPT)
+        for link in ('/homework/#hw-dialog', '/notes/#note-dialog', '/todo/#add', '/dictionary/?q=', '/wiki/?q=', '/books/?q='):
+            self.assertIn(link, SYSTEM_PROMPT)
+
+
+class ContentSecurityPolicyTests(TestCase):
+    def test_policy_header_and_nonce_on_inline_scripts(self):
+        res = self.client.get(reverse('home'))
+        policy = res['Content-Security-Policy']
+        self.assertIn("script-src 'self' 'nonce-", policy)
+        self.assertIn("frame-ancestors 'none'", policy)
+        nonce = policy.split("'nonce-")[1].split("'")[0]
+        self.assertContains(res, f'<script nonce="{nonce}">')
+        self.assertNotContains(res, '<script>')
+
+
+class ThrottleTests(TestCase):
+    def test_limits_fail_open_when_the_table_is_missing(self):
+        from django.db import ProgrammingError
+        from . import throttle
+        with mock.patch('dashboard.throttle.Throttle.objects') as objects:
+            objects.filter.side_effect = ProgrammingError('no such table')
+            objects.select_for_update.side_effect = ProgrammingError('no such table')
+            self.assertFalse(throttle.blocked('k', 1, 60))
+            self.assertTrue(throttle.allowed('k', 1, 60))
+
