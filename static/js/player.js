@@ -105,6 +105,14 @@
     }, 1100);
   }
 
+  const state = { id: null, meta: {}, mode: 'none', playing: false, time: 0, duration: 0, stage: null, tok: 0, manifest: null, cues: [], tracks: [], ccLang: '', quality: 'auto', height: 0, engineType: 'mse' };
+  const listeners = {};
+  const emit = (name, arg) => {
+    (listeners[name] || []).forEach(fn => fn(arg));
+    if (name === 'ended' && state.mode === 'mini' && prefs.autoplay) autoNext();   // a docked player goes on to the next video by itself
+  };
+  let engine = null, embedPlayer = null, embedTimer = 0;
+
   let currentBrightness = 1.0;
   function setBrightness(val) {
     currentBrightness = Math.max(0.15, Math.min(1.8, val));
@@ -169,12 +177,6 @@
     applyVolume(v, v === 0, true);
   }
 
-  const state = { id: null, meta: {}, mode: 'none', playing: false, time: 0, duration: 0, stage: null, tok: 0, manifest: null, cues: [], tracks: [], ccLang: '', quality: 'auto', height: 0, engineType: 'mse' };
-  const listeners = {};
-  const emit = (name, arg) => {
-    (listeners[name] || []).forEach(fn => fn(arg));
-    if (name === 'ended' && state.mode === 'mini' && prefs.autoplay) autoNext();   // a docked player goes on to the next video by itself
-  };
   // The next video comes from the list the Videos page saved with this video (see renderNext in yt.js), so it works on every page.
   function autoNext() {
     const q = state.meta.related || [];                       // the queue the Videos page made
@@ -194,7 +196,6 @@
     if (plList) state.meta.list = plList;
     save();
   }
-  let engine = null, embedPlayer = null, embedTimer = 0;
 
   let ytApiReady = false, ytApiQueue = [];
   const prevYtReady = window.onYouTubeIframeAPIReady;

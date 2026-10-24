@@ -104,6 +104,7 @@
   const trail = { back: [], fwd: [] };        // videos watched this session, for Previous / Next
   const snapshot = () => (S.id ? { id: S.id, meta: Object.assign({}, S.meta) } : null);
   function openVideo(id, meta, opts = {}) {
+    closeSuggest();
     pendingKeep = !!opts.keepQueue;
     const targetList = opts.list !== undefined ? opts.list : (meta && meta.list ? meta.list : getActiveList());
     if (targetList) {
@@ -610,7 +611,7 @@
     const inCurrentQueue = queue.some(v => v.id === a.dataset.id) || (isRel && queue.length > 0);
     openVideo(a.dataset.id, metaOf(a), { list: listId, keepQueue: inCurrentQueue });
   };
-  root.addEventListener('click', e => {
+  listen(root, 'click', e => {
     if (e.ctrlKey || e.metaKey || e.shiftKey || e.button === 1) return;
     const chan = e.target.closest('[data-chan]');          // a channel name on a card opens that channel, not the video
     if (chan) {
@@ -620,7 +621,11 @@
       return;
     }
     const a = e.target.closest('.yt-card, .yt-rel, .yt-h');
-    if (a) { e.preventDefault(); openFrom(a); }
+    if (a) {
+      e.preventDefault();
+      e.stopPropagation();
+      openFrom(a);
+    }
   });
 
   /* ------------------------------------------------------------------ player events */
@@ -761,7 +766,13 @@
   const ICON_CLOCK = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const ICON_X = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
   // the part the student has typed is bold, the rest is normal (as on YouTube)
-  const hiLite = (text, q) => (text.toLowerCase().startsWith(q.toLowerCase()) ? `<b>${esc(text.slice(0, q.length))}</b>${esc(text.slice(q.length))}` : esc(text));
+  const hiLite = (text, q) => {
+    if (!text) return '';
+    if (!q) return esc(text);
+    return text.toLowerCase().startsWith(q.toLowerCase())
+      ? `<b>${esc(text.slice(0, q.length))}</b>${esc(text.slice(q.length))}`
+      : esc(text);
+  };
   function closeSuggest() { suggestBox.hidden = true; suggestIdx = -1; el.input.setAttribute('aria-expanded', 'false'); }
   function rowHtml(i, it, q) {
     const recent = it.kind === 'recent';
@@ -770,7 +781,10 @@
   }
   // Recent searches first (with a clock), then YouTube's suggestions (with a magnifier). Empty box: only the recent ones.
   function paintSuggest(q) {
-    const recent = readRecent().filter(x => !q || x.toLowerCase().includes(q.toLowerCase())).slice(0, q ? 4 : 8);
+    const allRecent = readRecent();
+    const matchingRecent = allRecent.filter(x => !q || x.toLowerCase().includes(q.toLowerCase())).slice(0, q ? 4 : 8);
+    const hasCached = suggestCache.has(q);
+    const recent = matchingRecent.length ? matchingRecent : (!hasCached && !q ? allRecent.slice(0, 6) : []);
     const sugg = (suggestCache.get(q) || []).filter(x => !recent.some(r => r.toLowerCase() === x.toLowerCase()));
     suggestItems = [...recent.map(txt => ({ txt, kind: 'recent' })), ...sugg.map(txt => ({ txt, kind: 'sugg' }))];
     suggestIdx = -1;
@@ -778,11 +792,11 @@
     suggestBox.innerHTML = suggestItems.map((it, i) => rowHtml(i, it, q)).join('');
     suggestBox.hidden = false; el.input.setAttribute('aria-expanded', 'true');
   }
-  function fetchSuggest(q) {
+  function fetchSuggest(q, immediate = false) {
     clearTimeout(suggestT);
     paintSuggest(q);                                    // what we already know shows at once
     if (!q || suggestCache.has(q)) return;
-    suggestT = setTimeout(() => {
+    const runFetch = () => {
       if (suggestCtl) suggestCtl.abort();
       suggestCtl = new AbortController();
       fetch(`${root.dataset.suggestUrl}?q=${encodeURIComponent(q)}`, { credentials: 'same-origin', signal: suggestCtl.signal })
@@ -793,16 +807,20 @@
           if (el.input.value.trim() === q) paintSuggest(q);
         })
         .catch(() => {});
-    }, 60);
+    };
+    if (immediate) runFetch();
+    else suggestT = setTimeout(runFetch, 60);
   }
   function chooseSuggest(i) {
     const it = suggestItems[i];
     if (!it) return;
-    el.input.value = it.txt; closeSuggest(); el.form.requestSubmit();
+    el.input.value = it.txt; el.clear.hidden = !it.txt; closeSuggest(); el.form.requestSubmit();
   }
   el.input.setAttribute('aria-autocomplete', 'list'); el.input.setAttribute('aria-controls', 'ytSuggest'); el.input.setAttribute('aria-expanded', 'false');
+  const showSuggest = () => { fetchSuggest(el.input.value.trim(), true); };
   listen(el.input, 'input', () => { el.clear.hidden = !el.input.value; fetchSuggest(el.input.value.trim()); });
-  listen(el.input, 'focus', () => { if (!el.input.value.trim()) paintSuggest(''); });
+  listen(el.input, 'focus', showSuggest);
+  listen(el.input, 'click', showSuggest);
   listen(el.input, 'keydown', e => {
     const opts = [...suggestBox.querySelectorAll('.yt-sg')];
     if (e.key === 'Escape') { closeSuggest(); return; }
@@ -819,13 +837,14 @@
     const b = e.target.closest('.yt-sg');
     if (b) { e.preventDefault(); chooseSuggest(+b.dataset.i); }
   });
-  listen(el.input, 'blur', () => setTimeout(closeSuggest, 120));
+  listen(el.input, 'blur', () => setTimeout(closeSuggest, 160));
   listen(document, 'pointerdown', e => { if (!el.form.contains(e.target)) closeSuggest(); });
   listen(el.form, 'submit', closeSuggest);
-  el.chips.addEventListener('click', e => {
+  listen(el.chips, 'click', e => {
     const a = e.target.closest('a');
     if (!a || e.ctrlKey || e.metaKey || e.shiftKey) return;
     e.preventDefault();
+    e.stopPropagation();
     loadList(a.getAttribute('href'), true);
   });
 
@@ -916,10 +935,12 @@
     const grid = $('ytGrid');
     if (grid) [...grid.children].forEach(c => { c.dataset.sec = seconds(c.dataset.duration); });
   }
-  root.addEventListener('click', e => {
+  listen(root, 'click', e => {
     const b = e.target.closest('[data-len]');
     const grid = $('ytGrid');
     if (!b || !grid) return;
+    e.preventDefault();
+    e.stopPropagation();
     [...$('ytLen').children].forEach(x => x.setAttribute('aria-pressed', String(x === b)));
     const mode = b.dataset.len; let shown = 0, k = 0;
     [...grid.children].forEach(c => {
@@ -1054,6 +1075,6 @@
     openVideo(id, card ? metaOf(card) : (S.id === id ? S.meta : {}), { push: false, start: t, refresh: true, list: startList });
   }
   el.auto.checked = SP.autoplay;                       // the switch and the docked player share one setting
-  el.auto.addEventListener('change', () => { SP.autoplay = el.auto.checked; });
+  listen(el.auto, 'change', () => { SP.autoplay = el.auto.checked; });
   if (root.dataset.loading === '1') loadResults(listUrl());     // the page opened without results: fetch them now
 })();
