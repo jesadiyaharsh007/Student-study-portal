@@ -1,23 +1,27 @@
 """Lexi, the study companion: the instructions it follows and the call to Google's Gemini API.
 
 Answers are streamed: the browser shows the first words while Gemini is still writing the rest.
-If a model is busy or out of quota, the next one is tried before anything has been sent.
+If a model is busy, out of quota or slow to start, another one is asked before anything has been sent.
 """
 import json
 import logging
 import re
 import time
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 
 import requests
 from django.utils import timezone
 
 API = "https://generativelanguage.googleapis.com/v1beta/models/{model}:streamGenerateContent?alt=sse"
+MODEL_INFO = "https://generativelanguage.googleapis.com/v1beta/models/{model}"
 # Fastest first (measured). A model that just failed with quota/availability is skipped for a while.
 MODELS = ["gemini-3.1-flash-lite", "gemini-3.5-flash", "gemini-3-flash-preview", "gemini-3.5-flash-lite"]
 _SKIP_UNTIL = {}
 CONNECT_BUDGET = 18          # seconds to start asking models; with READ_WAIT this stays under Vercel's 30s
 READ_WAIT = 10               # longest silence from a model (before or during its answer), so a stuck one
                              # still leaves time to ask the next
+HEDGE_AFTER = 3              # a model this slow to start gets company: the next one is asked in parallel
+_POOL = ThreadPoolExecutor(max_workers=8, thread_name_prefix="lexi")
 
 # Every page Lexi may send a student to. Links in answers must come from here.
 SITE_GUIDE = """
@@ -135,40 +139,88 @@ def _payload(history, prompt, thinking=True):
     }
 
 
-def open_stream(api_key, history, prompt):
-    """Connect to the first model that accepts the question. Returns the open streaming response."""
-    now = time.monotonic()
-    models = [m for m in MODELS if _SKIP_UNTIL.get(m, 0) <= now] or list(MODELS)
-    deadline = now + CONNECT_BUDGET
-    last = "no model answered"
-    for model in models:
-        # A model that rejects thinkingConfig (HTTP 400) is asked once more without it.
-        for thinking in (True, False):
-            remaining = deadline - time.monotonic()
-            if remaining < 2:
-                raise LexiError("timed out")
-            try:
-                resp = _session().post(API.format(model=model), json=_payload(history, prompt, thinking),
-                                       headers={"x-goog-api-key": api_key}, stream=True,
-                                       timeout=(min(4, remaining), READ_WAIT))
-            except requests.RequestException as exc:
-                last = f"{model}: {exc.__class__.__name__}"
-                if isinstance(exc, requests.Timeout):
-                    _SKIP_UNTIL[model] = time.monotonic() + 120      # slow right now: try the others first for a while
-                break
-            if resp.status_code == 200:
-                if model != models[0] or not thinking:
-                    log.warning("Lexi answered with %s (thinking=%s) after %.1fs; earlier: %s", model, thinking, time.monotonic() - now, last)
-                return resp
-            resp.close()
-            last = f"{model}: HTTP {resp.status_code}"
-            if resp.status_code in (404, 429):
-                _SKIP_UNTIL[model] = time.monotonic() + 600
-            elif resp.status_code >= 500:
-                _SKIP_UNTIL[model] = time.monotonic() + 30
-            if resp.status_code != 400:
-                break
+def _attempt(api_key, model, history, prompt):
+    """Ask one model. Returns its open streaming response, or raises LexiError saying why not."""
+    last = ""
+    # A model that rejects thinkingConfig (HTTP 400) is asked once more without it.
+    for thinking in (True, False):
+        try:
+            resp = _session().post(API.format(model=model), json=_payload(history, prompt, thinking),
+                                   headers={"x-goog-api-key": api_key}, stream=True, timeout=(4, READ_WAIT))
+        except requests.RequestException as exc:
+            if isinstance(exc, requests.Timeout):
+                _SKIP_UNTIL[model] = time.monotonic() + 120          # slow right now: try the others first for a while
+            raise LexiError(f"{model}: {exc.__class__.__name__}") from None
+        if resp.status_code == 200:
+            return resp
+        resp.close()
+        last = f"{model}: HTTP {resp.status_code}"
+        if resp.status_code in (404, 429):
+            _SKIP_UNTIL[model] = time.monotonic() + 600
+        elif resp.status_code >= 500:
+            _SKIP_UNTIL[model] = time.monotonic() + 30
+        if resp.status_code != 400:
+            break
     raise LexiError(last)
+
+
+def _close_when_done(fut):
+    try:
+        fut.result().close()
+    except Exception:
+        pass
+
+
+def open_stream(api_key, history, prompt):
+    """Start the answer with the fastest model that responds.
+
+    Models are asked in order. If one has not started answering after HEDGE_AFTER seconds, the next is
+    asked in parallel and whichever answers first wins (the other is closed). A failure moves on at once.
+    """
+    start = time.monotonic()
+    queue = [m for m in MODELS if _SKIP_UNTIL.get(m, 0) <= start] or list(MODELS)
+    deadline = start + CONNECT_BUDGET
+    pending, last = {}, "no model answered"
+
+    def launch():
+        model = queue.pop(0)
+        pending[_POOL.submit(_attempt, api_key, model, history, prompt)] = model
+
+    launch()
+    while pending:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        done, _ = wait(pending, timeout=min(HEDGE_AFTER, remaining) if queue else remaining, return_when=FIRST_COMPLETED)
+        if not done:
+            if queue:
+                launch()                                             # slow: ask the next model alongside
+            continue
+        for fut in done:
+            model = pending.pop(fut)
+            try:
+                resp = fut.result()
+            except LexiError as exc:
+                last = str(exc)
+                if queue and not pending:
+                    launch()
+                continue
+            for other in pending:                                    # the losers: close them once they answer
+                other.add_done_callback(_close_when_done)
+            if model != MODELS[0] or last != "no model answered":
+                log.warning("Lexi answered with %s after %.1fs; before that: %s", model, time.monotonic() - start, last)
+            return resp
+    for other in pending:
+        other.add_done_callback(_close_when_done)
+    raise LexiError(last if last != "no model answered" else "timed out")
+
+
+def warm(api_key):
+    """Open the connection to Gemini before the student's first question (DNS, TLS, keep-alive)."""
+    try:
+        _session().get(MODEL_INFO.format(model=MODELS[0]), headers={"x-goog-api-key": api_key}, timeout=(3, 4)).close()
+    except requests.RequestException:
+        pass
 
 
 def iter_text(resp):

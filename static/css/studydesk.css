@@ -1970,3 +1970,15 @@ main:focus { outline: none; }
 .soon-mark .ic { width: 28px; height: 28px; color: var(--ink-2); }
 .soon-title { font-size: clamp(1.8rem, 5vw, 2.6rem); line-height: 1.1; margin: 0; }
 .soon-text { color: var(--muted); max-width: 34ch; margin: 0 0 .5rem; }
+
+/* Lexi typing: a soft blinking cursor follows the words while an answer is being written. */
+.msg.streaming .bubble > :is(p, h1, h2, h3, h4, h5, h6, blockquote):last-child::after,
+.msg.streaming .bubble > :is(ul, ol):last-child > li:last-child::after {
+  content: ""; display: inline-block; width: .5em; height: 1.05em; margin-left: .2em; vertical-align: -.18em;
+  border-radius: 2px; background: currentColor; opacity: .5; animation: lexi-caret 1s steps(2, start) infinite;
+}
+@keyframes lexi-caret { to { visibility: hidden; } }
+@media (prefers-reduced-motion: reduce) {
+  .msg.streaming .bubble > :is(p, h1, h2, h3, h4, h5, h6, blockquote):last-child::after,
+  .msg.streaming .bubble > :is(ul, ol):last-child > li:last-child::after { animation: none; }
+}

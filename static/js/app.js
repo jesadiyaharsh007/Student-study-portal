@@ -1027,6 +1027,17 @@
     else { hist = []; saveHist(); }
 
     const PHASES = ['Thinking', 'Reading your question', 'Working out the answer', 'Putting it together', 'Almost there'];
+    // Wake the server and its connection to the AI before the first question (at most once a minute),
+    // so the first answer starts as fast as the next ones.
+    let warmedAt = 0;
+    const warmUp = () => {
+      if (Date.now() - warmedAt < 60000) return;
+      warmedAt = Date.now();
+      fetch(new URL('warm/', url), { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } }).catch(() => {});
+    };
+    warmUp();
+    on(ta, 'focus', warmUp);
+
     let busy = false;
     async function ask(text) {
       if (busy || !text.trim()) return;
@@ -1053,8 +1064,10 @@
         setTimeout(() => { word.textContent = PHASES[step]; word.style.animation = ''; word.classList.remove('swap'); }, 180);
       }, 2200);
       // The answer streams in as plain text (errors come back as JSON before anything is streamed).
-      // It is revealed word by word at a steady pace, faster when a lot has arrived at once, so it reads
-      // the same whether the network delivers it in many small pieces or in one block.
+      // It is revealed whole word by whole word at a steady reading pace (about 260 characters a second),
+      // going faster only when it would otherwise fall more than ~4 seconds behind what has arrived.
+      // A cursor blinks at the end while it types (.msg.streaming).
+      const PACE = 260, MAX_LAG = 4;
       let reply = '', bubble = null, msg = null, shown = 0, ended = false, ticker = 0, caughtUp = null;
       const follow = () => {                                             // keep the end in view, unless the student scrolled up
         const root = document.documentElement;
@@ -1063,19 +1076,26 @@
       const draw = () => { shown = reply.length; bubble.innerHTML = md(reply); follow(); };
       const type = () => {
         if (ticker || reduce) return;
+        let lastT = performance.now(), credit = 0;                      // characters we may show; finishing a word borrows ahead
         ticker = setInterval(() => {
+          const now = performance.now(), dt = Math.min(100, now - lastT);
+          lastT = now;
           const left = reply.length - shown;
           if (left <= 0) {
             if (ended) { clearInterval(ticker); ticker = 0; caughtUp?.(); }
             return;
           }
-          let next = shown + Math.max(4, Math.ceil(left / (ended ? 10 : 25)));
-          const gap = reply.slice(next).search(/\s/);                 // finish the word being typed
-          next = gap === -1 ? reply.length : next + gap;
+          credit = Math.min(credit + Math.max(PACE, left / MAX_LAG) * dt / 1000, 80);   // no burst after waiting
+          if (credit < 1) return;
+          let next = shown + Math.ceil(credit);
+          const gap = reply.slice(next).search(/\s/);                 // never cut a word in half
+          next = gap !== -1 ? next + gap : (ended ? reply.length : shown);
+          if (next <= shown) return;                                   // the word is still arriving
+          credit -= next - shown;
           shown = next;
           bubble.innerHTML = md(reply.slice(0, shown));
           follow();
-        }, 28);
+        }, 33);
       };
       const typed = () => new Promise(res => { if (!ticker) { draw(); res(); } else caughtUp = res; });
       try {

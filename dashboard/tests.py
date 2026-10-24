@@ -757,6 +757,50 @@ class LexiTests(TestCase):
         self.assertEqual(page['Content-Encoding'], 'gzip')
 
 
+    def _models(self, behaviour):
+        """Patch the per-model call: behaviour(model) returns a FakeStream or raises."""
+        from . import lexi
+        return mock.patch.object(lexi, '_attempt', side_effect=lambda key, model, history, prompt: behaviour(model))
+
+    def test_slow_first_model_is_overtaken_by_the_next(self):
+        import time as _t
+        from . import lexi
+
+        def behaviour(model):
+            if model == lexi.MODELS[0]:
+                _t.sleep(0.8)
+                return FakeStream(['slow'])
+            return FakeStream(['fast'])
+        with mock.patch.object(lexi, 'HEDGE_AFTER', 0.1), mock.patch.dict(lexi._SKIP_UNTIL, clear=True), self._models(behaviour):
+            t0 = _t.monotonic()
+            resp = lexi.open_stream('k', [], 'hi')
+            waited = _t.monotonic() - t0
+        self.assertEqual(''.join(lexi.iter_text(resp)), 'fast')
+        self.assertLess(waited, 0.6)
+
+    def test_failing_model_moves_on_at_once_and_all_failing_raises(self):
+        from . import lexi
+
+        def first_down(model):
+            if model == lexi.MODELS[0]:
+                raise lexi.LexiError('down')
+            return FakeStream(['ok'])
+        with mock.patch.dict(lexi._SKIP_UNTIL, clear=True), self._models(first_down):
+            self.assertEqual(''.join(lexi.iter_text(lexi.open_stream('k', [], 'hi'))), 'ok')
+
+        def all_down(model):
+            raise lexi.LexiError(f'{model} down')
+        with mock.patch.dict(lexi._SKIP_UNTIL, clear=True), self._models(all_down), self.assertRaises(lexi.LexiError):
+            lexi.open_stream('k', [], 'hi')
+
+    def test_warm_up_opens_the_connection_and_needs_sign_in(self):
+        with self.settings(GEMINI_API_KEY='k'), mock.patch('dashboard.lexi.warm') as warm:
+            res = self.client.get(reverse('chatbot-warm'))
+        self.assertEqual(res.status_code, 200)
+        warm.assert_called_once_with('k')
+        self.client.logout()
+        self.assertEqual(self.client.get(reverse('chatbot-warm')).status_code, 302)
+
 class ContentSecurityPolicyTests(TestCase):
     def test_policy_header_and_nonce_on_inline_scripts(self):
         res = self.client.get(reverse('home'))

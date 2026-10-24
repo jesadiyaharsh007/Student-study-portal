@@ -846,6 +846,18 @@ def _lexi_chunks(resp):
 
 
 @student_required
+def chatbot_warm(request):
+    """Called when Lexi opens or the student starts typing: wakes this server and opens its connection to
+    Gemini, so the first answer does not also pay for that. Nothing is asked and nothing is stored."""
+    from django.conf import settings
+    if settings.GEMINI_API_KEY:
+        lexi.warm(settings.GEMINI_API_KEY)
+    resp = JsonResponse({"ok": True})
+    resp["Cache-Control"] = "no-store"
+    return resp
+
+
+@student_required
 def chatbot(request):
     from django.conf import settings
 
