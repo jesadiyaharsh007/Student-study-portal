@@ -1,8 +1,6 @@
-"""Open data for the Books and Videos pages. No API keys.
+"""Open data for the Books pages. No API keys.
 
 Books   - Project Gutenberg: the official OPDS catalog feed for search, plain-text files for reading.
-Videos  - YouTube's public search page; if that is blocked, the public feeds of well-known education
-          channels (filtered by the search words). Playback uses YouTube's privacy-friendly embed.
 
 Everything has short timeouts and small caches so a slow source never hangs a page.
 """

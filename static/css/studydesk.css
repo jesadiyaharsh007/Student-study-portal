@@ -1306,7 +1306,7 @@ body:has(.chat) .footer { display: none; }
 .ph-actions { display: flex; align-items: center; gap: .9rem; flex-wrap: wrap; margin-left: auto; }
 .ph .ring { --size: 76px; }
 
-/* ---------- search panel (dictionary, wiki, books, videos) ---------- */
+/* ---------- search panel (dictionary, wiki, books) ---------- */
 .sp { margin: 0 0 1.2rem; }
 .sp .searchbar .input { min-height: 54px; font-size: 1rem; padding-left: 3rem; box-shadow: 0 0 0 1px var(--hair-2), 0 18px 30px -24px rgb(13 14 16 / .35); }
 .sp .searchbar .input-icon > .ic { left: 1.1rem; width: 1.25rem; height: 1.25rem; }
@@ -1963,3 +1963,10 @@ input[type="search"]::-webkit-search-results-decoration {
 .wiki-card h2 { font-size: clamp(2.4rem, 6vw, 4.2rem); letter-spacing: -.055em; font-weight: 500; line-height: .98; margin-block: 1rem 1.4rem; }
 .wiki-card .summary { font-size: 1.15rem; line-height: 1.85; color: var(--ink-2); white-space: pre-line; }
 main:focus { outline: none; }
+
+/* Under construction notice (Videos while it is rebuilt). */
+.soon { display: grid; justify-items: center; gap: 1rem; text-align: center; padding: clamp(3rem, 12vh, 7rem) 16px; }
+.soon-mark { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: var(--sunk); box-shadow: inset 0 0 0 1px var(--hair); }
+.soon-mark .ic { width: 28px; height: 28px; color: var(--ink-2); }
+.soon-title { font-size: clamp(1.8rem, 5vw, 2.6rem); line-height: 1.1; margin: 0; }
+.soon-text { color: var(--muted); max-width: 34ch; margin: 0 0 .5rem; }

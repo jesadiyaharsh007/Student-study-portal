@@ -10,7 +10,7 @@ TOOLS = (
     ("dictionary", "dictionary", "Dictionary", "book-a", "teal", "Definitions, phonetics and synonyms."),
     ("books", "books", "Books", "book-open", "sky", "Search a huge open library of books."),
     ("wiki", "wiki", "Encyclopedia", "globe", "slate", "Quick, trustworthy summaries of any topic."),
-    ("youtube", "youtube", "Videos", "play", "red", "Find lessons without the rabbit hole."),
+    ("youtube", "youtube", "Videos", "play", "red", "Under construction. Coming soon."),
     ("conversion", "conversion", "Converter", "swap", "orange", "Length, mass, temperature and more."),
 )
 
