@@ -611,6 +611,8 @@
     else if (d.q !== undefined) {
       if (engine) {
         state.quality = d.q; prefs.quality = d.q; savePrefs(); engine.setQuality(d.q);
+        const label = d.q === 'auto' ? 'Quality: Auto' : (d.q >= 720 ? `Quality: ${d.q}p HD` : `Quality: ${d.q}p`);
+        showHud(ICON.gear, label);
       } else if (state.engineType === 'native' && state.manifest && state.manifest.video) {
         state.quality = d.q; prefs.quality = d.q; savePrefs();
         const v = (d.q === 'auto')
@@ -624,6 +626,8 @@
           state.height = v.height;
           if (wasPlaying) video.play().catch(() => {});
         }
+        const label = d.q === 'auto' ? 'Quality: Auto' : (d.q >= 720 ? `Quality: ${d.q}p HD` : `Quality: ${d.q}p`);
+        showHud(ICON.gear, label);
       } else if (state.engineType === 'embed' && embedPlayer) {
         setEmbedQuality(d.q, false);
       }
@@ -875,36 +879,45 @@
     ui.hidden = false;
     ui.style.display = '';
     video.hidden = false;
+    video.muted = true;
     video.pause();
     video.removeAttribute('src');
-    video.load();
-    state.engineType = 'embed';
+    try { video.load(); } catch (e) {}
+    state.engineType = 'mse';
     state.manifest = null; state.ready = false; state.height = 0; state.cues = []; state.tracks = [];
     closeMenu(); hideError(); el.cc.hidden = true; setWaiting(false);
   }
 
   function fallbackIframe(id, start, autoplay) {
     if (!el.embed) return;
+    if (engine) {
+      try { engine.destroy(); } catch (e) {}
+      engine = null;
+    }
     el.embed.innerHTML = '';
     el.embed.classList.remove('ready');
     el.embed.hidden = false;
     video.pause();
+    video.muted = true;
     video.removeAttribute('src');
+    try { video.load(); } catch (e) {}
     video.hidden = true;
     const iframe = document.createElement('iframe');
     const origin = encodeURIComponent(window.location.origin || '');
     host.classList.add('embed');
     const startSec = Math.floor(start || 0);
     const vqParam = (prefs.quality && prefs.quality !== 'auto' && prefs.quality !== '144') ? (HEIGHT_TO_YT_QUALITY[+prefs.quality] || 'hd1080') : 'hd1080';
-    iframe.src = `https://www.youtube.com/embed/${encodeURIComponent(id)}?enablejsapi=1&origin=${origin}&controls=0&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&fs=0&playsinline=1&vq=${vqParam}&widget_referrer=${encodeURIComponent(window.location.href)}${startSec > 0 ? '&start=' + startSec : ''}`;
+    const ccParam = prefs.cc ? `&cc_load_policy=1&hl=${encodeURIComponent(prefs.cc)}` : '';
+    iframe.src = `https://www.youtube.com/embed/${encodeURIComponent(id)}?enablejsapi=1&origin=${origin}&controls=0&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&fs=0&playsinline=1&vq=${vqParam}&widget_referrer=${encodeURIComponent(window.location.href)}${startSec > 0 ? '&start=' + startSec : ''}${ccParam}`;
     iframe.referrerPolicy = 'strict-origin-when-cross-origin';
     iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
     iframe.allowFullscreen = true;
     iframe.style.position = 'absolute';
-    iframe.style.top = '-72px';
-    iframe.style.left = '-4px';
-    iframe.style.width = 'calc(100% + 8px)';
-    iframe.style.height = 'calc(100% + 144px)';
+    iframe.style.top = '-50px';
+    iframe.style.left = '0';
+    iframe.style.width = '100%';
+    iframe.style.height = 'calc(100% + 50px)';
+    iframe.style.bottom = '0';
     iframe.style.border = '0';
     iframe.style.pointerEvents = 'none';
     el.embed.appendChild(iframe);
@@ -921,8 +934,14 @@
     const tok = state.tok;
     state.engineType = 'embed';
     host.classList.add('embed');
+    if (engine) {
+      try { engine.destroy(); } catch (e) {}
+      engine = null;
+    }
     video.pause();
+    video.muted = true;
     video.removeAttribute('src');
+    try { video.load(); } catch (e) {}
     video.hidden = true;
     if (el.embed) {
       el.embed.hidden = false;
@@ -942,17 +961,19 @@
       iframe.referrerPolicy = 'strict-origin-when-cross-origin';
       iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
       iframe.style.position = 'absolute';
-      iframe.style.top = '-72px';
-      iframe.style.left = '-4px';
-      iframe.style.width = 'calc(100% + 8px)';
-      iframe.style.height = 'calc(100% + 144px)';
+      iframe.style.top = '-50px';
+      iframe.style.left = '0';
+      iframe.style.width = '100%';
+      iframe.style.height = 'calc(100% + 50px)';
+      iframe.style.bottom = '0';
       iframe.style.border = '0';
       iframe.style.pointerEvents = 'none';
 
       const origin = encodeURIComponent(window.location.origin || '');
       const startSec = Math.floor(start || 0);
       const vqParam = (prefs.quality && prefs.quality !== 'auto' && prefs.quality !== '144') ? (HEIGHT_TO_YT_QUALITY[+prefs.quality] || 'hd1080') : 'hd1080';
-      iframe.src = `https://www.youtube.com/embed/${encodeURIComponent(id)}?enablejsapi=1&origin=${origin}&controls=0&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&fs=0&playsinline=1&vq=${vqParam}&widget_referrer=${encodeURIComponent(window.location.href)}${startSec > 0 ? '&start=' + startSec : ''}`;
+      const ccParam = prefs.cc ? `&cc_load_policy=1&hl=${encodeURIComponent(prefs.cc)}` : '';
+      iframe.src = `https://www.youtube.com/embed/${encodeURIComponent(id)}?enablejsapi=1&origin=${origin}&controls=0&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&fs=0&playsinline=1&vq=${vqParam}&widget_referrer=${encodeURIComponent(window.location.href)}${startSec > 0 ? '&start=' + startSec : ''}${ccParam}`;
 
       if (el.embed) el.embed.appendChild(iframe);
 
@@ -1054,9 +1075,134 @@
     if (embedTimer) { clearInterval(embedTimer); embedTimer = 0; }
   }
 
+  const manifestCache = new Map();
+  async function preloadManifest(id) {
+    if (!id || manifestCache.has(id)) return;
+    try {
+      const r = await fetch(urlFor('streamUrl', id), { credentials: 'same-origin' });
+      if (r.ok) {
+        const d = await r.json();
+        if (d && d.ok && d.fallback !== 'embed') {
+          if (manifestCache.size > 8) manifestCache.clear();
+          manifestCache.set(id, d);
+        }
+      }
+    } catch (e) { /* ignore */ }
+  }
+
   async function startEngine(id, start, autoplay) {
     endingTriggered = false;
-    startEmbedEngine(id, start, autoplay);
+    const tok = ++state.tok;
+    if (host.dataset.mode === 'embed') {
+      startEmbedEngine(id, start, autoplay);
+      return;
+    }
+    hideError(); setWaiting(true); ui.dataset.state = 'loading';
+    el.buf.style.transform = el.played.style.transform = 'scaleX(0)';
+    let mf = manifestCache.get(id);
+    if (mf) {
+      manifestCache.delete(id);
+    } else {
+      try {
+        const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 8000);
+        const r = await fetch(urlFor('streamUrl', id), { credentials: 'same-origin', signal: ctl.signal });
+        clearTimeout(timer);
+        if (r.ok) mf = await r.json();
+      } catch (e) {
+        if (tok === state.tok) startEmbedEngine(id, start, autoplay);
+        return;
+      }
+    }
+    if (tok !== state.tok) return;
+
+    if (!mf || !mf.ok || mf.fallback === 'embed') {
+      startEmbedEngine(id, start, autoplay);
+      return;
+    }
+
+    state.manifest = mf;
+    state.duration = mf.duration || 0;
+    video.playbackRate = prefs.rate;
+
+    // Progressive muxed MP4 stream (plays natively in <video>)
+    if (mf.is_muxed) {
+      state.engineType = 'native';
+      const itag = mf.progressive_itag || (mf.video && mf.video[0] && mf.video[0].itag) || '18';
+      const mediaSrc = urlFor('mediaUrl', id).replace('/0/', `/${itag}/`);
+      video.hidden = false;
+      if (el.embed) {
+        el.embed.hidden = true;
+        el.embed.innerHTML = '';
+      }
+      host.classList.remove('embed');
+      video.src = mediaSrc;
+      if (start > 0) video.currentTime = start;
+      state.height = (mf.video && mf.video[0] && mf.video[0].height) || 360;
+      applyVolume(prefs.vol, prefs.muted, false);
+      if (autoplay) {
+        video.play().catch(() => { setPlaying(false); ui.dataset.state = 'paused'; state.ready = true; setWaiting(false); });
+      } else {
+        setPlaying(false); ui.dataset.state = 'paused'; state.ready = true; setWaiting(false);
+      }
+      loadCaptionTracks(id);
+      return;
+    }
+
+    // Adaptive DASH MSE stream
+    if (!window.YTEngine || !window.YTEngine.supported(mf)) {
+      startEmbedEngine(id, start, autoplay);
+      return;
+    }
+
+    state.engineType = 'mse';
+    video.hidden = false;
+    if (el.embed) {
+      el.embed.hidden = true;
+      el.embed.innerHTML = '';
+    }
+    host.classList.remove('embed');
+    ui.hidden = false;
+    ui.style.display = '';
+
+    engine = new window.YTEngine(video, {
+      mediaUrl: itag => urlFor('mediaUrl', id).replace(/\/0(\?|\/|$)/, `/${itag}$1`),
+      onQuality: s => {
+        state.height = s.height;
+        state.quality = s.auto ? 'auto' : String(s.height);
+        if (!el.menu.hidden) renderMenu();
+      },
+      onError: msg => { if (tok === state.tok) startEmbedEngine(id, video.currentTime || start, true); },
+      onWaiting: setWaiting,
+      maxHeight: () => Math.max(360, Math.round((host.clientHeight || 360) * (window.devicePixelRatio || 1))),
+    });
+    try {
+      await engine.load(mf, {
+        quality: prefs.quality || 'auto',
+        start,
+        targetHeight: Math.max(480, Math.min(1080, Math.round((host.clientHeight || 360) * (window.devicePixelRatio || 1))))
+      });
+    } catch (e) {
+      if (tok === state.tok) startEmbedEngine(id, video.currentTime || start, true);
+      return;
+    }
+    if (tok !== state.tok) return;
+
+    applyVolume(prefs.vol, prefs.muted, false);
+    video.playbackRate = prefs.rate;
+
+    if (autoplay) {
+      video.play().catch(() => { setPlaying(false); ui.dataset.state = 'paused'; state.ready = true; setWaiting(false); });
+    } else {
+      setPlaying(false); ui.dataset.state = 'paused'; state.ready = true; setWaiting(false);
+    }
+    loadCaptionTracks(id);
+
+    // Auto-preload the next item in the queue
+    const q = state.meta.related || [];
+    const idx = q.findIndex(v => v && v.id === id);
+    if (idx >= 0 && idx + 1 < q.length && q[idx + 1] && q[idx + 1].id) {
+      setTimeout(() => preloadManifest(q[idx + 1].id), 800);
+    }
   }
 
   /* ------------------------------------------------------------------ public API */
@@ -1121,7 +1267,7 @@
     get active() { return state.mode !== 'none'; },
     get autoplay() { return prefs.autoplay !== false; },
     set autoplay(on) { prefs.autoplay = !!on; savePrefs(); },
-    preload(id) {},
+    preload(id) { preloadManifest(id); },
   };
   window.StudyPlayer = api;
 

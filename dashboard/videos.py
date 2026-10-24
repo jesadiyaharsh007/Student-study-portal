@@ -1198,7 +1198,7 @@ _CAPTIONS: "OrderedDict[str, Dict]" = OrderedDict()
 
 
 def caption_tracks(video_id: str) -> List[Dict]:
-    """Languages the video has captions in (youtube-transcript-api)."""
+    """Languages the video has captions in (youtube-transcript-api or yt-dlp)."""
     if not valid_id(video_id):
         return []
     entry = _CAPTIONS.get(video_id)
@@ -1212,6 +1212,20 @@ def caption_tracks(video_id: str) -> List[Dict]:
             tracks.append({"lang": t.language_code, "name": t.language, "auto": bool(t.is_generated)})
     except Exception as exc:
         logger.info("No caption list for %s: %s", video_id, exc)
+
+    if not tracks:
+        try:
+            info = _ytdlp_info(video_id)
+            for l_code, subs in (info.get("subtitles") or {}).items():
+                name = (subs[0].get("name") if subs else l_code) or l_code
+                tracks.append({"lang": l_code, "name": name, "auto": False})
+            for l_code, subs in (info.get("automatic_captions") or {}).items():
+                if not any(t["lang"] == l_code for t in tracks):
+                    name = (subs[0].get("name") if subs else l_code) or l_code
+                    tracks.append({"lang": l_code, "name": f"{name} (auto)", "auto": True})
+        except Exception:
+            pass
+
     tracks.sort(key=lambda t: (t["auto"], t["lang"] != "en"))
     if len(_CAPTIONS) >= 64:
         _CAPTIONS.popitem(last=False)
