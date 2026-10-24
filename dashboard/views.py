@@ -28,7 +28,7 @@ from .forms import (
     TodoForm,
     UserRegistrationForm,
 )
-from . import library, youtube_api
+from . import library
 from .models import Homework, Notes, Todo
 
 # Every page that needs an account uses the same guard; unauthenticated visitors
@@ -376,40 +376,9 @@ def _query(request):
 
 # --------------------------------------------------------------------------- videos
 
-@student_required
-def youtube(request):
-    """Videos: a search or a topic as one grid. Every card is a normal link, so Back and Forward behave."""
-    q = _query(request)
-    topic = request.GET.get("topic", "")
-    topic_query = next((tq for key, _label, tq in youtube_api.TOPICS if key == topic), "")
-    ctx = {
-        "q": q,
-        "topic": topic if topic_query else "",
-        "topics": [(key, label) for key, label, _tq in youtube_api.TOPICS],
-    }
-    try:
-        ctx["videos"] = youtube_api.search(q or topic_query or youtube_api.DEFAULT_QUERY)
-    except youtube_api.VideoApiError as exc:
-        ctx.update(videos=[], error=str(exc))
-    return render(request, "dashboard/youtube.html", ctx)
-
-
-@student_required
-def youtube_watch(request, video_id):
-    """One video on its own page: the YouTube player, its details, and videos like it."""
-    if not youtube_api.valid_id(video_id):
-        raise Http404
-    try:
-        video = youtube_api.video(video_id)
-    except youtube_api.VideoApiError as exc:
-        return render(request, "dashboard/youtube_watch.html", {"video": None, "error": str(exc)})
-    if video is None:
-        raise Http404
-    try:
-        related = [v for v in youtube_api.search(video["title"], limit=13) if v["id"] != video_id][:12]
-    except youtube_api.VideoApiError:
-        related = []
-    return render(request, "dashboard/youtube_watch.html", {"video": video, "related": related})
+def youtube(request, rest=""):
+    """Videos are being rebuilt. The menu link and every old video link land on this notice."""
+    return render(request, "dashboard/coming_soon.html", {"feature": "Videos"})
 
 
 OPENLIBRARY_FIELDS = "key,title,author_name,cover_i,first_publish_year,number_of_pages_median,subject,ratings_average"

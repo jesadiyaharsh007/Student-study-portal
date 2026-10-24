@@ -20,3 +20,19 @@ class FriendlyErrorPagesMiddleware:
             response = render(request, "404.html", status=404)
             response._friendly = True
         return response
+
+
+class PrivatePagesMiddleware:
+    """Pages for a signed-in student hold their own notes and tasks: never let a shared cache keep them.
+    Also turns off browser features the site never uses."""
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        user = getattr(request, "user", None)
+        if user is not None and user.is_authenticated and not response.has_header("Cache-Control"):
+            response["Cache-Control"] = "private, no-cache"
+        response.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()")
+        return response

@@ -590,83 +590,59 @@ class LibraryTests(TestCase):
             self.assertEqual(self.client.get(url).status_code, 302, url)
 
 
-class VideoTests(TestCase):
-    """The Videos pages. The YouTube API is always mocked, so these run offline and never use quota."""
-    VID = "WUvTyaaNkzM"
-    CHANNEL = "UCYO_jab_esuFRV4b17AJtAw"
+class VideosComingSoonTests(TestCase):
+    """Videos are switched off: the page and every old video link only show the notice, with no player at all."""
+
+    def test_videos_page_and_old_links_show_the_notice(self):
+        for url in (reverse('youtube'), '/youtube/?q=perfect&v=2Vv-BfVoq4g', '/youtube/watch/2Vv-BfVoq4g/',
+                    '/youtube/channel/UCYO_jab_esuFRV4b17AJtAw/', '/youtube/stream/2Vv-BfVoq4g/'):
+            res = self.client.get(url)
+            self.assertEqual(res.status_code, 200, url)
+            self.assertContains(res, 'Under construction')
+            self.assertNotContains(res, 'iframe')
+            self.assertNotContains(res, 'youtube.com/embed')
+
+
+class SecurityHeaderTests(TestCase):
+    """Signed-in pages are never stored by shared caches, and the site only answers for its own hosts."""
+
+    def test_signed_in_pages_are_private(self):
+        User.objects.create_user('sec', 'sec@example.com', 'Sec-pass-12345')
+        self.client.login(username='sec', password='Sec-pass-12345')
+        res = self.client.get(reverse('notes'))
+        self.assertIn('private', res['Cache-Control'])
+        self.assertIn('camera=()', res['Permissions-Policy'])
+
+    def test_unknown_host_is_refused(self):
+        with self.settings(ALLOWED_HOSTS=['.vercel.app']):
+            self.assertEqual(self.client.get('/', HTTP_HOST='evil.example.com').status_code, 400)
+            self.assertNotEqual(self.client.get('/', HTTP_HOST='studentstudyportal-wheat.vercel.app').status_code, 400)
+
+
+class OwnershipTests(TestCase):
+    """A student can never read, change or delete another student's notes, homework or to-dos."""
 
     def setUp(self):
-        from django.core.cache import cache
-        cache.clear()
-        self.user = User.objects.create_user('viewer', 'viewer@example.com', 'Viewer-pass-123')
-        self.client.login(username='viewer', password='Viewer-pass-123')
+        from datetime import timedelta
+        from django.utils import timezone
+        owner = User.objects.create_user('owner', 'owner@example.com', 'Owner-pass-123')
+        self.note = Notes.objects.create(user=owner, title='Private note', description='mine')
+        self.hw = Homework.objects.create(user=owner, subject='Java', title='Private hw', due=timezone.now() + timedelta(days=2))
+        self.todo = Todo.objects.create(user=owner, title='Private todo')
+        User.objects.create_user('intruder', 'intruder@example.com', 'Intruder-pass-123')
+        self.client.login(username='intruder', password='Intruder-pass-123')
 
-    def api(self, items=None, channels=None, video=None):
-        def fake(endpoint, **params):
-            if endpoint == 'search':
-                return {'items': items or []}
-            if endpoint == 'channels':
-                return {'items': channels or []}
-            if endpoint == 'videos':
-                return {'items': [video] if video else []}
-            raise AssertionError(endpoint)
-        return mock.patch('dashboard.youtube_api._get', side_effect=fake)
+    def test_other_students_items_are_invisible_and_untouchable(self):
+        self.assertEqual(self.client.get(reverse('notes-detail', args=[self.note.pk])).status_code, 404)
+        for name, obj in (('delete-note', self.note), ('update-homework', self.hw), ('delete-homework', self.hw),
+                          ('update-todo', self.todo), ('delete-todo', self.todo)):
+            self.assertEqual(self.client.post(reverse(name, args=[obj.pk])).status_code, 404, name)
+        self.assertTrue(Notes.objects.filter(pk=self.note.pk).exists())
+        self.assertTrue(Homework.objects.filter(pk=self.hw.pk, is_finished=False).exists())
+        self.assertTrue(Todo.objects.filter(pk=self.todo.pk).exists())
 
-    def search_item(self, vid=None, title='The Essence of Calculus'):
-        return {'id': {'videoId': vid or self.VID}, 'snippet': {
-            'title': title, 'channelTitle': '3Blue1Brown', 'channelId': self.CHANNEL,
-            'publishedAt': '2016-02-01T10:00:00Z', 'thumbnails': {'medium': {'url': 'https://i.ytimg.com/vi/x/mq.jpg'}}}}
-
-    def test_videos_pages_require_sign_in(self):
+    def test_changes_need_a_post(self):
         self.client.logout()
-        self.assertEqual(self.client.get(reverse('youtube')).status_code, 302)
-        self.assertEqual(self.client.get(reverse('youtube-watch', args=[self.VID])).status_code, 302)
-
-    def test_search_grid_shows_channel_name_and_picture_once_per_video(self):
-        channels = [{'id': self.CHANNEL, 'snippet': {'thumbnails': {'default': {'url': 'https://yt3.example/avatar.jpg'}}}}]
-        with self.api(items=[self.search_item(), self.search_item()], channels=channels):
-            res = self.client.get(reverse('youtube') + '?q=calculus')
-        self.assertContains(res, '3Blue1Brown')
-        self.assertContains(res, 'src="https://yt3.example/avatar.jpg"')
-        self.assertContains(res, f'href="/youtube/watch/{self.VID}/"', count=1)
-
-    def test_channel_without_picture_shows_its_initial_not_a_question_mark(self):
-        with self.api(items=[self.search_item()], channels=[]):
-            res = self.client.get(reverse('youtube'))
-        self.assertContains(res, '<span class="vid-avatar" aria-hidden="true">3</span>', html=False)
-
-    def test_missing_key_explains_the_setup(self):
-        with self.settings(YOUTUBE_API_KEY=''):
-            res = self.client.get(reverse('youtube'))
-        self.assertContains(res, 'YOUTUBE_API_KEY')
-        self.assertEqual(res.status_code, 200)
-
-    def test_search_results_are_cached(self):
-        with self.api(items=[self.search_item()]) as get:
-            self.client.get(reverse('youtube') + '?q=calculus')
-            self.client.get(reverse('youtube') + '?q=calculus')
-        searches = [c for c in get.call_args_list if c.args[0] == 'search']
-        self.assertEqual(len(searches), 1)
-
-    def test_watch_page_embeds_the_youtube_player(self):
-        info = {'id': self.VID, 'snippet': {'title': 'The Essence of Calculus', 'channelTitle': '3Blue1Brown',
-                                             'channelId': self.CHANNEL, 'description': 'Limits & derivatives',
-                                             'publishedAt': '2016-02-01T10:00:00Z'},
-                'statistics': {'viewCount': '12000'}}
-        with self.api(items=[self.search_item('abcdefghijk', 'Related one')], channels=[], video=info):
-            res = self.client.get(reverse('youtube-watch', args=[self.VID]))
-        self.assertContains(res, 'https://www.youtube-nocookie.com/embed/' + self.VID)
-        self.assertContains(res, '12,000 views')
-        self.assertContains(res, 'Limits &amp; derivatives')
-        self.assertContains(res, 'Related one')
-
-    def test_watch_page_rejects_bad_and_missing_ids(self):
-        self.assertEqual(self.client.get(reverse('youtube-watch', args=['<script>'])).status_code, 404)
-        with self.api(video=None):
-            self.assertEqual(self.client.get(reverse('youtube-watch', args=[self.VID])).status_code, 404)
-
-    def test_watch_page_says_why_when_the_api_is_unavailable(self):
-        with self.settings(YOUTUBE_API_KEY=''):
-            res = self.client.get(reverse('youtube-watch', args=[self.VID]))
-        self.assertContains(res, 'not switched on yet')
-        self.assertNotContains(res, 'youtube-nocookie.com/embed')
+        self.client.login(username='owner', password='Owner-pass-123')
+        self.assertEqual(self.client.get(reverse('delete-note', args=[self.note.pk])).status_code, 405)
+        self.assertTrue(Notes.objects.filter(pk=self.note.pk).exists())
