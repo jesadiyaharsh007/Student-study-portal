@@ -696,9 +696,10 @@ class LexiTests(TestCase):
         User.objects.create_user('asker', 'asker@example.com', 'Asker-pass-123')
         self.client.login(username='asker', password='Asker-pass-123')
 
-    def ask(self, **extra):
+    def ask(self, HTTP_ACCEPT_ENCODING='', **extra):
         data = {'prompt': 'What is 2 + 2?', 'stream': '1', **extra}
-        return self.client.post(reverse('chatbot'), data, HTTP_X_REQUESTED_WITH='XMLHttpRequest')
+        return self.client.post(reverse('chatbot'), data, HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+                                HTTP_ACCEPT_ENCODING=HTTP_ACCEPT_ENCODING)
 
     def test_answer_streams_without_thoughts(self):
         with self.settings(GEMINI_API_KEY='k'), mock.patch('dashboard.lexi.open_stream', return_value=FakeStream(['2 + 2 ', '= **4**'])):
@@ -748,6 +749,14 @@ class LexiTests(TestCase):
             self.assertIn(link, SYSTEM_PROMPT)
 
 
+    def test_streamed_answers_are_not_held_back_by_gzip(self):
+        with self.settings(GEMINI_API_KEY='k'), mock.patch('dashboard.lexi.open_stream', return_value=FakeStream(['a ' * 200])):
+            res = self.ask(HTTP_ACCEPT_ENCODING='gzip')
+        self.assertFalse(res.has_header('Content-Encoding'))
+        page = self.client.get(reverse('chatbot'), HTTP_ACCEPT_ENCODING='gzip')
+        self.assertEqual(page['Content-Encoding'], 'gzip')
+
+
 class ContentSecurityPolicyTests(TestCase):
     def test_policy_header_and_nonce_on_inline_scripts(self):
         res = self.client.get(reverse('home'))
@@ -768,4 +777,3 @@ class ThrottleTests(TestCase):
             objects.select_for_update.side_effect = ProgrammingError('no such table')
             self.assertFalse(throttle.blocked('k', 1, 60))
             self.assertTrue(throttle.allowed('k', 1, 60))
-

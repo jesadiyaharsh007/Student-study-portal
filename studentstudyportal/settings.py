@@ -72,7 +72,7 @@ MESSAGE_TAGS = {
 }
 
 MIDDLEWARE = [
-    'django.middleware.gzip.GZipMiddleware',
+    'dashboard.middleware.GZipExceptStreamsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',

@@ -4,6 +4,7 @@ Answers are streamed: the browser shows the first words while Gemini is still wr
 If a model is busy or out of quota, the next one is tried before anything has been sent.
 """
 import json
+import logging
 import re
 import time
 
@@ -14,7 +15,9 @@ API = "https://generativelanguage.googleapis.com/v1beta/models/{model}:streamGen
 # Fastest first (measured). A model that just failed with quota/availability is skipped for a while.
 MODELS = ["gemini-3.1-flash-lite", "gemini-3.5-flash", "gemini-3-flash-preview", "gemini-3.5-flash-lite"]
 _SKIP_UNTIL = {}
-CONNECT_BUDGET = 20          # seconds to get a first answer from some model (Vercel stops at 30)
+CONNECT_BUDGET = 18          # seconds to start asking models; with READ_WAIT this stays under Vercel's 30s
+READ_WAIT = 10               # longest silence from a model (before or during its answer), so a stuck one
+                             # still leaves time to ask the next
 
 # Every page Lexi may send a student to. Links in answers must come from here.
 SITE_GUIDE = """
@@ -78,6 +81,9 @@ SYSTEM_PROMPT = (
 )
 
 
+log = logging.getLogger(__name__)
+
+
 class LexiError(Exception):
     pass
 
@@ -109,9 +115,10 @@ def clean_history(raw):
 
 
 def _needs_thought(prompt):
-    """Maths, code and multi-part questions get a little thinking time; chit-chat stays instant."""
-    return len(prompt) > 160 or bool(re.search(r"[=+\-*/^√∫∑]|\d\s*[a-z]\b|\b(solve|prove|derive|calculate|why|compare|"
-                                                 r"explain|debug|error|code|function|algorithm|step)\b", prompt, re.I))
+    """Maths, code and long multi-part questions get a little thinking time; explanations and chat answer at once."""
+    return len(prompt) > 400 or bool(re.search(r"[=+*/^√∫∑]|\d\s*[a-z]\b|\d\s*-\s*\d|\b(solve|prove|derive|calculate|"
+                                                 r"simplify|integrate|differentiate|debug|error|bug|code|function|algorithm)\b",
+                                                 prompt, re.I))
 
 
 def _payload(history, prompt, thinking=True):
@@ -143,11 +150,15 @@ def open_stream(api_key, history, prompt):
             try:
                 resp = _session().post(API.format(model=model), json=_payload(history, prompt, thinking),
                                        headers={"x-goog-api-key": api_key}, stream=True,
-                                       timeout=(min(5, remaining), min(25, remaining + 10)))
+                                       timeout=(min(4, remaining), READ_WAIT))
             except requests.RequestException as exc:
                 last = f"{model}: {exc.__class__.__name__}"
+                if isinstance(exc, requests.Timeout):
+                    _SKIP_UNTIL[model] = time.monotonic() + 120      # slow right now: try the others first for a while
                 break
             if resp.status_code == 200:
+                if model != models[0] or not thinking:
+                    log.warning("Lexi answered with %s (thinking=%s) after %.1fs; earlier: %s", model, thinking, time.monotonic() - now, last)
                 return resp
             resp.close()
             last = f"{model}: HTTP {resp.status_code}"

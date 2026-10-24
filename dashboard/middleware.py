@@ -1,3 +1,4 @@
+from django.middleware.gzip import GZipMiddleware
 from django.shortcuts import render
 
 
@@ -36,3 +37,13 @@ class PrivatePagesMiddleware:
             response["Cache-Control"] = "private, no-cache"
         response.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()")
         return response
+
+
+class GZipExceptStreamsMiddleware(GZipMiddleware):
+    """Django's gzip holds a streamed response until enough bytes pile up, which turns Lexi's
+    word-by-word answer into one late block. Streams go out uncompressed; everything else is gzipped."""
+
+    def process_response(self, request, response):
+        if response.streaming:
+            return response
+        return super().process_response(request, response)

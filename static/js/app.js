@@ -1052,10 +1052,32 @@
         word.classList.add('swap');
         setTimeout(() => { word.textContent = PHASES[step]; word.style.animation = ''; word.classList.remove('swap'); }, 180);
       }, 2200);
-      // The answer streams in as plain text and is drawn as it arrives (at most every 60ms);
-      // errors come back as JSON before anything is streamed.
-      let reply = '', bubble = null, msg = null, drawn = 0;
-      const draw = () => { drawn = Date.now(); bubble.innerHTML = md(reply); scrollEnd(); };
+      // The answer streams in as plain text (errors come back as JSON before anything is streamed).
+      // It is revealed word by word at a steady pace, faster when a lot has arrived at once, so it reads
+      // the same whether the network delivers it in many small pieces or in one block.
+      let reply = '', bubble = null, msg = null, shown = 0, ended = false, ticker = 0, caughtUp = null;
+      const follow = () => {                                             // keep the end in view, unless the student scrolled up
+        const root = document.documentElement;
+        if (root.scrollHeight - (scrollY + innerHeight) < 260) scrollTo({ top: root.scrollHeight });
+      };
+      const draw = () => { shown = reply.length; bubble.innerHTML = md(reply); follow(); };
+      const type = () => {
+        if (ticker || reduce) return;
+        ticker = setInterval(() => {
+          const left = reply.length - shown;
+          if (left <= 0) {
+            if (ended) { clearInterval(ticker); ticker = 0; caughtUp?.(); }
+            return;
+          }
+          let next = shown + Math.max(4, Math.ceil(left / (ended ? 10 : 25)));
+          const gap = reply.slice(next).search(/\s/);                 // finish the word being typed
+          next = gap === -1 ? reply.length : next + gap;
+          shown = next;
+          bubble.innerHTML = md(reply.slice(0, shown));
+          follow();
+        }, 28);
+      };
+      const typed = () => new Promise(res => { if (!ticker) { draw(); res(); } else caughtUp = res; });
       try {
         const fd = new FormData();
         fd.append('prompt', text); fd.append('history', JSON.stringify(hist.slice(-8))); fd.append('stream', '1');
@@ -1076,11 +1098,13 @@
             msg = addMsg('bot', ''); bubble = $('.bubble', msg);
             msg.classList.add('streaming');
           }
-          if (Date.now() - drawn > 60) draw();
+          reduce ? draw() : type();                               // reduced motion: show pieces as they come
         }
         reply += dec.decode();
+        ended = true;
         if (!reply.trim()) throw new Error('Lexi had no answer. Please try again.');
         if (!msg) { clearInterval(phaseTimer); t.remove(); msg = addMsg('bot', ''); bubble = $('.bubble', msg); }
+        await typed();
         draw();
         msg.classList.remove('streaming');
         enhanceBubble(bubble, reply);
@@ -1088,6 +1112,7 @@
         saveHist();
       } catch (e) {
         clearInterval(phaseTimer); t.remove();
+        clearInterval(ticker); ticker = 0;
         if (msg && reply.trim()) {                                       // keep what arrived before the break
           draw(); msg.classList.remove('streaming'); enhanceBubble(bubble, reply);
           toast('warning', 'The answer was cut off. You can ask again.');
