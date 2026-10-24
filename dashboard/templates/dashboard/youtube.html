@@ -2,9 +2,9 @@
 {% load static ui %}
 {% block title %}Videos{% if q %} — {{ q }}{% elif topic_label %} — {{ topic_label }}{% endif %}{% endblock %}
 {% block robots %}noindex,nofollow{% endblock %}
-{% block head %}<link rel="stylesheet" href="{% static 'css/media.css' %}?v=4"><link rel="stylesheet" href="{% static 'css/yt.css' %}?v=33">{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% static 'css/media.css' %}?v=4"><link rel="stylesheet" href="{% static 'css/yt.css' %}?v=32">{% endblock %}
 {% block content %}
-<div class="wrap-n yt" id="yt" data-loading="{% if loading %}1{% endif %}" data-watch-url="{% url 'youtube-watch' 'XXXXXXXXXXX' %}" data-channel-url="{% url 'youtube-channel' 'UC0000000000000000000000' %}" data-playlist-url="{% url 'youtube-playlist' 'PL00000000000000000000000000000000' %}" data-channels-url="{% url 'youtube-channels' %}" data-video-channels-url="{% url 'youtube-video-channels' %}" data-suggest-url="{% url 'youtube-suggest' %}" data-lexi-url="{% url 'youtube-lexi' %}" data-start="{{ start_video }}" data-start-list="{{ start_list }}" data-csrf="{{ csrf_token }}">
+<div class="wrap-n yt" id="yt" data-watch-url="{% url 'youtube-watch' 'XXXXXXXXXXX' %}" data-channel-url="{% url 'youtube-channel' 'UC0000000000000000000000' %}" data-playlist-url="{% url 'youtube-playlist' 'PL00000000000000000000000000000000' %}" data-channels-url="{% url 'youtube-channels' %}" data-video-channels-url="{% url 'youtube-video-channels' %}" data-suggest-url="{% url 'youtube-suggest' %}" data-lexi-url="{% url 'youtube-lexi' %}" data-start="{{ start_video }}" data-start-list="{{ start_list }}" data-csrf="{{ csrf_token }}">
 
   <header class="books-hero">
     <h1 class="books-title">Videos</h1>
@@ -92,4 +92,4 @@
 </div>
 {% endblock %}
 
-{% block scripts %}<script src="{% static 'js/yt.js' %}?v=45" defer></script>{% endblock %}
+{% block scripts %}<script src="{% static 'js/yt.js' %}?v=44" defer></script>{% endblock %}

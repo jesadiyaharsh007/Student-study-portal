@@ -102,7 +102,6 @@
     if (u.origin !== location.origin || SKIP.test(u.pathname)) return;
     if (u.pathname === location.pathname && u.search === location.search) { if (!u.hash) e.preventDefault(); return; }
     e.preventDefault();
-    rememberPage();
     go(u.href);
   });
 
@@ -112,8 +111,5 @@
   });
 
   mainEl().setAttribute('tabindex', '-1');
-  // the page being left, so the Videos page's mini player can go back to it (yt.js miniFromWatch)
-  const rememberPage = () => { try { sessionStorage.setItem('sp:prev', location.href); } catch (e) { /* storage blocked */ } };
-  addEventListener('pagehide', rememberPage);
   window.PJAX = { go: url => go(url) };
 })();

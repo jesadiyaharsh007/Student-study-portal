@@ -8,11 +8,7 @@
   </div>
 </div>
 
-{% if loading %}
-<div class="yt-grid yt-grid-loading" id="ytGrid" aria-busy="true" aria-label="Loading videos">
-  {% for i in "12345678" %}<div class="yt-sk-card" aria-hidden="true"><span class="yt-sk-thumb"></span><span class="yt-sk-line"></span><span class="yt-sk-line short"></span></div>{% endfor %}
-</div>
-{% elif error %}
+{% if error %}
 <div class="notice">{% icon "alert" %}<div><b>Could not load videos.</b> {{ error }}</div></div>
 {% elif items %}
 <div class="yt-grid" id="ytGrid">
