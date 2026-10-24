@@ -1,5 +1,5 @@
-/* Soft navigation: moving between pages swaps only the page content, so the video player (and the navigation bar)
-   stays alive and keeps playing instead of reloading. Anything unusual (forms, login, other layouts, errors)
+/* Soft navigation: moving between pages swaps only the page content, so the navigation bar
+   stays in place instead of reloading. Anything unusual (forms, login, other layouts, errors)
    falls back to a normal page load. */
 (() => {
   'use strict';
@@ -57,9 +57,8 @@
     const doc = new DOMParser().parseFromString(html, 'text/html');
     if (!doc.getElementById('main') || doc.body.dataset.shell !== body.dataset.shell) { location.href = u.href; return; }
 
-    // leaving the old page: its scripts clean up after themselves, and a video being watched drops into the mini player
+    // leaving the old page: its scripts clean up after themselves
     window.PageCleanup.splice(0).forEach(fn => { try { fn(); } catch (e) { /* ignore */ } });
-    if (window.StudyPlayer) window.StudyPlayer.minimize();
     try { history.replaceState(Object.assign({}, history.state, { sy: scrollY }), ''); } catch (e) { /* ignore */ }
 
     // stylesheets this page needs that we do not have yet
@@ -112,8 +111,5 @@
   });
 
   mainEl().setAttribute('tabindex', '-1');
-  // the page being left, so the Videos page's mini player can go back to it (yt.js miniFromWatch)
-  const rememberPage = () => { try { sessionStorage.setItem('sp:prev', location.href); } catch (e) { /* storage blocked */ } };
-  addEventListener('pagehide', rememberPage);
   window.PJAX = { go: url => go(url) };
 })();

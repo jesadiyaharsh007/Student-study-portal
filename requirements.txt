@@ -2,11 +2,8 @@ django
 django-crispy-forms
 crispy-bootstrap4
 requests
-youtube-search
 wikipedia
 dj-database-url
 psycopg2-binary
-youtube-transcript-api
-yt-dlp
 gunicorn
 whitenoise

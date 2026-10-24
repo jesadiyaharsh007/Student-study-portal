@@ -1,4 +1,0 @@
-# Replace with your own video domain (an A record pointing at this server).
-media.example.com {
-    reverse_proxy video:8080
-}

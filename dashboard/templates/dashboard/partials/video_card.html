@@ -1,0 +1,11 @@
+<a class="vid" href="{% url 'youtube-watch' v.id %}">
+  <span class="vid-thumb"><img src="{{ v.thumbnail }}" alt="" width="320" height="180" loading="lazy" decoding="async"></span>
+  <span class="vid-title">{{ v.title }}</span>
+  <span class="vid-meta">
+    <span class="vid-avatar" aria-hidden="true">{% if v.channel_avatar %}<img src="{{ v.channel_avatar }}" alt="" width="32" height="32" loading="lazy">{% else %}{{ v.channel|slice:":1" }}{% endif %}</span>
+    <span class="vid-byline">
+      <span class="vid-channel">{{ v.channel }}</span>
+      {% if v.published %}<span class="vid-date">{{ v.published|date:"j M Y" }}</span>{% endif %}
+    </span>
+  </span>
+</a>

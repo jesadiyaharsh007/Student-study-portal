@@ -1,5 +1,0 @@
-fastapi
-uvicorn[standard]
-requests
-yt-dlp
-youtube-transcript-api

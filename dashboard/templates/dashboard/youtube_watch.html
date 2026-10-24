@@ -1,0 +1,56 @@
+{% extends 'dashboard/base.html' %}
+{% load static ui %}
+{% block title %}{% if video %}{{ video.title }}{% else %}Video{% endif %}{% endblock %}
+{% block robots %}noindex,nofollow{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% static 'css/videos.css' %}?v=1">{% endblock %}
+
+{% block content %}
+<div class="wrap-n videos-page">
+  <a class="videos-back" href="{% url 'youtube' %}">{% icon "arrow-left" %}<span>Back to videos</span></a>
+
+  {% if video %}
+  <div class="watch-layout">
+    <section class="watch-main">
+      <div class="watch-frame">
+        <iframe
+          src="https://www.youtube-nocookie.com/embed/{{ video.id }}?autoplay=1&amp;rel=0&amp;modestbranding=1&amp;playsinline=1"
+          title="{{ video.title }}"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          referrerpolicy="strict-origin-when-cross-origin"
+          allowfullscreen></iframe>
+      </div>
+
+      <h1 class="watch-title">{{ video.title }}</h1>
+      <div class="watch-channel">
+        <span class="vid-avatar" aria-hidden="true">{% if video.channel_avatar %}<img src="{{ video.channel_avatar }}" alt="" width="42" height="42">{% else %}{{ video.channel|slice:":1" }}{% endif %}</span>
+        <div class="watch-byline">
+          <b>{{ video.channel }}</b>
+          <small>{% if video.views_label %}{{ video.views_label }}{% endif %}{% if video.views_label and video.published %} · {% endif %}{% if video.published %}{{ video.published|date:"j M Y" }}{% endif %}</small>
+        </div>
+        <a class="watch-open" href="https://www.youtube.com/watch?v={{ video.id }}" target="_blank" rel="noopener noreferrer">Open on YouTube</a>
+      </div>
+
+      {% if video.description %}
+      <details class="watch-about">
+        <summary>About this video</summary>
+        <p>{{ video.description|linebreaksbr }}</p>
+      </details>
+      {% endif %}
+    </section>
+
+    <aside class="watch-side" aria-label="Up next">
+      <h2>Up next</h2>
+      {% if related %}
+        <div class="videos-related">
+          {% for v in related %}{% include "dashboard/partials/video_card.html" %}{% endfor %}
+        </div>
+      {% else %}
+        <p class="videos-empty">No related videos right now.</p>
+      {% endif %}
+    </aside>
+  </div>
+  {% else %}
+    <div class="notice">{% icon "alert" %}<div><b>This video cannot be shown.</b> {{ error|default:"It may have been removed." }}</div></div>
+  {% endif %}
+</div>
+{% endblock %}

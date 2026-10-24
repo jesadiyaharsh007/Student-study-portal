@@ -14,19 +14,9 @@ urlpatterns = [
     path('update_homework/<int:pk>', views.update_homework, name="update-homework"),
     path('delete_homework/<int:pk>', views.delete_homework, name="delete-homework"),
 
+
     path('youtube/', views.youtube, name="youtube"),
     path('youtube/watch/<str:video_id>/', views.youtube_watch, name="youtube-watch"),
-    path('youtube/channel/<str:channel_id>/', views.youtube_channel, name="youtube-channel"),
-    path('youtube/channels/', views.youtube_channels, name="youtube-channels"),
-    path('youtube/video-channels/', views.youtube_video_channels, name="youtube-video-channels"),
-    path('youtube/suggest/', views.youtube_suggest, name="youtube-suggest"),
-    path('youtube/playlist/<str:playlist_id>/', views.youtube_playlist, name="youtube-playlist"),
-    path('youtube/lexi/', views.youtube_lexi, name="youtube-lexi"),
-    path('youtube/token/', views.youtube_token, name="youtube-token"),
-    path('youtube/stream/<str:video_id>/', views.youtube_stream, name="youtube-stream"),
-    path('youtube/media/<str:video_id>/<str:itag>/', views.youtube_media, name="youtube-media"),
-    path('youtube/captions/<str:video_id>/', views.youtube_captions, name="youtube-captions"),
-    path('youtube/captions/<str:video_id>/<str:lang>/', views.youtube_captions, name="youtube-caption-cues"),
 
     path('todo/', views.todo, name="todo"),
     path('update_todo/<int:pk>', views.update_todo, name="update-todo"),

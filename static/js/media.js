@@ -1,8 +1,7 @@
-/* Books + Videos pages: cover fallbacks, retry buttons, video player, "continue reading" shelf. */
+/* Books page: cover fallbacks, retry buttons, "continue reading" shelf. */
 (() => {
   'use strict';
   const $ = (s, r = document) => r.querySelector(s);
-  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   // a cover or thumbnail that fails to load just disappears, leaving the title card behind it
   document.addEventListener('error', e => {
@@ -12,54 +11,7 @@
 
   document.addEventListener('click', e => {
     if (e.target.closest('[data-retry]')) location.reload();
-
-    // ---- video player ----
-    const card = e.target.closest('[data-video]');
-    const dlg = $('#player');
-    if (card && dlg) {
-      const id = card.dataset.video;
-      const title = card.dataset.title || 'Video Lesson';
-      const channel = card.dataset.channel || 'Educational Channel';
-      const stats = [card.dataset.views, card.dataset.published].filter(Boolean).join(' • ');
-
-      const titleEl = $('#player-title');
-      if (titleEl) titleEl.textContent = title;
-
-      const channelEl = $('#player-channel');
-      if (channelEl) channelEl.textContent = channel;
-
-      const statsEl = $('#player-stats');
-      if (statsEl) statsEl.textContent = stats;
-
-      const lexiEl = $('#player-lexi');
-      if (lexiEl) lexiEl.href = `/chatbot/?topic=${encodeURIComponent(title)}`;
-
-      const shareEl = $('#player-share');
-      if (shareEl) shareEl.dataset.videoId = id;
-
-      $('#player-frame').innerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?autoplay=1&rel=0&modestbranding=1&iv_load_policy=3&playsinline=1" title="${esc(title)}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
-      if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
-    }
-
-    // copy study link button in player
-    const shareBtn = e.target.closest('#player-share');
-    if (shareBtn) {
-      const vidId = shareBtn.dataset.videoId;
-      if (vidId) {
-        const url = `${location.origin}/youtube/?v=${encodeURIComponent(vidId)}`;
-        navigator.clipboard?.writeText(url).then(() => {
-          const original = shareBtn.innerHTML;
-          shareBtn.innerHTML = '<span>Copied study link!</span>';
-          setTimeout(() => { shareBtn.innerHTML = original; }, 2000);
-        });
-      }
-    }
-
-    if (e.target.closest('[data-player-close]') && dlg) dlg.close();
-    if (dlg && e.target === dlg) dlg.close();                       // click on the dimmed backdrop
   });
-  const dlg = $('#player');
-  if (dlg) dlg.addEventListener('close', () => { $('#player-frame').innerHTML = ''; });   // stops the video
 
   // ---- continue reading (books page) ----
   const shelf = $('[data-shelf]');
@@ -103,36 +55,5 @@
         booksInput.focus();
       }
     });
-  }
-
-  // ---- videos search clear handler ----
-  const videosInput = $('#videosSearchInput');
-  const videosClear = $('#videosSearchClear');
-  if (videosInput && videosClear) {
-    videosInput.addEventListener('input', () => {
-      if (videosInput.value.trim().length > 0) {
-        videosClear.removeAttribute('hidden');
-      } else {
-        videosClear.setAttribute('hidden', '');
-      }
-    });
-    videosClear.addEventListener('click', (e) => {
-      if (!location.search) {
-        e.preventDefault();
-        videosInput.value = '';
-        videosClear.setAttribute('hidden', '');
-        videosInput.focus();
-      }
-    });
-  }
-
-  // ---- autoplay if url has ?v=ID and modal is ready ----
-  const params = new URLSearchParams(location.search);
-  const autoVid = params.get('v');
-  if (autoVid && !$('#videoTheaterSection')) {
-    const targetCard = $(`[data-video="${esc(autoVid)}"]`);
-    if (targetCard) {
-      setTimeout(() => targetCard.click(), 120);
-    }
   }
 })();

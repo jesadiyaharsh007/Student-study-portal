@@ -35,12 +35,10 @@ def _get_tools():
 def navigation(request):
     match = getattr(request, "resolver_match", None)
     tools = _get_tools()
-    from django.conf import settings
     return {
         "tools": tools,
         # The Tools dropdown only holds the everyday tools; the rest sit directly in the top bar.
         "nav_tools": [t for t in tools if t["key"] in NAV_DROPDOWN],
         "nav_main": [t for t in tools if t["key"] in NAV_TOP],
         "current": match.url_name if match else "",
-        "player_mode": getattr(settings, "PLAYER_MODE", "auto"),
     }
