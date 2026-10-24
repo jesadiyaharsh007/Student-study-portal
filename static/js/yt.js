@@ -3,16 +3,108 @@
   'use strict';
   const root = document.getElementById('yt');
   if (!root) return;
-  const SP = window.StudyPlayer || {
-    state: { id: null, meta: {}, mode: 'none', playing: false, time: 0, duration: 0 },
-    open: (id) => {
-      const u = root.dataset.watchUrl ? root.dataset.watchUrl.replace('XXXXXXXXXXX', encodeURIComponent(id)) : `/youtube/?v=${encodeURIComponent(id)}`;
-      location.href = u;
+
+  const fallbackState = { id: null, meta: {}, mode: 'none', playing: false, time: 0, duration: 0 };
+  const pendingListeners = [];
+  const undo = [];                                           // everything this page attached outside its own markup
+
+  const S = new Proxy({}, {
+    get(target, prop) {
+      if (window.StudyPlayer && window.StudyPlayer.state) {
+        return window.StudyPlayer.state[prop];
+      }
+      return fallbackState[prop];
     },
-    on: () => () => {},
-    minimize: () => {},
-    attach: () => {}
+    set(target, prop, val) {
+      if (window.StudyPlayer && window.StudyPlayer.state) {
+        window.StudyPlayer.state[prop] = val;
+      }
+      fallbackState[prop] = val;
+      return true;
+    }
+  });
+
+  const SP = new Proxy({}, {
+    get(target, prop) {
+      const real = window.StudyPlayer;
+      if (real) {
+        if (prop === 'state') return real.state;
+        const val = real[prop];
+        return typeof val === 'function' ? val.bind(real) : val;
+      }
+      if (prop === 'state') return S;
+      if (prop === 'open') {
+        return (id, meta, opts = {}) => {
+          if (window.StudyPlayer && typeof window.StudyPlayer.open === 'function') {
+            return window.StudyPlayer.open(id, meta, opts);
+          }
+          fallbackState.id = id;
+          fallbackState.mode = 'watch';
+          if (meta) fallbackState.meta = meta;
+          const targetUrl = `/youtube/?v=${encodeURIComponent(id)}${opts.list ? '&list=' + encodeURIComponent(opts.list) : ''}`;
+          if (location.pathname !== '/youtube/' || !location.search.includes(`v=${id}`)) {
+            location.href = targetUrl;
+          }
+          return false;
+        };
+      }
+      if (prop === 'on') {
+        return (name, fn) => {
+          if (window.StudyPlayer && typeof window.StudyPlayer.on === 'function') {
+            return window.StudyPlayer.on(name, fn);
+          }
+          pendingListeners.push({ name, fn });
+          return () => {
+            const i = pendingListeners.findIndex(l => l.name === name && l.fn === fn);
+            if (i >= 0) pendingListeners.splice(i, 1);
+          };
+        };
+      }
+      if (prop === 'update') {
+        return (meta) => {
+          if (window.StudyPlayer && typeof window.StudyPlayer.update === 'function') {
+            return window.StudyPlayer.update(meta);
+          }
+          if (meta) Object.assign(fallbackState.meta, meta);
+        };
+      }
+      if (prop === 'showNext') {
+        return (on) => {
+          if (window.StudyPlayer && typeof window.StudyPlayer.showNext === 'function') {
+            return window.StudyPlayer.showNext(on);
+          }
+        };
+      }
+      if (prop === 'minimize' || prop === 'attach' || prop === 'close') {
+        return (...args) => {
+          if (window.StudyPlayer && typeof window.StudyPlayer[prop] === 'function') {
+            return window.StudyPlayer[prop](...args);
+          }
+        };
+      }
+      return undefined;
+    }
+  });
+
+  const flushListeners = () => {
+    if (window.StudyPlayer && pendingListeners.length) {
+      while (pendingListeners.length) {
+        const { name, fn } = pendingListeners.shift();
+        undo.push(window.StudyPlayer.on(name, fn));
+      }
+    }
   };
+  window.addEventListener('studyplayer:ready', flushListeners, { once: true });
+  if (!window.StudyPlayer) {
+    const pollId = setInterval(() => {
+      if (window.StudyPlayer) {
+        clearInterval(pollId);
+        flushListeners();
+      }
+    }, 50);
+    undo.push(() => clearInterval(pollId));
+  }
+
   const $ = id => document.getElementById(id);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -25,8 +117,6 @@
     share: $('ytShare'), open: $('ytOpen'), tabNext: $('ytTabNext'), autoWrap: $('ytAutoWrap'),
     lexi: $('ytLexi'), lexiBtn: $('ytLexiBtn'), lexiLog: $('ytLexiLog'), lexiForm: $('ytLexiForm'), lexiInput: $('ytLexiInput'), lexiNote: $('ytLexiNote'),
   };
-  const S = SP.state;
-  const undo = [];                                           // everything this page attached outside its own markup
   const listen = (t, ev, fn, o) => { t.addEventListener(ev, fn, o); undo.push(() => t.removeEventListener(ev, fn, o)); };
   window.PageCleanup = window.PageCleanup || [];
   window.PageCleanup.push(() => { undo.splice(0).forEach(f => f()); });
@@ -115,6 +205,8 @@
   function openVideo(id, meta, opts = {}) {
     closeSuggest();
     pendingKeep = !!opts.keepQueue;
+    S.id = id;
+    if (meta) S.meta = Object.assign({}, S.meta || {}, meta);
     const targetList = opts.list !== undefined ? opts.list : (meta && meta.list ? meta.list : getActiveList());
     if (targetList) {
       meta = Object.assign({}, meta, { list: targetList });
@@ -289,14 +381,14 @@
       setTimeout(() => { el.more.hidden = el.desc.scrollHeight <= el.desc.clientHeight + 4; }, 60);
     };
     get(true).then(d => {
-      if (mine === reqId && S.id === id) {
+      if (mine === reqId && (S.id === id || !S.id)) {
         paintHeader(d);
         updatePlaylistUi(currentList ? d.playlist || null : null);
       }
     }).catch(() => {});
     try {
       const d = await get(false);
-      if (mine !== reqId || S.id !== id) return;
+      if (mine !== reqId || (S.id && S.id !== id)) return;
       paintHeader(d);
       if (isSamePlaylist && currentList) {
         markCurrent();

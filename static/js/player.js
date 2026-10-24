@@ -34,6 +34,8 @@
 
   const read = (store, k, d) => { try { return JSON.parse(store.getItem(k) || 'null') || d; } catch (e) { return d; } };
   const prefs = Object.assign({ vol: 1, muted: false, rate: 1, quality: 'auto', cc: '', autoplay: true }, read(localStorage, PREFS, {}));
+  prefs.vol = typeof prefs.vol === 'number' && !isNaN(prefs.vol) ? Math.max(0, Math.min(1, prefs.vol)) : 1;
+  prefs.rate = typeof prefs.rate === 'number' && !isNaN(prefs.rate) ? Math.max(0.25, Math.min(3, prefs.rate)) : 1;
   if (prefs.quality === '144' || !prefs.quality) { prefs.quality = 'auto'; savePrefs(); }
   const savePrefs = () => { try { localStorage.setItem(PREFS, JSON.stringify(prefs)); } catch (e) { /* storage blocked */ } };
 
@@ -84,7 +86,12 @@
     bPlay: q('[data-a=play]'), bMute: q('[data-a=mute]'), bFs: q('[data-a=fs]'), bCc: q('[data-a=cc]'),
     hud: q('.yt-hud'), hudIcon: q('.yt-hud-icon'), hudText: q('.yt-hud-text'), hudBar: q('.yt-hud-bar'), hudFill: q('.yt-hud-fill'),
   };
-  if (!document.pictureInPictureEnabled && !window.documentPictureInPicture) q('.yt-pipb').hidden = true;
+  try {
+    if (!document.pictureInPictureEnabled && !window.documentPictureInPicture) {
+      const pip = q('.yt-pipb');
+      if (pip) pip.hidden = true;
+    }
+  } catch (_) {}
 
   let hudTimer = 0;
   function showHud(iconHtml, text, percent) {
@@ -367,7 +374,11 @@
   video.addEventListener('volumechange', () => {
     if (state.engineType !== 'embed') paintVolume();
   });
-  video.volume = prefs.vol; video.muted = prefs.muted; paintVolume();
+  try {
+    video.volume = prefs.vol;
+    video.muted = !!prefs.muted;
+  } catch (_) {}
+  paintVolume();
 
   /* ------------------------------------------------------------------ video events */
   let endingTriggered = false;
@@ -977,10 +988,11 @@
       iframe.referrerPolicy = 'strict-origin-when-cross-origin';
       iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
       iframe.style.position = 'absolute';
-      iframe.style.top = '-65px';
-      iframe.style.left = '-4%';
-      iframe.style.width = '108%';
-      iframe.style.height = 'calc(100% + 130px)';
+      iframe.style.top = '-52px';
+      iframe.style.left = '0';
+      iframe.style.width = '100%';
+      iframe.style.height = 'calc(100% + 52px)';
+      iframe.style.bottom = '0';
       iframe.style.border = '0';
       iframe.style.pointerEvents = 'none';
 
@@ -1289,6 +1301,7 @@
     preload(id) { preloadManifest(id); },
   };
   window.StudyPlayer = api;
+  try { window.dispatchEvent(new CustomEvent('studyplayer:ready', { detail: api })); } catch (_) {}
 
   /* ------------------------------------------------------------------ keyboard (watch view and full screen only) */
   addEventListener('keydown', e => {
