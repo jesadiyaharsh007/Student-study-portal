@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
-  <meta name="referrer" content="no-referrer-when-downgrade">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
   <title>{% block title %}Study Portal{% endblock %} | Student Study Portal</title>
   <meta name="description" content="{% block description %}Notes, homework, tasks, Lexi AI and research tools in one quiet, fast workspace for students.{% endblock %}">
   <meta name="robots" content="{% block robots %}index,follow{% endblock %}">
@@ -216,7 +216,7 @@
     </div></div></div>
   </dialog>
 
-  {% if user.is_authenticated %}<script src="{% static 'js/ytengine.js' %}?v=4" defer data-once></script><script src="{% static 'js/player.js' %}?v=42" defer data-once></script><script src="{% static 'js/nav.js' %}?v=2" defer data-once></script>{% endif %}
+  {% if user.is_authenticated %}<script src="{% static 'js/ytengine.js' %}?v=4" defer data-once></script><script src="{% static 'js/player.js' %}?v=43" defer data-once></script><script src="{% static 'js/nav.js' %}?v=3" defer data-once></script>{% endif %}
   {% block scripts %}{% endblock %}
   <script src="{% static 'js/app.js' %}?v=7.0" defer></script>
   <script src="{% static 'js/controls.js' %}?v=1" defer data-once></script>

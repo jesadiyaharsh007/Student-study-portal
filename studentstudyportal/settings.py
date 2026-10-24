@@ -62,6 +62,9 @@ MESSAGE_TAGS = {
     messages.ERROR: 'danger',
 }
 
+# Referrer-Policy: ensure cross-origin requests (e.g. YouTube iframe embeds) send origin so YouTube can verify embedder identity
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+
 MIDDLEWARE = [
     'django.middleware.gzip.GZipMiddleware',
     'django.middleware.security.SecurityMiddleware',

@@ -759,10 +759,11 @@
     video.hidden = true;
     const iframe = document.createElement('iframe');
     const origin = encodeURIComponent(window.location.origin || '');
+    const widgetReferrer = encodeURIComponent(window.location.href);
     host.classList.add('embed');
     const startSec = Math.floor(start || 0);
-    iframe.src = `https://www.youtube.com/embed/${encodeURIComponent(id)}?enablejsapi=1&origin=${origin}&controls=0&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&fs=0&playsinline=1${startSec > 0 ? '&start=' + startSec : ''}`;
-    iframe.referrerPolicy = 'no-referrer-when-downgrade';
+    iframe.src = `https://www.youtube.com/embed/${encodeURIComponent(id)}?enablejsapi=1&origin=${origin}&widget_referrer=${widgetReferrer}&controls=0&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&fs=0&playsinline=1${startSec > 0 ? '&start=' + startSec : ''}`;
+    iframe.referrerPolicy = 'strict-origin-when-cross-origin';
     iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
     iframe.allowFullscreen = true;
     iframe.style.position = 'absolute';
@@ -804,7 +805,7 @@
       if (el.embed) el.embed.innerHTML = '';
       const iframe = document.createElement('iframe');
       iframe.id = 'ytIframeHost';
-      iframe.referrerPolicy = 'no-referrer-when-downgrade';
+      iframe.referrerPolicy = 'strict-origin-when-cross-origin';
       iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
       iframe.style.position = 'absolute';
       iframe.style.top = '-72px';
@@ -815,8 +816,9 @@
       iframe.style.pointerEvents = 'none';
 
       const origin = encodeURIComponent(window.location.origin || '');
+      const widgetReferrer = encodeURIComponent(window.location.href);
       const startSec = Math.floor(start || 0);
-      iframe.src = `https://www.youtube.com/embed/${encodeURIComponent(id)}?enablejsapi=1&origin=${origin}&controls=0&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&fs=0&playsinline=1${startSec > 0 ? '&start=' + startSec : ''}`;
+      iframe.src = `https://www.youtube.com/embed/${encodeURIComponent(id)}?enablejsapi=1&origin=${origin}&widget_referrer=${widgetReferrer}&controls=0&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&fs=0&playsinline=1${startSec > 0 ? '&start=' + startSec : ''}`;
 
       if (el.embed) el.embed.appendChild(iframe);
 
@@ -889,7 +891,7 @@
             },
             onError: ev => {
               if (tok !== state.tok) return;
-              if (ev.data === 101 || ev.data === 150) {
+              if (ev.data === 101 || ev.data === 150 || ev.data === 152 || ev.data === 153) {
                 showError("This video can't be played here", 'Playback is restricted on this video by YouTube.');
               } else if (ev.data === 100 || ev.data === 2) {
                 showError('Video not found', 'This video may be private or removed.');
