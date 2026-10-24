@@ -34,6 +34,7 @@
 
   const read = (store, k, d) => { try { return JSON.parse(store.getItem(k) || 'null') || d; } catch (e) { return d; } };
   const prefs = Object.assign({ vol: 1, muted: false, rate: 1, quality: 'auto', cc: '', autoplay: true }, read(localStorage, PREFS, {}));
+  if (prefs.quality === '144' || !prefs.quality) { prefs.quality = 'auto'; savePrefs(); }
   const savePrefs = () => { try { localStorage.setItem(PREFS, JSON.stringify(prefs)); } catch (e) { /* storage blocked */ } };
 
   /* ------------------------------------------------------------------ markup */
@@ -42,7 +43,7 @@
     <video class="yt-video" playsinline preload="auto"></video>
     <div class="yt-embed" id="ytEmbed" hidden></div>
     <div class="yt-ui" data-state="idle">
-      <div class="yt-hud" hidden><span class="yt-hud-icon"></span><span class="yt-hud-text"></span><div class="yt-hud-bar"><i class="yt-hud-fill"></i></div></div>
+      <div class="yt-hud" hidden><span class="yt-hud-icon"></span><span class="yt-hud-text"></span><div class="yt-hud-bar" hidden><i class="yt-hud-fill"></i></div></div>
       <div class="yt-cc" hidden><span></span></div>
       <div class="yt-spin" hidden><i></i></div>
       <button type="button" class="yt-bigplay" aria-label="Play">${ICON.play}</button>
@@ -80,23 +81,28 @@
     seek: q('.yt-seek'), buf: q('.yt-buf'), played: q('.yt-played'), knob: q('.yt-knob'), tip: q('.yt-tip'),
     time: q('.yt-time'), volr: q('.yt-volr'), menu: q('.yt-menu'),
     bPlay: q('[data-a=play]'), bMute: q('[data-a=mute]'), bFs: q('[data-a=fs]'), bCc: q('[data-a=cc]'),
-    hud: q('.yt-hud'), hudIcon: q('.yt-hud-icon'), hudText: q('.yt-hud-text'), hudFill: q('.yt-hud-fill'),
+    hud: q('.yt-hud'), hudIcon: q('.yt-hud-icon'), hudText: q('.yt-hud-text'), hudBar: q('.yt-hud-bar'), hudFill: q('.yt-hud-fill'),
   };
-  if (!document.pictureInPictureEnabled) q('.yt-pipb').hidden = true;
+  if (!document.pictureInPictureEnabled && !window.documentPictureInPicture) q('.yt-pipb').hidden = true;
 
   let hudTimer = 0;
   function showHud(iconHtml, text, percent) {
     if (!el.hud) return;
     el.hudIcon.innerHTML = iconHtml;
     el.hudText.textContent = text;
-    el.hudFill.style.transform = `scaleX(${Math.max(0, Math.min(1, percent))})`;
+    if (typeof percent === 'number' && !isNaN(percent)) {
+      if (el.hudBar) el.hudBar.hidden = false;
+      el.hudFill.style.transform = `scaleX(${Math.max(0, Math.min(1, percent))})`;
+    } else {
+      if (el.hudBar) el.hudBar.hidden = true;
+    }
     el.hud.hidden = false;
     el.hud.classList.add('show');
     clearTimeout(hudTimer);
     hudTimer = setTimeout(() => {
       el.hud.classList.remove('show');
       setTimeout(() => { if (!el.hud.classList.contains('show')) el.hud.hidden = true; }, 200);
-    }, 900);
+    }, 1100);
   }
 
   let currentBrightness = 1.0;
@@ -104,19 +110,63 @@
     currentBrightness = Math.max(0.15, Math.min(1.8, val));
     frame.style.setProperty('--yt-bright', currentBrightness);
     const percent = (currentBrightness - 0.15) / (1.8 - 0.15);
-    showHud(ICON.sun, `${Math.round(currentBrightness * 100)}%`, percent);
+    showHud(ICON.sun, `Brightness: ${Math.round(currentBrightness * 100)}%`, percent);
+  }
+
+  function paintVolume() {
+    const isMuted = !!(prefs.muted || prefs.vol === 0);
+    const v = isMuted ? 0 : prefs.vol;
+    el.volr.value = v;
+    el.volr.style.setProperty('--v', `${v * 100}%`);
+    const icon = isMuted ? ICON.mute : (v < .5 ? ICON.low : ICON.vol);
+    el.bMute.innerHTML = icon;
+    el.bMute.setAttribute('aria-label', isMuted ? 'Unmute' : 'Mute');
+    if (state.engineType === 'embed' && embedPlayer) {
+      if (isMuted) {
+        if (typeof embedPlayer.mute === 'function') embedPlayer.mute();
+        if (typeof embedPlayer.setVolume === 'function') embedPlayer.setVolume(0);
+      } else {
+        if (typeof embedPlayer.unMute === 'function') embedPlayer.unMute();
+        const targetVol = Math.round(v * 100);
+        if (typeof embedPlayer.setVolume === 'function') embedPlayer.setVolume(targetVol);
+      }
+      const iframe = document.getElementById('ytIframeHost');
+      if (iframe && iframe.contentWindow) {
+        try {
+          if (isMuted) {
+            iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'mute', args: [] }), '*');
+            iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'setVolume', args: [0] }), '*');
+          } else {
+            const targetVol = Math.round(v * 100);
+            iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'unMute', args: [] }), '*');
+            iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'setVolume', args: [targetVol] }), '*');
+          }
+        } catch (e) {}
+      }
+    }
+  }
+
+  function applyVolume(v, muted, showFeedback = false) {
+    v = Math.max(0, Math.min(1, v));
+    const isMuted = !!(muted || v === 0);
+    prefs.vol = v;
+    prefs.muted = isMuted;
+    savePrefs();
+    video.volume = isMuted ? 0 : v;
+    video.muted = isMuted;
+    if (state.engineType === 'embed') {
+      try { video.pause(); } catch (e) {}
+    }
+    paintVolume();
+    if (showFeedback) {
+      const icon = isMuted ? ICON.mute : (v < 0.5 ? ICON.low : ICON.vol);
+      showHud(icon, isMuted ? 'Muted' : `${Math.round(v * 100)}%`, isMuted ? 0 : v);
+    }
   }
 
   function setGestureVolume(val) {
     const v = Math.max(0, Math.min(1, val));
-    video.muted = false;
-    video.volume = v;
-    prefs.vol = v;
-    prefs.muted = false;
-    savePrefs();
-    paintVolume();
-    const icon = v === 0 ? ICON.mute : (v < 0.5 ? ICON.low : ICON.vol);
-    showHud(icon, `${Math.round(v * 100)}%`, v);
+    applyVolume(v, v === 0, true);
   }
 
   const state = { id: null, meta: {}, mode: 'none', playing: false, time: 0, duration: 0, stage: null, tok: 0, manifest: null, cues: [], tracks: [], ccLang: '', quality: 'auto', height: 0, engineType: 'mse' };
@@ -305,46 +355,13 @@
     else if (e.key === 'ArrowRight') { seekTo(video.currentTime + 5); e.preventDefault(); e.stopPropagation(); }
   });
 
-  const iconVol = () => (video.muted || video.volume === 0) ? ICON.mute : (video.volume < .5 ? ICON.low : ICON.vol);
-  function paintVolume() {
-    const isMuted = !!(video.muted || video.volume === 0);
-    el.volr.value = isMuted ? 0 : video.volume;
-    el.volr.style.setProperty('--v', `${(isMuted ? 0 : video.volume) * 100}%`);
-    el.bMute.innerHTML = isMuted ? ICON.mute : (video.volume < .5 ? ICON.low : ICON.vol);
-    el.bMute.setAttribute('aria-label', isMuted ? 'Unmute' : 'Mute');
-    if (state.engineType === 'embed' && embedPlayer) {
-      if (isMuted) {
-        if (typeof embedPlayer.mute === 'function') embedPlayer.mute();
-        if (typeof embedPlayer.setVolume === 'function') embedPlayer.setVolume(0);
-      } else {
-        if (typeof embedPlayer.unMute === 'function') embedPlayer.unMute();
-        const targetVol = Math.round((video.volume || prefs.vol || 1) * 100);
-        if (typeof embedPlayer.setVolume === 'function') embedPlayer.setVolume(targetVol);
-      }
-      const iframe = document.getElementById('ytIframeHost');
-      if (iframe && iframe.contentWindow) {
-        try {
-          if (isMuted) {
-            iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'mute', args: [] }), '*');
-            iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'setVolume', args: [0] }), '*');
-          } else {
-            const targetVol = Math.round((video.volume || prefs.vol || 1) * 100);
-            iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'unMute', args: [] }), '*');
-            iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'setVolume', args: [targetVol] }), '*');
-          }
-        } catch (e) {}
-      }
-    }
-  }
+  const iconVol = () => (prefs.muted || prefs.vol === 0) ? ICON.mute : (prefs.vol < .5 ? ICON.low : ICON.vol);
   el.volr.addEventListener('input', () => {
-    video.muted = false;
-    video.volume = +el.volr.value;
-    prefs.vol = video.volume;
-    prefs.muted = false;
-    savePrefs();
-    paintVolume();
+    applyVolume(+el.volr.value, +el.volr.value === 0, false);
   });
-  video.addEventListener('volumechange', paintVolume);
+  video.addEventListener('volumechange', () => {
+    if (state.engineType !== 'embed') paintVolume();
+  });
   video.volume = prefs.vol; video.muted = prefs.muted; paintVolume();
 
   /* ------------------------------------------------------------------ video events */
@@ -432,10 +449,11 @@
     if (!lang) {
       el.cc.hidden = true;
       if (el.ccText) el.ccText.textContent = '';
-      showHud(ICON.cc, 'Captions: Off', 0);
+      showHud(ICON.cc, 'Captions: Off');
       return;
     }
-    showHud(ICON.cc, `Captions: ${lang.toUpperCase()}`, 1);
+    const track = state.tracks.find(t => t.lang === lang);
+    showHud(ICON.cc, `Captions: ${(track && track.name) || lang.toUpperCase()}`);
     const id = state.id;
     try {
       const r = await fetch(urlFor('cuesUrl', id, { LANG: encodeURIComponent(lang) }), { credentials: 'same-origin' });
@@ -508,17 +526,19 @@
     240: 'small',
     144: 'tiny',
   };
-  function setEmbedQuality(q) {
-    if (!embedPlayer) return;
-    const cur = (embedPlayer.getCurrentTime && embedPlayer.getCurrentTime()) || state.time || 0;
-    const ytQ = q === 'auto' ? 'default' : (HEIGHT_TO_YT_QUALITY[+q] || 'default');
+  function setEmbedQuality(q, silent = false) {
     state.quality = q;
+    prefs.quality = q;
+    savePrefs();
+    const cur = (embedPlayer && embedPlayer.getCurrentTime && embedPlayer.getCurrentTime()) || state.time || 0;
+    const ytQ = q === 'auto' ? 'default' : (HEIGHT_TO_YT_QUALITY[+q] || 'default');
     if (q === 'auto') {
-      if (typeof embedPlayer.setPlaybackQuality === 'function') embedPlayer.setPlaybackQuality('default');
+      state.height = 0;
+      if (embedPlayer && typeof embedPlayer.setPlaybackQuality === 'function') embedPlayer.setPlaybackQuality('default');
     } else {
       state.height = +q;
-      if (typeof embedPlayer.setPlaybackQuality === 'function') embedPlayer.setPlaybackQuality(ytQ);
-      if (typeof embedPlayer.setPlaybackQualityRange === 'function') embedPlayer.setPlaybackQualityRange(ytQ, ytQ);
+      if (embedPlayer && typeof embedPlayer.setPlaybackQuality === 'function') embedPlayer.setPlaybackQuality(ytQ);
+      if (embedPlayer && typeof embedPlayer.setPlaybackQualityRange === 'function') embedPlayer.setPlaybackQualityRange(ytQ, ytQ);
     }
 
     const iframe = document.getElementById('ytIframeHost');
@@ -529,11 +549,18 @@
       } catch (e) {}
     }
 
-    if (cur > 0 && typeof embedPlayer.seekTo === 'function') {
-      try { embedPlayer.seekTo(cur, true); } catch (e) {}
+    if (!silent && q !== 'auto' && state.id && embedPlayer && typeof embedPlayer.loadVideoById === 'function') {
+      try {
+        embedPlayer.loadVideoById({ videoId: state.id, startSeconds: Math.floor(cur), suggestedQuality: ytQ });
+      } catch (e) {}
     }
-    savePrefs();
-    showHud(ICON.gear, q === 'auto' ? 'Quality: Auto' : `Quality: ${q}p`, 1);
+
+    if (!el.menu.hidden) renderMenu();
+
+    if (!silent) {
+      const label = q === 'auto' ? 'Quality: Auto' : (q >= 720 ? `Quality: ${q}p HD` : `Quality: ${q}p`);
+      showHud(ICON.gear, label);
+    }
   }
 
   /* ------------------------------------------------------------------ menus */
@@ -574,18 +601,17 @@
   }
   function openMenu(name) { menuStack = [name]; renderMenu(); }
   el.menu.addEventListener('click', e => {
+    e.stopPropagation();
     const b = e.target.closest('button');
     if (!b) return;
     const d = b.dataset;
     if (d.m === 'back') { menuStack.pop(); renderMenu(); }
     else if (d.m) { menuStack.push(d.m); renderMenu(); }
     else if (d.q !== undefined) {
-      state.quality = d.q;
-      prefs.quality = d.q;
-      savePrefs();
       if (engine) {
-        engine.setQuality(d.q);
+        state.quality = d.q; prefs.quality = d.q; savePrefs(); engine.setQuality(d.q);
       } else if (state.engineType === 'native' && state.manifest && state.manifest.video) {
+        state.quality = d.q; prefs.quality = d.q; savePrefs();
         const v = (d.q === 'auto')
           ? state.manifest.video[state.manifest.video.length - 1]
           : (state.manifest.video.find(x => String(x.height) === String(d.q)) || state.manifest.video[0]);
@@ -598,29 +624,86 @@
           if (wasPlaying) video.play().catch(() => {});
         }
       } else if (state.engineType === 'embed' && embedPlayer) {
-        setEmbedQuality(d.q);
+        setEmbedQuality(d.q, false);
       }
       closeMenu();
     }
-    else if (d.r !== undefined) { prefs.rate = +d.r; video.playbackRate = prefs.rate; if (state.engineType === 'embed' && embedPlayer && embedPlayer.setPlaybackRate) embedPlayer.setPlaybackRate(prefs.rate); savePrefs(); closeMenu(); }
+    else if (d.r !== undefined) {
+      prefs.rate = +d.r;
+      video.playbackRate = prefs.rate;
+      if (state.engineType === 'embed' && embedPlayer && embedPlayer.setPlaybackRate) embedPlayer.setPlaybackRate(prefs.rate);
+      savePrefs();
+      showHud(ICON.gear, `Speed: ${prefs.rate === 1 ? 'Normal' : prefs.rate + '×'}`);
+      closeMenu();
+    }
     else if (d.c !== undefined) { setCaptions(d.c); closeMenu(); }
   });
+  el.menu.addEventListener('pointerdown', e => e.stopPropagation());
   document.addEventListener('pointerdown', e => { if (!el.menu.hidden && !el.menu.contains(e.target) && !e.target.closest('[data-a=settings],[data-a=cc]')) closeMenu(); });
 
   const fsActive = () => document.fullscreenElement === host;
   async function fullscreen() {
-    try { if (fsActive()) await document.exitFullscreen(); else await host.requestFullscreen(); } catch (e) { /* not allowed */ }
+    try {
+      if (fsActive()) {
+        await document.exitFullscreen();
+      } else {
+        if (host.requestFullscreen) await host.requestFullscreen();
+        else if (host.webkitRequestFullscreen) await host.webkitRequestFullscreen();
+        else if (video.webkitEnterFullscreen) video.webkitEnterFullscreen();
+      }
+    } catch (e) { /* not allowed */ }
   }
   document.addEventListener('fullscreenchange', () => { el.bFs.innerHTML = fsActive() ? ICON.fsx : ICON.fs; host.classList.toggle('fs', fsActive()); place(false); });
+  document.addEventListener('webkitfullscreenchange', () => { el.bFs.innerHTML = fsActive() ? ICON.fsx : ICON.fs; host.classList.toggle('fs', fsActive()); place(false); });
+
+  async function openDocumentPiP() {
+    try {
+      if (window.documentPictureInPicture && typeof window.documentPictureInPicture.requestWindow === 'function') {
+        const pipWin = await window.documentPictureInPicture.requestWindow({ width: 480, height: 270 });
+        [...document.styleSheets].forEach(s => {
+          try {
+            const rules = [...s.cssRules].map(r => r.cssText).join('');
+            const st = document.createElement('style');
+            st.textContent = rules;
+            pipWin.document.head.appendChild(st);
+          } catch (e) {
+            const link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = s.href;
+            pipWin.document.head.appendChild(link);
+          }
+        });
+        pipWin.document.body.appendChild(host);
+        pipWin.addEventListener('pagehide', () => {
+          document.body.appendChild(host);
+          place(false);
+        });
+        return;
+      }
+    } catch (e) {}
+    showHud(ICON.pip, 'Docked mini player');
+    api.minimize();
+  }
+
+  const ctrlBar = frame.querySelector('.yt-ctrl');
+  if (ctrlBar) {
+    ctrlBar.addEventListener('click', e => e.stopPropagation());
+    ctrlBar.addEventListener('dblclick', e => e.stopPropagation());
+    ctrlBar.addEventListener('pointerdown', e => e.stopPropagation());
+    ctrlBar.addEventListener('pointerup', e => e.stopPropagation());
+  }
 
   frame.querySelector('.yt-row').addEventListener('click', e => {
+    e.stopPropagation();
     const b = e.target.closest('[data-a]');
     if (!b) return;
     const a = b.dataset.a;
     if (a === 'play') toggle();
     else if (a === 'prev') emit('prev');
     else if (a === 'next') emit('next');
-    else if (a === 'mute') { video.muted = !video.muted; prefs.muted = video.muted; savePrefs(); paintVolume(); }
+    else if (a === 'mute') {
+      applyVolume(prefs.vol || 1, !prefs.muted, true);
+    }
     else if (a === 'cc') {
       if (state.ccLang) {
         setCaptions('');
@@ -630,47 +713,65 @@
       }
     }
     else if (a === 'settings') { if (el.menu.hidden || menuStack[0] !== 'settings') openMenu('settings'); else closeMenu(); }
-    else if (a === 'pip') { if (state.engineType === 'embed') api.minimize(); else if (document.pictureInPictureElement) document.exitPictureInPicture(); else video.requestPictureInPicture().catch(() => {}); }
+    else if (a === 'pip') {
+      if (document.pictureInPictureElement) {
+        document.exitPictureInPicture().catch(() => {});
+      } else if (window.documentPictureInPicture && typeof window.documentPictureInPicture.requestWindow === 'function') {
+        openDocumentPiP();
+      } else if (video && video.requestPictureInPicture && state.engineType !== 'embed') {
+        video.requestPictureInPicture().catch(() => {});
+      } else {
+        showHud(ICON.pip, 'Docked mini player');
+        api.minimize();
+      }
+    }
     else if (a === 'fs') fullscreen();
   });
-  q('.yt-bigplay').addEventListener('click', toggle);
+  q('.yt-bigplay').addEventListener('click', e => { e.stopPropagation(); toggle(); });
 
   /* Touch & drag gestures: left side = brightness, right side = volume */
   let clickTimer = 0;
   let clickCount = 0;
   let gestureActive = false;
   let gestureType = null;
+  let gestureStartX = 0;
   let gestureStartY = 0;
   let gestureStartVal = 0;
   let gestureMoved = false;
+  let gestureJustEnded = false;
 
   ui.addEventListener('pointerdown', e => {
     if (state.mode === 'mini') return;
-    if (e.target.closest('.yt-ctrl, .yt-menu, .yt-mini-ui, .yt-bigplay, .yt-err')) return;
+    if (e.target.closest('.yt-ctrl, .yt-menu, .yt-mini-ui, .yt-bigplay, .yt-err, .yt-seek, .yt-hud')) return;
     const rect = ui.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
-    const x = e.clientX - rect.left;
+    gestureStartX = e.clientX;
     gestureStartY = e.clientY;
     gestureMoved = false;
     gestureActive = true;
+    const x = e.clientX - rect.left;
     if (x < rect.width / 2) {
       gestureType = 'brightness';
       gestureStartVal = currentBrightness;
     } else {
       gestureType = 'volume';
-      gestureStartVal = video.muted ? 0 : video.volume;
+      gestureStartVal = prefs.muted ? 0 : prefs.vol;
     }
   });
 
   ui.addEventListener('pointermove', e => {
     if (!gestureActive) return;
+    const dx = e.clientX - gestureStartX;
     const dy = gestureStartY - e.clientY; // upward drag is positive
-    if (!gestureMoved && Math.abs(dy) > 12) {
-      gestureMoved = true;
+    if (!gestureMoved) {
+      if (Math.abs(dy) > 16 && Math.abs(dy) > Math.abs(dx)) {
+        gestureMoved = true;
+        try { ui.setPointerCapture(e.pointerId); } catch (_) {}
+      }
     }
     if (gestureMoved) {
       try { e.preventDefault(); } catch (_) {}
-      const delta = dy / 200; // 200px drag = full 100% swing
+      const delta = dy / 220; // 220px drag = full 100% swing
       if (gestureType === 'brightness') {
         setBrightness(gestureStartVal + delta * 1.0);
       } else if (gestureType === 'volume') {
@@ -679,36 +780,66 @@
     }
   });
 
-  const endGesture = () => {
+  const endGesture = e => {
+    if (gestureMoved) {
+      gestureJustEnded = true;
+      setTimeout(() => { gestureJustEnded = false; }, 220);
+    }
+    try { if (e && e.pointerId) ui.releasePointerCapture(e.pointerId); } catch (_) {}
     gestureActive = false;
     gestureType = null;
+    gestureMoved = false;
   };
   ui.addEventListener('pointerup', endGesture);
   ui.addEventListener('pointercancel', endGesture);
 
-  /* Single tap to play/pause, double click/tap to toggle fullscreen without pausing */
+  /* Single tap to toggle controls or play/pause; double tap left/right to seek -10s/+10s; double tap center for fullscreen */
   ui.addEventListener('click', e => {
-    if (gestureMoved) { gestureMoved = false; return; }
-    if (state.mode === 'mini' && !e.target.closest('#ytToggle, #ytClose, .yt-cb, .yt-vol')) { expand(); return; }
-    if (e.target.closest('.yt-ctrl, .yt-menu, .yt-mini-ui, .yt-bigplay, .yt-err')) return;
+    if (gestureJustEnded || gestureMoved) return;
+    if (state.mode === 'mini') {
+      if (!e.target.closest('#ytToggle, #ytClose, .yt-cb, .yt-vol, .yt-ib')) expand();
+      return;
+    }
+    if (e.target.closest('.yt-ctrl, .yt-menu, .yt-mini-ui, .yt-bigplay, .yt-err, .yt-seek, .yt-hud')) return;
     if (!el.menu.hidden) { closeMenu(); return; }
+
+    const rect = ui.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const width = rect.width || 1;
+    const relX = x / width;
 
     clickCount++;
     if (clickCount === 1) {
       clearTimeout(clickTimer);
       clickTimer = setTimeout(() => {
         clickCount = 0;
-        if (state.mode !== 'none') toggle();
-      }, 260);
+        if (!ui.classList.contains('show') && state.playing) {
+          poke();
+        } else {
+          toggle();
+          poke();
+        }
+      }, 250);
     } else if (clickCount >= 2) {
       clearTimeout(clickTimer);
       clickCount = 0;
-      fullscreen();
+      const cur = (state.engineType === 'embed' && embedPlayer && embedPlayer.getCurrentTime ? embedPlayer.getCurrentTime() : video.currentTime) || state.time || 0;
+      if (relX < 0.35) {
+        seekTo(cur - 10);
+        showHud(ICON.back, '-10s');
+        poke();
+      } else if (relX > 0.65) {
+        seekTo(cur + 10);
+        showHud(ICON.fwd, '+10s');
+        poke();
+      } else {
+        fullscreen();
+      }
     }
   });
 
   ui.addEventListener('dblclick', e => {
-    if (e.target.closest('.yt-ctrl, .yt-menu, .yt-mini-ui, .yt-bigplay, .yt-err')) return;
+    if (e.target.closest('.yt-ctrl, .yt-menu, .yt-mini-ui, .yt-bigplay, .yt-err, .yt-seek, .yt-hud')) return;
     clearTimeout(clickTimer);
     clickCount = 0;
     fullscreen();
@@ -756,13 +887,16 @@
     el.embed.innerHTML = '';
     el.embed.classList.remove('ready');
     el.embed.hidden = false;
+    video.pause();
+    video.removeAttribute('src');
     video.hidden = true;
     const iframe = document.createElement('iframe');
     const origin = encodeURIComponent(window.location.origin || '');
     host.classList.add('embed');
     const startSec = Math.floor(start || 0);
-    iframe.src = `https://www.youtube.com/embed/${encodeURIComponent(id)}?enablejsapi=1&origin=${origin}&controls=0&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&fs=0&playsinline=1${startSec > 0 ? '&start=' + startSec : ''}`;
-    iframe.referrerPolicy = 'no-referrer-when-downgrade';
+    const vqParam = (prefs.quality && prefs.quality !== 'auto' && prefs.quality !== '144') ? (HEIGHT_TO_YT_QUALITY[+prefs.quality] || 'hd1080') : 'hd1080';
+    iframe.src = `https://www.youtube.com/embed/${encodeURIComponent(id)}?enablejsapi=1&origin=${origin}&controls=0&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&fs=0&playsinline=1&vq=${vqParam}&widget_referrer=${encodeURIComponent(window.location.href)}${startSec > 0 ? '&start=' + startSec : ''}`;
+    iframe.referrerPolicy = 'strict-origin-when-cross-origin';
     iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
     iframe.allowFullscreen = true;
     iframe.style.position = 'absolute';
@@ -804,7 +938,7 @@
       if (el.embed) el.embed.innerHTML = '';
       const iframe = document.createElement('iframe');
       iframe.id = 'ytIframeHost';
-      iframe.referrerPolicy = 'no-referrer-when-downgrade';
+      iframe.referrerPolicy = 'strict-origin-when-cross-origin';
       iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
       iframe.style.position = 'absolute';
       iframe.style.top = '-72px';
@@ -816,7 +950,8 @@
 
       const origin = encodeURIComponent(window.location.origin || '');
       const startSec = Math.floor(start || 0);
-      iframe.src = `https://www.youtube.com/embed/${encodeURIComponent(id)}?enablejsapi=1&origin=${origin}&controls=0&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&fs=0&playsinline=1${startSec > 0 ? '&start=' + startSec : ''}`;
+      const vqParam = (prefs.quality && prefs.quality !== 'auto' && prefs.quality !== '144') ? (HEIGHT_TO_YT_QUALITY[+prefs.quality] || 'hd1080') : 'hd1080';
+      iframe.src = `https://www.youtube.com/embed/${encodeURIComponent(id)}?enablejsapi=1&origin=${origin}&controls=0&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1&fs=0&playsinline=1&vq=${vqParam}&widget_referrer=${encodeURIComponent(window.location.href)}${startSec > 0 ? '&start=' + startSec : ''}`;
 
       if (el.embed) el.embed.appendChild(iframe);
 
@@ -832,19 +967,15 @@
               }
               state.duration = (embedPlayer.getDuration && embedPlayer.getDuration()) || state.duration || 0;
               if (embedPlayer.setPlaybackRate) embedPlayer.setPlaybackRate(prefs.rate);
-              if (prefs.muted) {
-                if (typeof embedPlayer.mute === 'function') embedPlayer.mute();
-                if (typeof embedPlayer.setVolume === 'function') embedPlayer.setVolume(0);
-              } else {
-                if (typeof embedPlayer.unMute === 'function') embedPlayer.unMute();
-                if (typeof embedPlayer.setVolume === 'function') embedPlayer.setVolume(Math.round(prefs.vol * 100));
-              }
+              applyVolume(prefs.vol, prefs.muted, false);
               if (start > 0 && embedPlayer.seekTo) embedPlayer.seekTo(start, true);
-              if (prefs.quality && prefs.quality !== 'auto') {
-                setEmbedQuality(prefs.quality);
+              if (prefs.quality && prefs.quality !== 'auto' && prefs.quality !== '144') {
+                setEmbedQuality(prefs.quality, true);
               } else {
+                prefs.quality = 'auto';
+                savePrefs();
                 const qLevel = (embedPlayer.getPlaybackQuality && embedPlayer.getPlaybackQuality()) || '';
-                state.height = YT_QUALITY_MAP[qLevel] || state.height || 720;
+                state.height = YT_QUALITY_MAP[qLevel] || state.height || 1080;
               }
               if (embedPlayer.loadModule) {
                 try { embedPlayer.loadModule('captions'); } catch (e) {}
@@ -1001,12 +1132,8 @@
     if (!(state.mode === 'watch' || fsActive())) return;
     const k = e.key;
     const vol = d => {
-      video.muted = false;
-      video.volume = Math.max(0, Math.min(1, video.volume + d));
-      prefs.vol = video.volume;
-      prefs.muted = false;
-      savePrefs();
-      paintVolume();
+      const cur = prefs.muted ? 0 : prefs.vol;
+      applyVolume(cur + d, false, true);
       poke();
     };
     const curTime = () => (state.engineType === 'embed' && embedPlayer && embedPlayer.getCurrentTime ? (embedPlayer.getCurrentTime() || state.time || 0) : (video.currentTime || state.time || 0));
@@ -1022,10 +1149,7 @@
     else if (k === 'ArrowUp') { e.preventDefault(); vol(0.05); }
     else if (k === 'ArrowDown') { e.preventDefault(); vol(-0.05); }
     else if (k === 'm' || k === 'M') {
-      video.muted = !video.muted;
-      prefs.muted = video.muted;
-      savePrefs();
-      paintVolume();
+      applyVolume(prefs.vol || 1, !prefs.muted, true);
       poke();
     }
     else if (k === 'f' || k === 'F') { fullscreen(); }

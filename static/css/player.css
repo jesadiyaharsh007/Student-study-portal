@@ -17,13 +17,14 @@
 /* ---- HUD indicators for brightness, volume & settings gestures ---- */
 .yt-hud { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%) scale(.9);
   display: flex; align-items: center; gap: .75rem; padding: .65rem 1.15rem; border-radius: 99px;
-  background: rgb(15 15 20 / .85); border: 1px solid rgb(255 255 255 / .22);
+  background: rgb(15 15 20 / .88); border: 1px solid rgb(255 255 255 / .24);
   box-shadow: 0 12px 32px rgb(0 0 0 / .65); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
   color: #fff; font-size: .95rem; font-weight: 600; pointer-events: none; opacity: 0;
   transition: opacity .18s ease, transform .18s ease; z-index: 35; }
 .yt-hud.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 .yt-hud svg { width: 22px; height: 22px; flex: none; color: #fff; }
-.yt-hud-bar { width: 75px; height: 5px; border-radius: 99px; background: rgb(255 255 255 / .25); overflow: hidden; position: relative; }
+.yt-hud-bar { width: 80px; height: 5px; border-radius: 99px; background: rgb(255 255 255 / .25); overflow: hidden; position: relative; }
+.yt-hud-bar[hidden] { display: none !important; }
 .yt-hud-fill { display: block; height: 100%; width: 100%; border-radius: 99px; background: var(--accent, #ff2a4f); transform-origin: left; transition: transform .05s linear; }
 
 /* ---- overlay UI ---- */
@@ -130,8 +131,10 @@
 @media (max-width: 560px) {
   .yt-skip, .yt-vol .yt-volr { display: none; }
   .yt-time { margin: 0 .2rem; font-size: .76rem; }
-  .yt-cb { width: 42px; height: 42px; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-  .yt-cb svg { width: 24px; height: 24px; }
+  .yt-cb { width: 44px; height: 44px; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  .yt-cb svg { width: 26px; height: 26px; }
+  .yt-hud { padding: .55rem 1rem; font-size: .88rem; }
+  .yt-hud-bar { width: 60px; height: 4px; }
 }
 @media (prefers-reduced-motion: reduce) { .yt-player, .yt-ctrl, .yt-top, .yt-menu { transition: none; animation: none; } .yt-player.pop { animation: none; } }
 .yt-ck { display: inline-block; width: 17px; height: 17px; flex: none; }

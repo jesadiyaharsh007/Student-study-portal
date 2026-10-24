@@ -397,21 +397,18 @@ def _youtube_context(request):
             if t_key == topic:
                 search_query, topic_label = t_query, t_label
                 break
+    ctx = {"q": q, "topic": topic, "topic_label": topic_label, "topics": [(k, l) for k, l, _ in videos.TOPICS]}
     results, error = videos.search_videos(search_query, max_results=24)
-    return {
-        "q": q, "topic": topic, "topic_label": topic_label,
-        "topics": [(k, l) for k, l, _ in videos.TOPICS],
-        "results": results, "error": error,
-        "items": _mix_results(results, videos.playlist_search(search_query) if search_query else []),
-    }
+    playlists = videos.playlist_search(search_query) if search_query else []
+    return {**ctx, "results": results, "error": error, "items": _mix_results(results, playlists)}
 
 
 @student_required
 def youtube(request):
-    ctx = _youtube_context(request)
     if request.GET.get("_part"):
         # Search and topic changes swap just the results, so the player keeps playing.
-        return render(request, "dashboard/partials/yt_results.html", ctx)
+        return render(request, "dashboard/partials/yt_results.html", _youtube_context(request))
+    ctx = _youtube_context(request)
     v = request.GET.get("v", "").strip()
     ctx["start_video"] = v if videos.valid_id(v) else ""
     list_id = request.GET.get("list", "").strip()

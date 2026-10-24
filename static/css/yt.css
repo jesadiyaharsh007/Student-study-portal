@@ -256,3 +256,28 @@ body.sp-embed .yt-bar-nav { display: flex; }
   font-weight: 700;
   color: var(--accent, #e8602a);
 }
+
+/* ---- search rows: recent searches (clock) and suggestions (magnifier), each with its own icon ---- */
+.yt-sg-row { display: flex; align-items: center; gap: .2rem; }
+.yt-sg-row .yt-sg { flex: 1; min-width: 0; }
+.yt-sg-ic { display: inline-grid; place-items: center; width: 22px; height: 22px; flex: none; color: var(--muted, #666); }
+.yt-sg-ic svg { width: 20px; height: 20px; }
+.yt-sg-recent .yt-sg-ic { color: var(--ink, #111); }
+.yt-sg-txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.yt-sg-del { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: var(--muted, #666); transition: background .2s, color .2s; }
+.yt-sg-del svg { width: 16px; height: 16px; }
+.yt-sg-del:hover { background: var(--sunk, rgb(0 0 0 / .06)); color: var(--ink, #111); }
+.yt-sg-del:focus-visible { outline: 2px solid var(--ink, #111); outline-offset: 2px; }
+
+/* ---- the loader while the Videos results are on their way ---- */
+.yt-grid-loading .yt-sk-card { display: grid; gap: .7rem; align-content: start; }
+.yt-sk-thumb, .yt-sk-line {
+  display: block; border-radius: 12px;
+  background: linear-gradient(90deg, var(--sunk, #e4e5e7) 25%, var(--hair, #f1f2f3) 50%, var(--sunk, #e4e5e7) 75%);
+  background-size: 200% 100%; animation: yt-shimmer 1.3s linear infinite;
+}
+.yt-sk-thumb { aspect-ratio: 16 / 9; border-radius: 14px; }
+.yt-sk-line { height: .9rem; }
+.yt-sk-line.short { width: 60%; }
+@keyframes yt-shimmer { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .yt-sk-thumb, .yt-sk-line { animation: none; } }

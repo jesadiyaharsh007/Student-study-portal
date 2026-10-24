@@ -140,6 +140,20 @@
     }
     saveHistory(S.meta, id);
   }
+  // The Mini player button: go back to the page the student came from (search, playlist, channel) and keep the video small there.
+  function miniFromWatch() {
+    if (!inWatch()) return;
+    if (history.state && history.state.pushed) { history.back(); return; }      // the list it was opened from; popstate makes it small
+    let prev = '';
+    try { prev = sessionStorage.getItem('sp:prev') || ''; } catch (e) { /* storage blocked */ }
+    const here = new URL(location.href), there = prev ? new URL(prev, location.origin) : null;
+    SP.minimize(); hideWatch(); document.title = baseTitle;
+    if (there && there.origin === location.origin && (there.pathname !== here.pathname || there.search !== here.search)) {
+      if (window.PJAX) window.PJAX.go(there.href); else location.href = there.href;
+      return;
+    }
+    minimize(false);
+  }
   function minimize(fromHistory) {
     if (!inWatch()) return;
     SP.minimize();
@@ -658,7 +672,7 @@
   $('ytBack').addEventListener('click', back);
   $('ytPrevB').addEventListener('click', () => playPrev());
   $('ytNextB').addEventListener('click', () => playNext());
-  $('ytMiniBtn').addEventListener('click', () => minimize(false));
+  $('ytMiniBtn').addEventListener('click', miniFromWatch);
   const collapsed = () => parseFloat(getComputedStyle(el.desc).lineHeight) * 3 + 'px';
   el.more.addEventListener('click', () => {
     const on = el.descBox.classList.toggle('open');
@@ -724,44 +738,71 @@
   el.form.addEventListener('submit', e => {
     e.preventDefault();
     const q = el.input.value.trim();
+    rememberSearch(q);
     loadList(q ? `${el.form.getAttribute('action')}?q=${encodeURIComponent(q)}` : el.form.getAttribute('action'), true);
   });
-  el.clear.addEventListener('click', e => { e.preventDefault(); loadList(el.form.getAttribute('action'), true); });
+  el.clear.addEventListener('click', e => {             // clears the text and keeps the page: no navigation
+    e.preventDefault();
+    el.input.value = ''; el.clear.hidden = true; closeSuggest(); el.input.focus();
+  });
   el.input.addEventListener('input', () => { el.clear.hidden = !el.input.value; });
 
-  /* ------------------------------------------------------------------ search suggestions, as you type (YouTube's list) */
+  /* ------------------------------------------------------------------ search: recent searches, and suggestions as you type */
+  const RECENT_KEY = 'sp:searches';
+  const readRecent = () => { try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]').filter(x => typeof x === 'string' && x).slice(0, 8); } catch (e) { return []; } };
+  const writeRecent = list => { try { localStorage.setItem(RECENT_KEY, JSON.stringify(list.slice(0, 8))); } catch (e) { /* storage blocked */ } };
+  const rememberSearch = q => { if (q) writeRecent([q, ...readRecent().filter(x => x.toLowerCase() !== q.toLowerCase())]); };
   const suggestBox = document.createElement('div');
   suggestBox.className = 'yt-suggest'; suggestBox.id = 'ytSuggest'; suggestBox.setAttribute('role', 'listbox'); suggestBox.hidden = true;
   el.form.appendChild(suggestBox);
+  const suggestCache = new Map();                       // what YouTube suggested for each query, so the list reopens instantly
   let suggestT = 0, suggestCtl = null, suggestIdx = -1, suggestItems = [];
+  const ICON_SEARCH = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 16l4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+  const ICON_CLOCK = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const ICON_X = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
   // the part the student has typed is bold, the rest is normal (as on YouTube)
   const hiLite = (text, q) => (text.toLowerCase().startsWith(q.toLowerCase()) ? `<b>${esc(text.slice(0, q.length))}</b>${esc(text.slice(q.length))}` : esc(text));
   function closeSuggest() { suggestBox.hidden = true; suggestIdx = -1; el.input.setAttribute('aria-expanded', 'false'); }
-  function paintSuggest(list, q) {
-    suggestItems = list; suggestIdx = -1;
-    if (!list.length) { closeSuggest(); return; }
-    suggestBox.innerHTML = list.map((txt, i) => `<button type="button" role="option" class="yt-sg" data-i="${i}" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4a7 7 0 1 0 4.4 12.4L20 21" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg><span>${hiLite(txt, q)}</span></button>`).join('');
+  function rowHtml(i, it, q) {
+    const recent = it.kind === 'recent';
+    const del = recent ? `<button type="button" class="yt-sg-del" data-del="${esc(it.txt)}" aria-label="Remove ${esc(it.txt)} from recent searches">${ICON_X}</button>` : '';
+    return `<div class="yt-sg-row" role="presentation"><button type="button" role="option" class="yt-sg${recent ? ' yt-sg-recent' : ''}" data-i="${i}" aria-selected="false"><span class="yt-sg-ic" aria-hidden="true">${recent ? ICON_CLOCK : ICON_SEARCH}</span><span class="yt-sg-txt">${recent ? esc(it.txt) : hiLite(it.txt, q)}</span></button>${del}</div>`;
+  }
+  // Recent searches first (with a clock), then YouTube's suggestions (with a magnifier). Empty box: only the recent ones.
+  function paintSuggest(q) {
+    const recent = readRecent().filter(x => !q || x.toLowerCase().includes(q.toLowerCase())).slice(0, q ? 4 : 8);
+    const sugg = (suggestCache.get(q) || []).filter(x => !recent.some(r => r.toLowerCase() === x.toLowerCase()));
+    suggestItems = [...recent.map(txt => ({ txt, kind: 'recent' })), ...sugg.map(txt => ({ txt, kind: 'sugg' }))];
+    suggestIdx = -1;
+    if (!suggestItems.length) { closeSuggest(); return; }
+    suggestBox.innerHTML = suggestItems.map((it, i) => rowHtml(i, it, q)).join('');
     suggestBox.hidden = false; el.input.setAttribute('aria-expanded', 'true');
   }
   function fetchSuggest(q) {
     clearTimeout(suggestT);
-    if (!q) { closeSuggest(); return; }
+    paintSuggest(q);                                    // what we already know shows at once
+    if (!q || suggestCache.has(q)) return;
     suggestT = setTimeout(() => {
       if (suggestCtl) suggestCtl.abort();
       suggestCtl = new AbortController();
       fetch(`${root.dataset.suggestUrl}?q=${encodeURIComponent(q)}`, { credentials: 'same-origin', signal: suggestCtl.signal })
         .then(r => (r.ok ? r.json() : { suggestions: [] }))
-        .then(d => { if (el.input.value.trim() === q) paintSuggest(d.suggestions || [], q); })
+        .then(d => {
+          if (suggestCache.size > 60) suggestCache.clear();
+          suggestCache.set(q, d.suggestions || []);
+          if (el.input.value.trim() === q) paintSuggest(q);
+        })
         .catch(() => {});
-    }, 160);
+    }, 60);
   }
   function chooseSuggest(i) {
-    const txt = suggestItems[i];
-    if (!txt) return;
-    el.input.value = txt; closeSuggest(); el.form.requestSubmit();
+    const it = suggestItems[i];
+    if (!it) return;
+    el.input.value = it.txt; closeSuggest(); el.form.requestSubmit();
   }
   el.input.setAttribute('aria-autocomplete', 'list'); el.input.setAttribute('aria-controls', 'ytSuggest'); el.input.setAttribute('aria-expanded', 'false');
-  listen(el.input, 'input', () => fetchSuggest(el.input.value.trim()));
+  listen(el.input, 'input', () => { el.clear.hidden = !el.input.value; fetchSuggest(el.input.value.trim()); });
+  listen(el.input, 'focus', () => { if (!el.input.value.trim()) paintSuggest(''); });
   listen(el.input, 'keydown', e => {
     const opts = [...suggestBox.querySelectorAll('.yt-sg')];
     if (e.key === 'Escape') { closeSuggest(); return; }
@@ -772,7 +813,12 @@
     else return;
     opts.forEach((o, i) => { const on = i === suggestIdx; o.classList.toggle('on', on); o.setAttribute('aria-selected', String(on)); });
   });
-  listen(suggestBox, 'mousedown', e => { const b = e.target.closest('.yt-sg'); if (b) { e.preventDefault(); chooseSuggest(+b.dataset.i); } });
+  listen(suggestBox, 'mousedown', e => {
+    const del = e.target.closest('.yt-sg-del');
+    if (del) { e.preventDefault(); writeRecent(readRecent().filter(x => x !== del.dataset.del)); paintSuggest(el.input.value.trim()); return; }
+    const b = e.target.closest('.yt-sg');
+    if (b) { e.preventDefault(); chooseSuggest(+b.dataset.i); }
+  });
   listen(el.input, 'blur', () => setTimeout(closeSuggest, 120));
   listen(document, 'pointerdown', e => { if (!el.form.contains(e.target)) closeSuggest(); });
   listen(el.form, 'submit', closeSuggest);
@@ -814,6 +860,20 @@
 
   /* ------------------------------------------------------------------ results grid: length filter, broken thumbnails */
   const seconds = s => { const p = (s || '').split(':').map(Number); return !p.length || p.some(Number.isNaN) ? 0 : p.reduce((a, n) => a * 60 + n, 0); };
+  // The page opens at once with a loader; the results come in a moment later.
+  async function loadResults(url) {
+    el.results.classList.add('loading'); el.results.setAttribute('aria-busy', 'true');
+    const part = url + (url.includes('?') ? '&' : '?') + '_part=1';
+    try {
+      const r = await fetch(part, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      if (!r.ok) throw new Error(r.status);
+      el.results.innerHTML = await r.text();
+      prepGrid();
+    } catch (e) {
+      el.results.innerHTML = '<div class="empty"><h3>Could not load videos</h3><p>Check your connection and try again.</p></div>';
+    }
+    el.results.classList.remove('loading'); el.results.removeAttribute('aria-busy');
+  }
   // Subscriber counts and channel pictures for the cards. The results show at once; these fill in a moment later (one request).
   function hydrateChannels() {
     const ids = [...new Set([...document.querySelectorAll('[data-subs-of]')].map(s => s.dataset.subsOf))];
@@ -995,4 +1055,5 @@
   }
   el.auto.checked = SP.autoplay;                       // the switch and the docked player share one setting
   el.auto.addEventListener('change', () => { SP.autoplay = el.auto.checked; });
+  if (root.dataset.loading === '1') loadResults(listUrl());     // the page opened without results: fetch them now
 })();
