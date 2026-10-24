@@ -29,7 +29,9 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY') or 'django-insecure-&m#j%)6)#sy
 # Set DJANGO_DEBUG=1 to force it on.
 DEBUG = os.environ.get('DJANGO_DEBUG', '0' if os.environ.get('VERCEL') == '1' else '1') == '1'
 
-ALLOWED_HOSTS = ['*']
+# Only answer for the hosts the site really lives on (a custom domain can be added through the env var).
+ALLOWED_HOSTS = [h.strip() for h in os.environ.get(
+    'ALLOWED_HOSTS', '.vercel.app,.now.sh,.onrender.com,localhost,127.0.0.1,[::1]').split(',') if h.strip()]
 
 CSRF_TRUSTED_ORIGINS = [
     'https://*.vercel.app',
@@ -73,6 +75,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'dashboard.middleware.FriendlyErrorPagesMiddleware',
+    'dashboard.middleware.PrivatePagesMiddleware',
 ]
 
 AUTHENTICATION_BACKENDS = ['dashboard.auth_backend.CachedUserBackend']
@@ -212,10 +215,13 @@ LOGIN_URL = 'login'
 # Lexi (AI Bot) API Key
 # Load from environment variable (Vercel dashboard), or local .env file if present
 SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+# Production runs on HTTPS behind Vercel's proxy: cookies travel only over HTTPS.
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip(' "\'')
-# Videos use YouTube's Data API (a free key from Google Cloud Console).
-YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY", "").strip(' "\'')
 _env_file = BASE_DIR / '.env'
 if _env_file.exists():
     try:
@@ -228,7 +234,5 @@ if _env_file.exists():
                 _k, _v = _k.strip(), _v.strip(' "\'')
                 if _k == 'GEMINI_API_KEY' and not GEMINI_API_KEY:
                     GEMINI_API_KEY = _v
-                elif _k == 'YOUTUBE_API_KEY' and not YOUTUBE_API_KEY:
-                    YOUTUBE_API_KEY = _v
     except Exception:
         pass

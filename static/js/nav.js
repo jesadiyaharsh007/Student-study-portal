@@ -14,7 +14,6 @@
   const ran = new Set([...document.querySelectorAll('script[data-once][src]')].map(s => s.getAttribute('src').split('?')[0]));
   window.PageCleanup = window.PageCleanup || [];
 
-  const pathOf = u => new URL(u, location.origin).pathname;
   const css = () => new Set([...document.querySelectorAll('link[rel=stylesheet]')].map(l => (l.getAttribute('href') || '').split('?')[0]));
 
   function syncNav(doc) {
@@ -101,12 +100,11 @@
     if (u.origin !== location.origin || SKIP.test(u.pathname)) return;
     if (u.pathname === location.pathname && u.search === location.search) { if (!u.hash) e.preventDefault(); return; }
     e.preventDefault();
-    rememberPage();
     go(u.href);
   });
 
   addEventListener('popstate', e => {
-    if (location.pathname === pathOf(current)) return;          // same page: its own script handles it (video list, watch view)
+    if (location.pathname + location.search === current) return;   // only the #hash changed
     go(location.href, { push: false, scroll: e.state && e.state.sy });
   });
 
