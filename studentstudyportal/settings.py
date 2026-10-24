@@ -213,7 +213,7 @@ LOGIN_URL = 'login'
 # Load from environment variable (Vercel dashboard), or local .env file if present
 # How videos play: "embed" plays directly via the clean embedded engine with custom controls.
 SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
-PLAYER_MODE = os.environ.get("PLAYER_MODE") or ("embed" if os.environ.get("VERCEL") == "1" else "auto")
+PLAYER_MODE = os.environ.get("PLAYER_MODE", "auto")
 # Optional: a separate always-on server running media_service/ that does the streaming, so it works on the live site too.
 MEDIA_SERVICE_URL = os.environ.get("MEDIA_SERVICE_URL", "").strip().rstrip("/")
 MEDIA_SERVICE_SECRET = os.environ.get("MEDIA_SERVICE_SECRET", "").strip()
