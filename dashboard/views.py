@@ -11,7 +11,7 @@ from django.contrib import messages
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.http import JsonResponse, StreamingHttpResponse
+from django.http import Http404, JsonResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -26,7 +26,7 @@ from .forms import (
     TodoForm,
     UserRegistrationForm,
 )
-from . import library, lexi, throttle
+from . import library, lexi, throttle, videos
 from .models import Homework, Notes, Todo
 
 # (attempts, seconds): failed sign-ins per account name and per address, Lexi questions per student.
@@ -392,9 +392,34 @@ def _query(request):
 
 # --------------------------------------------------------------------------- videos
 
-def youtube(request, rest=""):
-    """Videos are being rebuilt. The menu link and every old video link land on this notice."""
-    return render(request, "dashboard/coming_soon.html", {"feature": "Videos"})
+@student_required
+def youtube(request):
+    """Videos: hand-picked lessons by topic, or a search. The page opens at once; the grid is its data region."""
+    old_link = request.GET.get("v", "")
+    if videos.valid_id(old_link):                       # links shared from the old Videos page (?v=ID)
+        return redirect("youtube-watch", video_id=old_link)
+    q = _query(request)
+    topic = request.GET.get("topic", "")
+    ctx = {"q": q, "topic": topic if topic in videos.TOPIC_LABELS and not q else "",
+           "topics": list(videos.video_library.TOPICS), "has_key": videos.has_key()}
+    if not _is_part(request):
+        return render(request, "dashboard/youtube.html", {**ctx, "loading": True})
+    ctx.update(videos.browse(q, ctx["topic"]))
+    return _part_response(request, "dashboard/partials/videos_data.html", ctx)
+
+
+@student_required
+def youtube_watch(request, video_id):
+    """One video on its own page: YouTube's player, its details, an Ask Lexi shortcut and what to watch next."""
+    video = videos.details(video_id)
+    if video is None:
+        raise Http404("No such video")
+    return render(request, "dashboard/youtube_watch.html", {"video": video, "related": videos.related(video)})
+
+
+def youtube_old(request, rest=""):
+    """Addresses from the old Videos page (channels, playlists, streams): send them to the Videos page."""
+    return redirect("youtube")
 
 
 OPENLIBRARY_FIELDS = "key,title,author_name,cover_i,first_publish_year,number_of_pages_median,subject,ratings_average"

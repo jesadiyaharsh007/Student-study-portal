@@ -1,0 +1,13 @@
+{% load ui %}{% if note %}<p class="vid-note">{% icon "info" "ic-sm" %}{{ note }}</p>{% endif %}
+{% if videos %}
+{% if q %}<p class="vid-count">{{ videos|length }} result{{ videos|length|pluralize }} for “{{ q }}”{% if source == "library" %} in the lesson library{% endif %}</p>{% endif %}
+<div class="vid-grid">
+  {% for v in videos %}{% include "dashboard/partials/video_card.html" %}{% endfor %}
+</div>
+{% else %}
+<div class="lib-empty">
+  <span class="glyph">{% icon "search" %}</span>
+  <h3>No lessons found{% if q %} for “{{ q }}”{% endif %}</h3>
+  <p>Try a broader word, pick a topic above, or ask <a href="{% url 'chatbot' %}?ask={{ q|urlencode }}">Lexi</a> to explain it.</p>
+</div>
+{% endif %}

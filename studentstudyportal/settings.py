@@ -235,7 +235,7 @@ SECURE_CSP = {
     "img-src": [CSP.SELF, "data:", "https:"],
     "media-src": [CSP.SELF, "https:"],
     "connect-src": [CSP.SELF],
-    "frame-src": [CSP.NONE],
+    "frame-src": ["https://www.youtube-nocookie.com"],          # the Videos player
     "frame-ancestors": [CSP.NONE],
     "object-src": [CSP.NONE],
     "base-uri": [CSP.SELF],
@@ -248,6 +248,8 @@ if not DEBUG:
     CSRF_COOKIE_SECURE = True
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip(' "\'')
+# Optional: with a YouTube Data API key, Videos can search all of YouTube (else the hand-picked lessons).
+YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY", "").strip(' "\'')
 _env_file = BASE_DIR / '.env'
 if _env_file.exists():
     try:
@@ -260,5 +262,7 @@ if _env_file.exists():
                 _k, _v = _k.strip(), _v.strip(' "\'')
                 if _k == 'GEMINI_API_KEY' and not GEMINI_API_KEY:
                     GEMINI_API_KEY = _v
+                elif _k == 'YOUTUBE_API_KEY' and not YOUTUBE_API_KEY:
+                    YOUTUBE_API_KEY = _v
     except Exception:
         pass

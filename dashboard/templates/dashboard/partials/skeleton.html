@@ -1,10 +1,14 @@
-{# Placeholder shown while a page's data loads. kind: list | notes | dash #}
+{# Placeholder shown while a page's data loads. kind: list | notes | dash | videos #}
 <div class="async-skel" aria-hidden="true">
 {% if kind == "notes" %}
   <div class="sk-toolbar"><span class="skeleton sk-pill sk-w-search"></span><span class="skeleton sk-pill"></span><span class="skeleton sk-pill"></span><span class="skeleton sk-pill"></span></div>
   <div class="notes-grid sk-notes">
     <span class="skeleton sk-card sk-h1"></span><span class="skeleton sk-card sk-h2"></span><span class="skeleton sk-card sk-h3"></span>
     <span class="skeleton sk-card sk-h2"></span><span class="skeleton sk-card sk-h3"></span><span class="skeleton sk-card sk-h1"></span>
+  </div>
+{% elif kind == "videos" %}
+  <div class="vid-grid">
+    {% for _ in "12345678" %}<span class="vid-sk"><span class="skeleton vid-sk-thumb"></span><span class="skeleton vid-sk-line"></span><span class="skeleton vid-sk-line vid-sk-short"></span></span>{% endfor %}
   </div>
 {% elif kind == "dash" %}
   <div class="bn">

@@ -1152,6 +1152,14 @@
       if (send && !busy) send.disabled = !ta.value.trim();
     });
     $$('[data-suggest]').forEach(b => on(b, 'click', () => ask(b.dataset.suggest)));
+    // ?ask=... (e.g. "Ask Lexi about it" under a video): the question waits in the box, ready to send or edit.
+    const asked = new URLSearchParams(location.search).get('ask');
+    if (asked && ta) {
+      ta.value = asked.slice(0, 2000);
+      ta.dispatchEvent(new Event('input'));
+      ta.focus();
+      try { history.replaceState(history.state, '', location.pathname); } catch (e) { /* ignore */ }
+    }
     on($('#chat-clear'), 'click', () => {
       hist = []; try { localStorage.removeItem(HKEY); } catch (e) {}
       location.reload();
