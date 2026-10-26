@@ -16,7 +16,8 @@ urlpatterns = [
 
 
     path('youtube/', views.youtube, name="youtube"),
-    path('youtube/<path:rest>', views.youtube),   # old video links (watch, channel, ...) all show the notice
+    path('youtube/watch/<str:video_id>/', views.youtube_watch, name="youtube-watch"),
+    path('youtube/<path:rest>', views.youtube_old),   # old addresses (channel, playlist, stream, ...)
 
     path('todo/', views.todo, name="todo"),
     path('update_todo/<int:pk>', views.update_todo, name="update-todo"),

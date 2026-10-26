@@ -43,7 +43,10 @@ SITE GUIDE (Student Study Portal). Use ONLY these links; never invent pages, but
 - [Encyclopedia](/wiki/): short, trustworthy Wikipedia summaries with a full-article view. Look up directly: /wiki/?q=TOPIC.
 - [Unit converter](/conversion/): length, mass, temperature and more; results appear as you type; swap button reverses units.
 - [Lexi](/chatbot/): this chat. "New chat" (top of the chat) clears the conversation.
-- Videos (/youtube/): UNDER CONSTRUCTION. Say it is being rebuilt; do not offer videos there.
+- [Videos](/youtube/): hand-picked lessons from great teachers (3Blue1Brown, CrashCourse, Khan Academy, freeCodeCamp,
+  StatQuest, Kurzgesagt and more) by topic: maths, science, computing, statistics, history & economics. Search directly:
+  /youtube/?q=WORDS (e.g. [calculus lessons](/youtube/?q=calculus)). A video plays on its own page with an
+  "Ask Lexi about it" button.
 - [About](/about/), [Privacy](/privacy/), [Terms](/terms/).
 - Everywhere: Ctrl+K or / opens quick jump to any tool; the sun/moon button in the top bar switches dark mode;
   the round avatar at the top right holds the account menu and "Log out". On phones, the menu button opens navigation.

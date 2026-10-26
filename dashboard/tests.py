@@ -590,17 +590,122 @@ class LibraryTests(TestCase):
             self.assertEqual(self.client.get(url).status_code, 302, url)
 
 
-class VideosComingSoonTests(TestCase):
-    """Videos are switched off: the page and every old video link only show the notice, with no player at all."""
+class FakeHTTP:
+    """A requests response stand-in for the YouTube API and oEmbed."""
 
-    def test_videos_page_and_old_links_show_the_notice(self):
-        for url in (reverse('youtube'), '/youtube/?q=perfect&v=2Vv-BfVoq4g', '/youtube/watch/2Vv-BfVoq4g/',
-                    '/youtube/channel/UCYO_jab_esuFRV4b17AJtAw/', '/youtube/stream/2Vv-BfVoq4g/'):
-            res = self.client.get(url)
-            self.assertEqual(res.status_code, 200, url)
-            self.assertContains(res, 'Under construction')
-            self.assertNotContains(res, 'iframe')
-            self.assertNotContains(res, 'youtube.com/embed')
+    def __init__(self, status=200, data=None):
+        self.status_code, self._data = status, data or {}
+
+    def json(self):
+        return self._data
+
+
+class VideoTests(TestCase):
+    """The Videos pages. The network is always mocked, so these run offline and never use YouTube quota."""
+    LESSON = 'WUvTyaaNkzM'                     # "The essence of calculus" (3Blue1Brown), in the library
+    OTHER = 'abcdefghijk'                      # a video that is not in the library
+
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+        User.objects.create_user('watcher', 'watcher@example.com', 'Watcher-pass-123')
+        self.client.login(username='watcher', password='Watcher-pass-123')
+
+    def offline(self):
+        """Any network call fails the test: the library must work without one."""
+        return mock.patch('dashboard.videos._session.get', side_effect=AssertionError('network used'))
+
+    def test_pages_require_sign_in(self):
+        self.client.logout()
+        self.assertEqual(self.client.get(reverse('youtube')).status_code, 302)
+        self.assertEqual(self.client.get(reverse('youtube-watch', args=[self.LESSON])).status_code, 302)
+
+    def test_page_opens_instantly_then_loads_the_lesson_grid(self):
+        shell = self.client.get(reverse('youtube'))
+        self.assertContains(shell, 'data-async')
+        self.assertContains(shell, 'vid-sk')                       # placeholder while the grid loads
+        with self.offline():
+            grid = self.client.get(reverse('youtube') + '?_part=1')
+        self.assertContains(grid, 'Study Less Study Smart')       # the featured talk comes first
+        self.assertContains(grid, 'The essence of calculus')
+        self.assertContains(grid, f'href="/youtube/watch/{self.LESSON}/"', count=1)
+        self.assertContains(grid, 'https://i.ytimg.com/vi/')
+
+    def test_topic_filter(self):
+        with self.offline():
+            res = self.client.get(reverse('youtube') + '?topic=computing&_part=1')
+        self.assertContains(res, 'Learn Python - Full Course for Beginners')
+        self.assertNotContains(res, 'The essence of calculus')
+
+    def test_search_without_a_key_uses_the_library(self):
+        with self.settings(YOUTUBE_API_KEY=''), self.offline():
+            hit = self.client.get(reverse('youtube') + '?q=calculus&_part=1')
+            miss = self.client.get(reverse('youtube') + '?q=zzzz-no-such-lesson&_part=1')
+        self.assertContains(hit, 'The essence of calculus')
+        self.assertContains(hit, 'in the lesson library')
+        self.assertContains(miss, 'No lessons found')
+        self.assertContains(miss, '/chatbot/?ask=')
+
+    def test_search_with_a_key_uses_youtube_with_channel_pictures(self):
+        item = {'id': {'videoId': self.OTHER}, 'snippet': {'title': 'Calculus from YouTube', 'channelTitle': 'Some Teacher',
+                                                           'channelId': 'UC' + 'x' * 22, 'publishedAt': '2020-01-02T03:04:05Z'}}
+        answers = {'search': FakeHTTP(data={'items': [item, item]}),
+                   'channels': FakeHTTP(data={'items': [{'id': 'UC' + 'x' * 22, 'snippet': {'thumbnails': {'default': {'url': 'https://yt3.example/a.jpg'}}}}]})}
+        with self.settings(YOUTUBE_API_KEY='k'), mock.patch('dashboard.videos._session.get',
+                                                            side_effect=lambda url, **kw: answers[url.rsplit('/', 1)[1]]):
+            res = self.client.get(reverse('youtube') + '?q=calculus&_part=1')
+        self.assertContains(res, 'Calculus from YouTube')
+        self.assertContains(res, 'src="https://yt3.example/a.jpg"')
+        self.assertContains(res, f'href="/youtube/watch/{self.OTHER}/"', count=1)
+
+    def test_youtube_search_down_falls_back_to_the_library(self):
+        with self.settings(YOUTUBE_API_KEY='k'), mock.patch('dashboard.videos._session.get', return_value=FakeHTTP(403)):
+            res = self.client.get(reverse('youtube') + '?q=calculus&_part=1')
+        self.assertContains(res, 'unavailable right now')
+        self.assertContains(res, 'The essence of calculus')
+
+    def test_watch_a_library_lesson_without_any_network(self):
+        with self.offline():
+            res = self.client.get(reverse('youtube-watch', args=[self.LESSON]))
+        self.assertContains(res, f'https://www.youtube-nocookie.com/embed/{self.LESSON}?autoplay=1')
+        self.assertContains(res, 'The essence of calculus')
+        self.assertContains(res, '/chatbot/?ask=Explain%20the%20main%20ideas')
+        self.assertContains(res, 'Up next')
+        self.assertContains(res, 'Vectors | Chapter 1')              # another maths lesson suggested
+
+    def test_watch_any_youtube_video_via_the_public_lookup(self):
+        found = FakeHTTP(data={'title': 'Some <b>lesson</b>', 'author_name': 'A Teacher', 'author_url': 'https://www.youtube.com/@t'})
+        with mock.patch('dashboard.videos._session.get', return_value=found):
+            res = self.client.get(reverse('youtube-watch', args=[self.OTHER]))
+        self.assertContains(res, 'Some &lt;b&gt;lesson&lt;/b&gt;')
+        self.assertContains(res, f'youtube-nocookie.com/embed/{self.OTHER}')
+
+    def test_missing_and_invalid_videos_are_404(self):
+        with mock.patch('dashboard.videos._session.get', return_value=FakeHTTP(404)):
+            self.assertEqual(self.client.get(reverse('youtube-watch', args=[self.OTHER])).status_code, 404)
+        self.assertEqual(self.client.get('/youtube/watch/%3Cscript%3E/').status_code, 404)
+
+    def test_old_links_still_work(self):
+        self.assertRedirects(self.client.get('/youtube/?q=x&v=' + self.LESSON), reverse('youtube-watch', args=[self.LESSON]))
+        self.assertRedirects(self.client.get('/youtube/channel/UCYO_jab_esuFRV4b17AJtAw/'), reverse('youtube'), fetch_redirect_response=False)
+
+    def test_player_is_allowed_by_the_content_security_policy(self):
+        with self.offline():
+            res = self.client.get(reverse('youtube-watch', args=[self.LESSON]))
+        self.assertIn('frame-src https://www.youtube-nocookie.com', res['Content-Security-Policy'])
+
+    def test_library_is_well_formed(self):
+        from . import video_library, videos
+        ids = [row[0] for row in video_library.LESSONS] + [video_library.FEATURED[0]]
+        self.assertEqual(len(ids), len(set(ids)))
+        self.assertTrue(all(videos.valid_id(i) for i in ids))
+        for key, _label in video_library.TOPICS:
+            self.assertGreaterEqual(len(videos.library(key)), 4, key)
+
+    def test_lexi_knows_the_videos_page(self):
+        from .lexi import SYSTEM_PROMPT
+        self.assertIn('/youtube/?q=', SYSTEM_PROMPT)
+        self.assertNotIn('UNDER CONSTRUCTION', SYSTEM_PROMPT)
 
 
 class SecurityHeaderTests(TestCase):

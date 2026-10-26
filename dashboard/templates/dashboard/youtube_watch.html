@@ -1,0 +1,47 @@
+{% extends 'dashboard/base.html' %}
+{% load static ui %}
+{% block title %}{{ video.title }}{% endblock %}
+{% block robots %}noindex,nofollow{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% static 'css/videos.css' %}?v=1">{% endblock %}
+{% block content %}
+<div class="wrap-n videos-page">
+  <a class="vid-back" href="{% url 'youtube' %}">{% icon "arrow-left" "ic-sm" %}<span>All videos</span></a>
+
+  <div class="watch">
+    <section class="watch-main" aria-label="Video">
+      <div class="watch-frame">
+        <iframe src="https://www.youtube-nocookie.com/embed/{{ video.id }}?autoplay=1&amp;rel=0&amp;modestbranding=1&amp;playsinline=1"
+                title="{{ video.title }}" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+      </div>
+
+      <h1 class="watch-title">{{ video.title }}</h1>
+      <div class="watch-row">
+        <span class="vid-avatar" aria-hidden="true">{% if video.channel_avatar %}<img src="{{ video.channel_avatar }}" alt="" width="40" height="40">{% else %}{{ video.channel|slice:":1" }}{% endif %}</span>
+        <div class="watch-by">
+          <b>{{ video.channel }}</b>
+          <small>{% if video.topic_label %}{{ video.topic_label }} lesson{% endif %}{% if video.views_label %}{{ video.views_label }}{% endif %}{% if video.published %} · {{ video.published|date:"j M Y" }}{% endif %}</small>
+        </div>
+        <div class="watch-actions">
+          <a class="btn btn-ink no-ico" href="{% url 'chatbot' %}?ask={% filter urlencode %}Explain the main ideas of the video "{{ video.title }}" by {{ video.channel }}, step by step.{% endfilter %}">{% icon "cap" "ic-sm" %}<span>Ask Lexi about it</span></a>
+          <a class="btn btn-line no-ico" href="https://www.youtube.com/watch?v={{ video.id }}" target="_blank" rel="noopener noreferrer">{% icon "external" "ic-sm" %}<span>YouTube</span></a>
+        </div>
+      </div>
+
+      {% if video.description %}
+      <details class="watch-about">
+        <summary>About this video</summary>
+        <p>{{ video.description|linebreaksbr }}</p>
+      </details>
+      {% endif %}
+    </section>
+
+    <aside class="watch-side" aria-label="Up next">
+      <h2>Up next</h2>
+      <div class="vid-list">
+        {% for v in related %}{% include "dashboard/partials/video_card.html" %}{% endfor %}
+      </div>
+    </aside>
+  </div>
+</div>
+{% endblock %}
