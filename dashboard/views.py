@@ -831,11 +831,11 @@ def conversion(request):
 
 # --------------------------------------------------------------------------- Lexi
 
-def _lexi_chunks(resp):
+def _lexi_chunks(api_key, history, prompt, resp):
     """Pass Gemini's answer on piece by piece; if the connection drops midway, say so instead of stopping silently."""
     sent = False
     try:
-        for piece in lexi.iter_text(resp):
+        for piece in lexi.stream_answer(api_key, history, prompt, resp):
             sent = True
             yield piece
     except requests.RequestException:
@@ -888,7 +888,8 @@ def chatbot(request):
                 logging.getLogger(__name__).warning("Lexi call failed: %s", exc)
                 error, status = "Lexi couldn't answer right now. Please try again.", 503
             else:
-                out = StreamingHttpResponse(_lexi_chunks(upstream), content_type="text/plain; charset=utf-8")
+                out = StreamingHttpResponse(_lexi_chunks(settings.GEMINI_API_KEY, history, prompt, upstream),
+                                            content_type="text/plain; charset=utf-8")
                 out["Cache-Control"] = "no-store"
                 out["X-Accel-Buffering"] = "no"
                 return out

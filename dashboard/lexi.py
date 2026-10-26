@@ -14,13 +14,17 @@ from django.utils import timezone
 
 API = "https://generativelanguage.googleapis.com/v1beta/models/{model}:streamGenerateContent?alt=sse"
 MODEL_INFO = "https://generativelanguage.googleapis.com/v1beta/models/{model}"
-# Fastest first (measured). A model that just failed with quota/availability is skipped for a while.
-MODELS = ["gemini-3.1-flash-lite", "gemini-3.5-flash", "gemini-3-flash-preview", "gemini-3.5-flash-lite"]
+# Best answer first: 3.5-flash starts as fast as the lite model (~1.6s) and answers in far more depth.
+# Measured on a history question: 3.5-flash 2979 chars / 8 paragraphs, 3.1-flash-lite 1213 / 2.
+# A model that just failed with quota/availability is skipped for a while; a slow one is hedged (HEDGE_AFTER).
+MODELS = ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-3-flash-preview", "gemini-3.5-flash-lite"]
 _SKIP_UNTIL = {}
 CONNECT_BUDGET = 18          # seconds to start asking models; with READ_WAIT this stays under Vercel's 30s
 READ_WAIT = 10               # longest silence from a model (before or during its answer), so a stuck one
                              # still leaves time to ask the next
-HEDGE_AFTER = 3              # a model this slow to start gets company: the next one is asked in parallel
+HEDGE_AFTER = 4              # a model this slow to start gets company: the next one is asked in parallel
+ANSWER_BUDGET = 22           # seconds after which an answer cut short is not continued (Vercel stops at 30)
+MAX_CONTINUES = 2
 _POOL = ThreadPoolExecutor(max_workers=8, thread_name_prefix="lexi")
 
 # Every page Lexi may send a student to. Links in answers must come from here.
@@ -57,7 +61,13 @@ SYSTEM_PROMPT = (
     "- Be correct before being fast. Work through maths and logic step by step and check the final answer.\n"
     "- If you are not sure, or a fact may have changed recently, say so plainly instead of guessing. Never invent sources, quotes, "
     "statistics or links.\n"
-    "- Answer the question that was asked; ask one short clarifying question only when the request is truly ambiguous.\n\n"
+    "- Answer the question that was asked; ask one short clarifying question only when the request is truly ambiguous.\n"
+    "- Give specific dates, names, numbers and places only when you are confident they are correct.\n\n"
+    "DEPTH:\n"
+    "- When a student asks for details, an explanation, a topic overview or 'tell me about', give a thorough, well-organised "
+    "answer: a one-line summary, then sections with headings covering background, what happened or how it works, key facts "
+    "(dates, people, numbers), causes and effects or significance, and a short recap. Use your own words.\n"
+    "- Sensitive history (wars, terrorism, disasters) is legitimate study material: explain it factually and respectfully.\n\n"
     "FORMATTING RULES (CRITICAL — the chat renders markdown):\n"
     "1. Explanations and conversation: plain markdown (short paragraphs, **bold**, lists; headings only in long answers). "
     "NEVER wrap ordinary prose in a code block.\n"
@@ -66,7 +76,8 @@ SYSTEM_PROMPT = (
     "3. Comparisons and data with 2+ attributes: a markdown table (header row, then |---|---|), preceded by a blank line.\n"
     "4. Math: KaTeX ($...$ inline, $$...$$ display), never inside a code block.\n"
     "5. Never output raw HTML tags; use markdown only.\n"
-    "6. Match length to the question: a greeting or simple question gets one or two sentences.\n\n"
+    "6. Match length to the question: a greeting or quick factual question gets one or two sentences; requests for "
+    "details or explanations get the full DEPTH treatment.\n\n"
     "STRICT SECURITY & PRIVACY GUARDRAILS (UNCOMPROMISING):\n"
     "1. NO ACCESS TO ACCOUNTS: You cannot see any student's account, notes, homework, to-dos, reading or messages, and you know "
     "nothing about other users. Never claim or pretend otherwise. If asked about another person's or user's data, refuse and explain "
@@ -125,6 +136,11 @@ def _needs_thought(prompt):
                                                  prompt, re.I))
 
 
+# Students study wars, terrorism and crime in history and civics: only clearly harmful text is blocked there.
+SAFETY = [{"category": c, "threshold": "BLOCK_ONLY_HIGH"}
+          for c in ("HARM_CATEGORY_HARASSMENT", "HARM_CATEGORY_HATE_SPEECH", "HARM_CATEGORY_DANGEROUS_CONTENT")]
+
+
 def _payload(history, prompt, thinking=True):
     contents = [{"role": m["role"], "parts": [{"text": m["text"]}]} for m in history]
     contents.append({"role": "user", "parts": [{"text": prompt}]})
@@ -136,6 +152,7 @@ def _payload(history, prompt, thinking=True):
         "system_instruction": {"parts": [{"text": SYSTEM_PROMPT + f"\nToday's date is {today}."}]},
         "contents": contents,
         "generationConfig": config,
+        "safetySettings": SAFETY,
     }
 
 
@@ -152,6 +169,7 @@ def _attempt(api_key, model, history, prompt):
                 _SKIP_UNTIL[model] = time.monotonic() + 120          # slow right now: try the others first for a while
             raise LexiError(f"{model}: {exc.__class__.__name__}") from None
         if resp.status_code == 200:
+            resp.encoding = "utf-8"          # the stream names no charset; requests would guess Latin-1 (an em dash became â€”)
             return resp
         resp.close()
         last = f"{model}: HTTP {resp.status_code}"
@@ -223,8 +241,9 @@ def warm(api_key):
         pass
 
 
-def iter_text(resp):
-    """The answer's text, piece by piece, from Gemini's server-sent events (thoughts are skipped)."""
+def iter_events(resp):
+    """Gemini's server-sent events as ("text", piece) and, at the end, ("finish", reason). Thoughts are skipped."""
+    reason = "STOP"
     try:
         for line in resp.iter_lines(decode_unicode=True):
             if not line or not line.startswith("data:"):
@@ -233,17 +252,67 @@ def iter_text(resp):
                 event = json.loads(line[5:].strip())
             except ValueError:
                 continue
+            if event.get("promptFeedback", {}).get("blockReason"):
+                reason = "BLOCKED"
             for cand in event.get("candidates", [])[:1]:
                 for part in cand.get("content", {}).get("parts", []):
                     if part.get("text") and not part.get("thought"):
-                        yield part["text"]
+                        yield "text", part["text"]
+                reason = cand.get("finishReason") or reason
     finally:
         resp.close()
+    yield "finish", reason
+
+
+def iter_text(resp):
+    """Just the answer's text, piece by piece."""
+    for kind, value in iter_events(resp):
+        if kind == "text":
+            yield value
+
+
+# Why Gemini can stop early: RECITATION (wrote too close to a known text), MAX_TOKENS (ran out of room),
+# OTHER. Those answers are continued in fresh words. SAFETY and the like are not continued.
+CONTINUABLE = {"RECITATION", "MAX_TOKENS", "OTHER"}
+CONTINUE_PROMPT = ("Your previous answer was cut off. Continue it from exactly where it stopped, in your own words. "
+                   "Do not repeat anything already written and do not mention that it was cut off.")
+CUT_SHORT = "\n\n_(The answer was cut short. Ask Lexi to continue.)_"
+FLAGGED = "\n\n_(Lexi stopped here because the AI service flagged this topic. Try rephrasing the question.)_"
+
+
+def stream_answer(api_key, history, prompt, resp):
+    """The full answer, piece by piece, starting from an open response. An answer the service stops early is
+    continued (at most MAX_CONTINUES times, while time allows); one stopped by its safety filter says so."""
+    start, written, continues = time.monotonic(), "", 0
+    while True:
+        reason = "STOP"
+        for kind, value in iter_events(resp):
+            if kind == "text":
+                written += value
+                yield value
+            else:
+                reason = value
+        if reason == "STOP":
+            return
+        log.warning("Lexi answer stopped early: %s after %d chars", reason, len(written))
+        if reason not in CONTINUABLE:
+            yield FLAGGED
+            return
+        if not written.strip() or continues >= MAX_CONTINUES or time.monotonic() - start > ANSWER_BUDGET:
+            yield CUT_SHORT
+            return
+        continues += 1
+        follow_up = history + [{"role": "user", "text": prompt}, {"role": "model", "text": written}]
+        try:
+            resp = open_stream(api_key, follow_up, CONTINUE_PROMPT)
+        except LexiError:
+            yield CUT_SHORT
+            return
 
 
 def answer(api_key, history, prompt):
     """The whole answer at once (for the page without JavaScript)."""
-    text = "".join(iter_text(open_stream(api_key, history, prompt)))
+    text = "".join(stream_answer(api_key, history, prompt, open_stream(api_key, history, prompt)))
     if not text.strip():
         raise LexiError("empty answer")
     return text

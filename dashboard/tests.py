@@ -676,8 +676,8 @@ class LoginThrottleTests(TestCase):
 class FakeStream:
     """Stands in for Gemini's streamed answer (server-sent events)."""
 
-    def __init__(self, pieces, fail_after=None):
-        self.pieces, self.fail_after = pieces, fail_after
+    def __init__(self, pieces, fail_after=None, finish=None):
+        self.pieces, self.fail_after, self.finish = pieces, fail_after, finish
 
     def iter_lines(self, decode_unicode=True):
         import json as _json
@@ -685,7 +685,10 @@ class FakeStream:
         for n, p in enumerate(self.pieces):
             if self.fail_after is not None and n == self.fail_after:
                 raise _requests.ConnectionError('dropped')
-            yield 'data: ' + _json.dumps({'candidates': [{'content': {'parts': [{'text': 'hidden', 'thought': True}, {'text': p}]}}]})
+            cand = {'content': {'parts': [{'text': 'hidden', 'thought': True}, {'text': p}]}}
+            if self.finish and n == len(self.pieces) - 1:
+                cand['finishReason'] = self.finish
+            yield 'data: ' + _json.dumps({'candidates': [cand]})
 
     def close(self):
         pass
@@ -800,6 +803,36 @@ class LexiTests(TestCase):
         warm.assert_called_once_with('k')
         self.client.logout()
         self.assertEqual(self.client.get(reverse('chatbot-warm')).status_code, 302)
+
+    def test_stream_is_read_as_utf8(self):
+        from . import lexi
+        ok = mock.MagicMock(status_code=200)
+        with mock.patch.object(lexi, '_session') as session:
+            session.return_value.post.return_value = ok
+            self.assertIs(lexi._attempt('k', lexi.MODELS[0], [], 'hi'), ok)
+        self.assertEqual(ok.encoding, 'utf-8')
+
+    def test_answer_stopped_for_recitation_is_continued(self):
+        from . import lexi
+        with mock.patch.object(lexi, 'open_stream', return_value=FakeStream([' and the rest.'])) as more:
+            out = ''.join(lexi.stream_answer('k', [], 'Tell me about 9/11', FakeStream(['At 8:46 a.m.'], finish='RECITATION')))
+        self.assertEqual(out, 'At 8:46 a.m. and the rest.')
+        follow_up, again = more.call_args.args[1], more.call_args.args[2]
+        self.assertEqual(follow_up[-1], {'role': 'model', 'text': 'At 8:46 a.m.'})
+        self.assertIn('Continue', again)
+
+    def test_answer_stopped_by_safety_says_so(self):
+        from . import lexi
+        out = ''.join(lexi.stream_answer('k', [], 'q', FakeStream(['Part'], finish='SAFETY')))
+        self.assertTrue(out.startswith('Part'))
+        self.assertIn('flagged', out)
+
+    def test_continuing_stops_after_two_tries(self):
+        from . import lexi
+        with mock.patch.object(lexi, 'open_stream', side_effect=lambda *a: FakeStream([' more'], finish='MAX_TOKENS')) as more:
+            out = ''.join(lexi.stream_answer('k', [], 'q', FakeStream(['Start'], finish='MAX_TOKENS')))
+        self.assertEqual(more.call_count, 2)
+        self.assertIn('cut short', out)
 
 class ContentSecurityPolicyTests(TestCase):
     def test_policy_header_and_nonce_on_inline_scripts(self):

@@ -1064,10 +1064,10 @@
         setTimeout(() => { word.textContent = PHASES[step]; word.style.animation = ''; word.classList.remove('swap'); }, 180);
       }, 2200);
       // The answer streams in as plain text (errors come back as JSON before anything is streamed).
-      // It is revealed whole word by whole word at a steady reading pace (about 260 characters a second),
-      // going faster only when it would otherwise fall more than ~4 seconds behind what has arrived.
+      // It is revealed whole word by whole word at a steady reading pace (about 100 characters a second),
+      // going faster only when it would otherwise fall more than ~18 seconds behind what has arrived.
       // A cursor blinks at the end while it types (.msg.streaming).
-      const PACE = 260, MAX_LAG = 4;
+      const PACE = 100, MAX_LAG = 18;                                    // ~15 words a second, like reading along
       let reply = '', bubble = null, msg = null, shown = 0, ended = false, ticker = 0, caughtUp = null;
       const follow = () => {                                             // keep the end in view, unless the student scrolled up
         const root = document.documentElement;
