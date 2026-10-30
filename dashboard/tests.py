@@ -638,7 +638,7 @@ class VideoTests(TestCase):
         self.assertNotContains(res, 'The essence of calculus')
 
     def test_search_without_a_key_uses_the_library(self):
-        with self.settings(YOUTUBE_API_KEY=''), self.offline():
+        with self.settings(YOUTUBE_API_KEY='', GEMINI_API_KEY=''), self.offline():
             hit = self.client.get(reverse('youtube') + '?q=calculus&_part=1')
             miss = self.client.get(reverse('youtube') + '?q=zzzz-no-such-lesson&_part=1')
         self.assertContains(hit, 'The essence of calculus')
@@ -663,6 +663,61 @@ class VideoTests(TestCase):
             res = self.client.get(reverse('youtube') + '?q=calculus&_part=1')
         self.assertContains(res, 'unavailable right now')
         self.assertContains(res, 'The essence of calculus')
+
+    def gemini_suggests(self, rows, status=200):
+        body = {'candidates': [{'content': {'parts': [{'text': __import__('json').dumps(rows)}]}}]}
+        return mock.patch('dashboard.videos._session.post', return_value=FakeHTTP(status, body))
+
+    def youtube_lookup(self, known):
+        """oEmbed stand-in: known maps video id -> (title, channel); anything else does not exist."""
+        def get(url, params=None, **kw):
+            vid = (params or {}).get('url', '')[-11:]
+            if vid in known:
+                return FakeHTTP(data={'title': known[vid][0], 'author_name': known[vid][1], 'author_url': ''})
+            return FakeHTTP(404)
+        return mock.patch('dashboard.videos._session.get', side_effect=get)
+
+    def test_search_without_a_youtube_key_finds_real_relevant_videos(self):
+        rows = [{'url': 'https://www.youtube.com/watch?v=aaaaaaaaaaa', 'title': 'Photosynthesis explained', 'channel': 'X'},
+                {'url': 'https://youtu.be/bbbbbbbbbbb', 'title': 'Photosynthesis for kids', 'channel': 'Y'},      # exists, unrelated
+                {'url': 'https://www.youtube.com/watch?v=ccccccccccc', 'title': 'Made-up video', 'channel': 'Z'},  # does not exist
+                {'url': 'not a link', 'title': 'junk'}]
+        known = {'aaaaaaaaaaa': ('Photosynthesis: how plants make food', 'Good Teacher'),
+                 'bbbbbbbbbbb': ('My holiday vlog', 'Someone')}
+        with self.settings(YOUTUBE_API_KEY='', GEMINI_API_KEY='g'), self.gemini_suggests(rows), self.youtube_lookup(known):
+            res = self.client.get(reverse('youtube') + '?q=photosynthesis&_part=1')
+        self.assertContains(res, 'Photosynthesis: how plants make food')
+        self.assertContains(res, 'from YouTube')
+        self.assertNotContains(res, 'My holiday vlog')
+        self.assertNotContains(res, 'ccccccccccc')
+        self.assertContains(res, 'Photosynthesis and the Teeny Tiny')             # the library lesson follows
+
+    def test_search_survives_gemini_being_down(self):
+        with self.settings(YOUTUBE_API_KEY='', GEMINI_API_KEY='g'), self.gemini_suggests([], status=429), self.offline():
+            res = self.client.get(reverse('youtube') + '?q=calculus&_part=1')
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, 'The essence of calculus')
+
+    def test_youtube_searches_are_limited_per_student(self):
+        from . import videos, views
+        rows = [{'url': 'https://www.youtube.com/watch?v=aaaaaaaaaaa', 'title': 'Calculus', 'channel': 'X'}]
+        known = {'aaaaaaaaaaa': ('Calculus in 10 minutes', 'Good Teacher')}
+        with self.settings(YOUTUBE_API_KEY='', GEMINI_API_KEY='g'), mock.patch.object(views, 'VIDEO_SEARCH_LIMIT', (1, 3600)),                 self.gemini_suggests(rows) as gemini, self.youtube_lookup(known):
+            first = self.client.get(reverse('youtube') + '?q=calculus&_part=1')
+            second = self.client.get(reverse('youtube') + '?q=derivatives&_part=1')
+        self.assertContains(first, 'Calculus in 10 minutes')
+        self.assertContains(second, 'searched a lot')
+        self.assertEqual(gemini.call_count, len(videos.SUGGEST_MODELS))      # one search: each model asked once
+
+    def test_repeated_search_is_served_from_the_shared_cache(self):
+        from . import videos
+        rows = [{'url': 'https://www.youtube.com/watch?v=aaaaaaaaaaa', 'title': 'Calculus', 'channel': 'X'}]
+        known = {'aaaaaaaaaaa': ('Calculus in 10 minutes', 'Good Teacher')}
+        with self.settings(YOUTUBE_API_KEY='', GEMINI_API_KEY='g'), self.gemini_suggests(rows) as gemini, self.youtube_lookup(known):
+            self.client.get(reverse('youtube') + '?q=Calculus&_part=1')
+            again = self.client.get(reverse('youtube') + '?q=calculus&_part=1')
+        self.assertContains(again, 'Calculus in 10 minutes')
+        self.assertEqual(gemini.call_count, len(videos.SUGGEST_MODELS))      # one search: each model asked once
 
     def test_watch_a_library_lesson_without_any_network(self):
         with self.offline():

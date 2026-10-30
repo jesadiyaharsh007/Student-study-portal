@@ -123,7 +123,15 @@ CACHES = {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
         'LOCATION': 'study-portal-cache',
         'TIMEOUT': 300,
-    }
+    },
+    # Shared by every serverless instance (a table in the database, made by `createcachetable` at build time):
+    # a video search one student ran is instant for the next.
+    'shared': {
+        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+        'LOCATION': 'portal_cache',
+        'TIMEOUT': 60 * 60 * 24,
+        'OPTIONS': {'MAX_ENTRIES': 5000},
+    },
 }
 
 

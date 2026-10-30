@@ -3,3 +3,5 @@ python3 -m pip install -r requirements.txt --break-system-packages 2>/dev/null |
 python3 manage.py collectstatic --noinput --clear
 # Create/upgrade tables (e.g. the admin console's sessions). Non-fatal so a build never fails on a database hiccup.
 python3 manage.py migrate --noinput || echo "WARNING: migrate did not finish. Run 'python manage.py migrate' against the production database."
+# The shared cache table (video searches). Already there: nothing happens.
+python3 manage.py createcachetable || echo "WARNING: createcachetable did not finish; video searches will use per-instance memory."

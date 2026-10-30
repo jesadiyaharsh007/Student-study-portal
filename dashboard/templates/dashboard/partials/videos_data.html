@@ -1,6 +1,6 @@
 {% load ui %}{% if note %}<p class="vid-note">{% icon "info" "ic-sm" %}{{ note }}</p>{% endif %}
 {% if videos %}
-{% if q %}<p class="vid-count">{{ videos|length }} result{{ videos|length|pluralize }} for “{{ q }}”{% if source == "library" %} in the lesson library{% endif %}</p>{% endif %}
+{% if q %}<p class="vid-count">{{ videos|length }} lesson{{ videos|length|pluralize }} for “{{ q }}”{% if source == "library" %} in the lesson library{% else %} from YouTube{% endif %}</p>{% endif %}
 <div class="vid-grid">
   {% for v in videos %}{% include "dashboard/partials/video_card.html" %}{% endfor %}
 </div>

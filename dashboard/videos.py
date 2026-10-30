@@ -1,20 +1,26 @@
 """Videos for the Videos page.
 
-Without a key, the page shows the hand-picked lessons in dashboard/video_library.py, searchable by title,
-channel and topic. With YOUTUBE_API_KEY set, search covers all of YouTube through the official Data API
-(with channel pictures); the hand-picked lessons still fill the topic shelves.
+The topic shelves show the hand-picked lessons in dashboard/video_library.py. Search finds lessons anywhere
+on YouTube in one of two ways:
+- with YOUTUBE_API_KEY: YouTube's official Data API (with channel pictures);
+- without it: Gemini (the key Lexi already uses) suggests well-known lessons, and every suggestion is checked
+  with YouTube's public lookup (oEmbed). Only real, playable videos whose title fits the search are kept,
+  shown with YouTube's own title and channel. Matching hand-picked lessons are added after them.
 
 Everything plays in YouTube's privacy-friendly embedded player (youtube-nocookie.com). Answers from YouTube
 are cached, because each API search costs quota and the public lookup is slow from far away.
 """
 import hashlib
+import json
 import logging
 import re
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from datetime import datetime
 
 import requests
 from django.conf import settings
-from django.core.cache import cache
+from django.core.cache import cache as _memory, caches
+from django.db import DatabaseError
 
 from . import video_library
 
@@ -24,6 +30,14 @@ API = "https://www.googleapis.com/youtube/v3"
 OEMBED = "https://www.youtube.com/oembed"
 TIMEOUT = (4, 8)
 SEARCH_TTL = 60 * 30
+SUGGEST_TTL = 60 * 60 * 24        # a found-and-checked list stays good for a day
+GEMINI = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+# Both are asked at once. 3.5-flash suggests the best lessons (~6s) but is sometimes overloaded (503); the lite
+# model answers in ~3s and fills in. Lite also suggests some unrelated videos, which never pass _fits().
+SUGGEST_MODELS = (("gemini-3.5-flash", 12), ("gemini-3.1-flash-lite", 20))   # (model, how many lessons to ask for)
+SUGGEST_WAIT = 8                  # seconds to wait for both models; then whatever has arrived is used
+SUGGEST_BUDGET = 14               # the longest any search waits for Gemini, inside Vercel's 30s
+_POOL = ThreadPoolExecutor(max_workers=10, thread_name_prefix="videos")
 DETAILS_TTL = 60 * 60 * 6
 AVATAR_TTL = 60 * 60 * 24
 
@@ -32,6 +46,26 @@ CHANNEL_ID_RE = re.compile(r"^UC[\w-]{22}$")
 TOPIC_LABELS = dict(video_library.TOPICS)
 
 _session = requests.Session()
+
+
+class _SharedCache:
+    """The database cache shared by all instances, falling back to this instance's memory if the table is
+    missing or the database is unreachable (a cache must never break the page)."""
+
+    def get(self, key, default=None):
+        try:
+            return caches["shared"].get(key, default)
+        except DatabaseError:
+            return _memory.get(key, default)
+
+    def set(self, key, value, timeout):
+        try:
+            caches["shared"].set(key, value, timeout)
+        except DatabaseError:
+            _memory.set(key, value, timeout)
+
+
+cache = _SharedCache()
 
 
 class VideoError(Exception):
@@ -185,10 +219,97 @@ def youtube_search(query, limit=24):
     return videos
 
 
+# --------------------------------------------------------------------------- search without a YouTube key
+
+_LINK = re.compile(r"(?:youtube\.com/(?:watch\?v=|embed/|shorts/|live/)|youtu\.be/)([A-Za-z0-9_-]{11})")
+SUGGEST_SCHEMA = {"type": "ARRAY", "items": {"type": "OBJECT", "required": ["url", "title"], "properties": {
+    "url": {"type": "STRING"}, "title": {"type": "STRING"}, "channel": {"type": "STRING"}}}}
+
+
+def can_suggest():
+    return bool(getattr(settings, "GEMINI_API_KEY", ""))
+
+
+def _ask_model(model, body):
+    """One model's suggestions: [(video_id, claimed_title), ...]. Raises on any failure."""
+    resp = _session.post(GEMINI.format(model=model), json=body, headers={"x-goog-api-key": settings.GEMINI_API_KEY},
+                         timeout=(4, SUGGEST_BUDGET))
+    if resp.status_code != 200:
+        log.warning("video suggestions from %s: HTTP %s", model, resp.status_code)
+        raise VideoError(f"HTTP {resp.status_code}")
+    parts = ((resp.json().get("candidates") or [{}])[0].get("content") or {}).get("parts") or []
+    text = "".join(part.get("text", "") for part in parts if not part.get("thought"))
+    try:
+        rows = json.loads(text)
+    except ValueError:                                       # not JSON after all: pick the links out of the text
+        rows = [{"url": f"https://youtu.be/{vid}", "title": ""} for vid in _LINK.findall(text)]
+    found = []
+    for row in rows if isinstance(rows, list) else []:
+        m = _LINK.search(str(row.get("url", ""))) if isinstance(row, dict) else None
+        if m and valid_id(m.group(1)):
+            found.append((m.group(1), str(row.get("title", ""))[:200]))
+    return found
+
+
+def _suggest(query):
+    """Ask both models at once for well-known lessons on the query: [(video_id, claimed_title), ...].
+    The better model's picks come first and the fast model's fill in (it is asked for more, as fewer of its picks
+    pass the checks). We wait SUGGEST_WAIT seconds for both; after that whatever has arrived is used (and if
+    nothing has, the first answer up to SUGGEST_BUDGET)."""
+    def body(count):
+        prompt = (f"A student wants to learn about: {query}\n"
+                  f"List {count} real, popular YouTube videos that teach this well, preferring established educational "
+                  "channels (for example Khan Academy, CrashCourse, TED-Ed, 3Blue1Brown, The Organic Chemistry Tutor, "
+                  "freeCodeCamp, MIT OpenCourseWare, Kurzgesagt, Professor Dave Explains, Amoeba Sisters, OverSimplified). "
+                  "Give each video's full https://www.youtube.com/watch?v= link exactly, its exact title and its channel. "
+                  "Only list videos you are confident exist. Nothing unsuitable for school students.")
+        return {"contents": [{"role": "user", "parts": [{"text": prompt}]}],
+                "generationConfig": {"temperature": 0.2, "responseMimeType": "application/json",
+                                     "responseSchema": SUGGEST_SCHEMA, "thinkingConfig": {"thinkingLevel": "minimal"}}}
+    futures = [_POOL.submit(_ask_model, model, body(count)) for model, count in SUGGEST_MODELS]
+    wait(futures, timeout=SUGGEST_WAIT)
+    if not any(f.done() and not f.exception() for f in futures):
+        wait(futures, timeout=SUGGEST_BUDGET - SUGGEST_WAIT, return_when=FIRST_COMPLETED)
+    found, seen = [], set()
+    for fut in futures:                                       # in model order: the better model's picks first
+        if fut.done() and not fut.exception():
+            for vid, title in fut.result():
+                if vid not in seen:
+                    seen.add(vid)
+                    found.append((vid, title))
+    return found
+
+
+def _fits(query, claimed, real):
+    """A real video is kept only if it is about the search: its title shares a word with the query, or it is
+    clearly the video Gemini meant (most of the claimed title's words). This drops ids that exist but belong
+    to some unrelated video."""
+    title = _words(real["title"])
+    if _words(query) & (title | _words(real["channel"])):
+        return True
+    said = _words(claimed)
+    return bool(said) and len(said & title) >= 0.6 * len(said)
+
+
+def suggested_search(query, limit=18):
+    """Lessons from anywhere on YouTube without a YouTube key. Cached for a day per search."""
+    k = _key("suggest", query.lower())
+    hit = cache.get(k)
+    if hit is not None:
+        return hit
+    claims = _suggest(query)
+    checked = list(_POOL.map(lambda c: (c[1], details(c[0])), claims))
+    videos = [real for claimed, real in checked if real and _fits(query, claimed, real)][:limit]
+    if claims:                                   # an empty list from a Gemini error is not worth remembering
+        cache.set(k, videos, SUGGEST_TTL)
+    return videos
+
+
 # --------------------------------------------------------------------------- what the views ask for
 
-def browse(query="", topic=""):
-    """What the grid shows: {"videos": [...], "source": "youtube" | "library", "note": str}."""
+def browse(query="", topic="", allow_suggest=True):
+    """What the grid shows: {"videos": [...], "source": "youtube" | "suggested" | "library", "note": str}.
+    allow_suggest=False (a student over their search limit) keeps a search to the library."""
     if not query:
         return {"videos": library(topic), "source": "library", "note": ""}
     if has_key():
@@ -197,7 +318,17 @@ def browse(query="", topic=""):
         except VideoError as exc:
             return {"videos": library_search(query), "source": "library",
                     "note": f"{exc} Showing matches from the lesson library instead."}
-    return {"videos": library_search(query), "source": "library", "note": ""}
+    picked = library_search(query)
+    if allow_suggest and can_suggest():
+        found = suggested_search(query)
+        ids = {v["id"] for v in found}
+        merged = found + [v for v in picked if v["id"] not in ids]
+        if found:
+            return {"videos": merged, "source": "suggested", "note": ""}
+        note = "" if picked else "Could not find YouTube lessons for that right now."
+        return {"videos": picked, "source": "library", "note": note}
+    note = "" if allow_suggest else "You have searched a lot in a short time, so this search used the lesson library only."
+    return {"videos": picked, "source": "library", "note": note}
 
 
 def details(video_id):

@@ -34,6 +34,7 @@ LOGIN_LIMIT_NAME = (5, 15 * 60)
 LOGIN_LIMIT_IP = (30, 15 * 60)
 LEXI_LIMIT_BURST = (20, 10 * 60)
 LEXI_LIMIT_DAY = (200, 24 * 60 * 60)
+VIDEO_SEARCH_LIMIT = (40, 60 * 60)           # searches that may ask Gemini for YouTube lessons, per student
 
 # Every page that needs an account uses the same guard; unauthenticated visitors
 # are sent to the login page and returned to where they were heading.
@@ -401,10 +402,12 @@ def youtube(request):
     q = _query(request)
     topic = request.GET.get("topic", "")
     ctx = {"q": q, "topic": topic if topic in videos.TOPIC_LABELS and not q else "",
-           "topics": list(videos.video_library.TOPICS), "has_key": videos.has_key()}
+           "topics": list(videos.video_library.TOPICS), "searches_youtube": videos.has_key() or videos.can_suggest()}
     if not _is_part(request):
         return render(request, "dashboard/youtube.html", {**ctx, "loading": True})
-    ctx.update(videos.browse(q, ctx["topic"]))
+    # Searching YouTube through Gemini shares Lexi's quota, so each student gets a generous hourly allowance.
+    allow = not q or videos.has_key() or throttle.allowed(throttle.key("video-search", request.user.pk), *VIDEO_SEARCH_LIMIT)
+    ctx.update(videos.browse(q, ctx["topic"], allow_suggest=allow))
     return _part_response(request, "dashboard/partials/videos_data.html", ctx)
 
 
