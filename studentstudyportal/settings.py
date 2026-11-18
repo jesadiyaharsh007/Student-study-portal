@@ -243,7 +243,7 @@ SECURE_CSP = {
     "img-src": [CSP.SELF, "data:", "https:"],
     "media-src": [CSP.SELF, "https:"],
     "connect-src": [CSP.SELF],
-    "frame-src": ["https://www.youtube-nocookie.com"],          # the Videos player
+    "frame-src": ["https://www.youtube-nocookie.com", "https://www.youtube.com"],          # the Videos player
     "frame-ancestors": [CSP.NONE],
     "object-src": [CSP.NONE],
     "base-uri": [CSP.SELF],

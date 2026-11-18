@@ -2,17 +2,134 @@
 {% load static ui %}
 {% block title %}{{ video.title }}{% endblock %}
 {% block robots %}noindex,nofollow{% endblock %}
-{% block head %}<link rel="stylesheet" href="{% static 'css/videos.css' %}?v=1">{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% static 'css/videos.css' %}?v=2">{% endblock %}
 {% block content %}
 <div class="wrap-n videos-page">
   <a class="vid-back" href="{% url 'youtube' %}">{% icon "arrow-left" "ic-sm" %}<span>All videos</span></a>
 
   <div class="watch">
     <section class="watch-main" aria-label="Video">
-      <div class="watch-frame">
-        <iframe src="https://www.youtube-nocookie.com/embed/{{ video.id }}?autoplay=1&amp;rel=0&amp;modestbranding=1&amp;playsinline=1"
-                title="{{ video.title }}" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+      <!-- Custom Headless Watch Player with 100% Zero-Watermark Crop + Glassmorphism UI -->
+      <div class="watch-player" id="watchPlayer" data-video-id="{{ video.id }}" data-state="loading">
+        <!-- 1. Cropped Headless IFrame Engine: Pushes YouTube watermark, title, and buttons off-canvas -->
+        <div class="watch-crop" id="watchCrop">
+          <iframe id="watchIframe"
+                  src="https://www.youtube-nocookie.com/embed/{{ video.id }}?autoplay=1&amp;enablejsapi=1&amp;controls=0&amp;modestbranding=1&amp;rel=0&amp;iv_load_policy=3&amp;playsinline=1&amp;disablekb=1&amp;fs=0&amp;origin={{ request.scheme }}%3A%2F%2F{{ request.get_host }}"
+                  title="{{ video.title }}"
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  tabindex="-1"></iframe>
+        </div>
+
+        <!-- 2. Pause Cover: Prevents YouTube pause screen / recommendations from ever showing -->
+        <div class="watch-pause-cover" id="watchPauseCover"></div>
+
+        <!-- 3. Buffering Spinner -->
+        <div class="watch-spinner" id="watchSpinner">
+          <div class="watch-spin-ring"></div>
+        </div>
+
+        <!-- 4. Big Center Play Button -->
+        <button type="button" class="watch-big-play" id="watchBigPlay" aria-label="Play">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.14v13.72a1 1 0 0 0 1.52.85l11.1-6.86a1 1 0 0 0 0-1.7L9.52 4.29A1 1 0 0 0 8 5.14z" fill="currentColor"/></svg>
+        </button>
+
+        <!-- 5. Error Screen -->
+        <div class="watch-err-screen" id="watchErrScreen" hidden>
+          <div class="watch-err-box">
+            <h3>Playback Restricted</h3>
+            <p>The creator of this video has restricted third-party playback. You can watch it directly on YouTube without losing your place.</p>
+            <div class="watch-err-btns">
+              <a href="https://www.youtube.com/watch?v={{ video.id }}" target="_blank" rel="noopener noreferrer" class="btn btn-ink no-ico">Watch on YouTube</a>
+              <a href="{% url 'youtube' %}" class="btn btn-line no-ico">Browse other lessons</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- 6. Custom Glassmorphism UI Overlay -->
+        <div class="watch-ui" id="watchUi">
+          <div class="watch-ui-top">
+            <span class="watch-ui-title">{{ video.title }}</span>
+          </div>
+
+          <div class="watch-ui-body" id="watchUiBody"></div>
+
+          <div class="watch-ui-bottom">
+            <!-- Scrubber Track -->
+            <div class="watch-seek" id="watchSeek" role="slider" aria-label="Seek time" tabindex="0" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+              <div class="watch-seek-track">
+                <div class="watch-seek-buf" id="watchSeekBuf"></div>
+                <div class="watch-seek-play" id="watchSeekPlay"></div>
+              </div>
+              <div class="watch-seek-thumb" id="watchSeekThumb"></div>
+              <div class="watch-seek-tip" id="watchSeekTip">0:00</div>
+            </div>
+
+            <!-- Controls Row -->
+            <div class="watch-row-ctrls">
+              <!-- Left controls -->
+              <div class="watch-ctrl-grp">
+                <button type="button" class="watch-btn watch-btn-play" id="watchBtnPlay" aria-label="Play" title="Play (Space)">
+                  <svg viewBox="0 0 24 24"><path d="M8 5.14v13.72a1 1 0 0 0 1.52.85l11.1-6.86a1 1 0 0 0 0-1.7L9.52 4.29A1 1 0 0 0 8 5.14z" fill="currentColor"/></svg>
+                </button>
+                <button type="button" class="watch-btn" id="watchBtnBack10" aria-label="Rewind 10 seconds" title="Rewind 10s (J)">
+                  <svg viewBox="0 0 24 24"><path d="M12.5 3a9 9 0 1 0 8.9 7.7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12.5 3v4l-4-4 4-4v4z" fill="currentColor"/><text x="12" y="15" font-size="8" font-weight="700" text-anchor="middle" fill="currentColor">10</text></svg>
+                </button>
+                <button type="button" class="watch-btn" id="watchBtnFwd10" aria-label="Forward 10 seconds" title="Forward 10s (L)">
+                  <svg viewBox="0 0 24 24"><path d="M11.5 3a9 9 0 1 1-8.9 7.7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M11.5 3v4l4-4-4-4v4z" fill="currentColor"/><text x="12" y="15" font-size="8" font-weight="700" text-anchor="middle" fill="currentColor">10</text></svg>
+                </button>
+
+                <div class="watch-vol-wrap" id="watchVolWrap">
+                  <button type="button" class="watch-btn" id="watchBtnMute" aria-label="Mute" title="Mute (M)">
+                    <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" fill="currentColor"/></svg>
+                  </button>
+                  <input type="range" class="watch-vol-slider" id="watchVolSlider" min="0" max="100" value="100" aria-label="Volume">
+                </div>
+
+                <span class="watch-time" id="watchTime">0:00 / 0:00</span>
+              </div>
+
+              <div class="watch-ctrl-spacer"></div>
+
+              <!-- Right controls -->
+              <div class="watch-ctrl-grp">
+                <!-- Quality Menu -->
+                <div class="watch-menu-wrap" id="watchQualityWrap">
+                  <button type="button" class="watch-btn watch-badge-btn" id="watchBtnQuality" aria-label="Quality" title="Quality">
+                    <span id="watchQualityLabel">Auto</span>
+                  </button>
+                  <div class="watch-dropdown" id="watchQualityMenu" hidden>
+                    <button type="button" class="watch-opt active" data-q="auto">Auto</button>
+                    <button type="button" class="watch-opt" data-q="1080">1080p <b class="watch-hd-badge">HD</b></button>
+                    <button type="button" class="watch-opt" data-q="720">720p <b class="watch-hd-badge">HD</b></button>
+                    <button type="button" class="watch-opt" data-q="480">480p</button>
+                    <button type="button" class="watch-opt" data-q="360">360p</button>
+                  </div>
+                </div>
+
+                <!-- Speed Menu -->
+                <div class="watch-menu-wrap" id="watchSpeedWrap">
+                  <button type="button" class="watch-btn watch-badge-btn" id="watchBtnSpeed" aria-label="Playback speed" title="Playback speed">
+                    <span id="watchSpeedLabel">1x</span>
+                  </button>
+                  <div class="watch-dropdown" id="watchSpeedMenu" hidden>
+                    <button type="button" class="watch-opt" data-speed="0.5">0.5x</button>
+                    <button type="button" class="watch-opt" data-speed="0.75">0.75x</button>
+                    <button type="button" class="watch-opt active" data-speed="1">1x Normal</button>
+                    <button type="button" class="watch-opt" data-speed="1.25">1.25x</button>
+                    <button type="button" class="watch-opt" data-speed="1.5">1.5x</button>
+                    <button type="button" class="watch-opt" data-speed="2">2x</button>
+                  </div>
+                </div>
+
+                <!-- Fullscreen -->
+                <button type="button" class="watch-btn" id="watchBtnFs" aria-label="Full screen" title="Full screen (F)">
+                  <svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" fill="currentColor"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <h1 class="watch-title">{{ video.title }}</h1>
@@ -44,4 +161,8 @@
     </aside>
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'js/watch_player.js' %}?v=1" defer></script>
 {% endblock %}
