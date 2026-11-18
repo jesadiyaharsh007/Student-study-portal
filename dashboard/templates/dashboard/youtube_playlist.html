@@ -1,0 +1,39 @@
+{% extends 'dashboard/base.html' %}
+{% load static %}
+{% block title %}{{ pl.title }} · Videos{% endblock %}
+{% block robots %}noindex,nofollow{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% static 'css/media.css' %}?v=4"><link rel="stylesheet" href="{% static 'css/yt.css' %}?v=32">{% endblock %}
+{% block content %}
+<div class="wrap-n yt yt-channel">
+  <a class="yt-ghost yt-ch-back" href="{% url 'youtube' %}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Videos</span></a>
+  <header class="yt-ch-head">
+    <div class="yt-ch-info">
+      <h1 class="yt-ch-name">{{ pl.title }}</h1>
+      <p class="yt-ch-subs" style="margin-top: .3rem;">Playlist &middot; {{ pl.videos|length }} video{{ pl.videos|length|pluralize }}</p>
+      {% if pl.videos %}
+      <div style="margin-top: 1rem; display: flex; gap: .75rem; align-items: center; flex-wrap: wrap;">
+        <a class="yt-pill" href="{% url 'youtube' %}?v={{ pl.videos.0.id }}&list={{ pl.id }}" style="background: var(--accent, #e8602a); color: #fff; font-weight: 600; padding: .65rem 1.4rem; border: none; box-shadow: 0 4px 12px rgba(232, 96, 42, .3);">
+          <svg viewBox="0 0 24 24" style="width: 20px; height: 20px;" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+          <span>Play all</span>
+        </a>
+      </div>
+      {% endif %}
+    </div>
+  </header>
+  <div class="yt-grid">
+    {% for v in pl.videos %}
+    <a class="yt-card" href="{% url 'youtube' %}?v={{ v.id }}&list={{ pl.id }}" style="--i: {{ forloop.counter0 }}"
+       data-id="{{ v.id }}" data-list="{{ pl.id }}" data-title="{{ v.title }}" data-channel="{{ v.channel }}" data-views="{{ v.views }}" data-published="{{ v.published }}" data-duration="{{ v.duration }}" data-thumb="{{ v.thumbnail }}">
+      <span class="yt-thumb">
+        <img src="{{ v.thumbnail }}" alt="" loading="lazy" decoding="async">
+        <span class="yt-play" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9.2 7v10l8.4-5z" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></span>
+        {% if v.duration %}<span class="yt-dur">{{ v.duration }}</span>{% endif %}
+      </span>
+      <span class="yt-meta"><span class="yt-text"><b class="clamp-2">{{ v.title }}</b><small class="clamp-1">{{ v.views }}{% if v.views and v.published %} · {% endif %}{{ v.published }}</small></span></span>
+    </a>
+    {% empty %}
+    <p class="yt-next-empty">This playlist has no videos to show.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

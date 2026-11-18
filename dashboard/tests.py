@@ -602,160 +602,137 @@ class FakeHTTP:
 
 class VideoTests(TestCase):
     """The Videos pages. The network is always mocked, so these run offline and never use YouTube quota."""
-    LESSON = 'WUvTyaaNkzM'                     # "The essence of calculus" (3Blue1Brown), in the library
-    OTHER = 'abcdefghijk'                      # a video that is not in the library
+    SAMPLE_VIDEO = {
+        'id': 'WUvTyaaNkzM', 'title': 'The Essence of Calculus', 'channel': '3Blue1Brown', 'duration': '17:05',
+        'views': '11.8M views', 'published': '9 years ago', 'thumbnail': 'https://i.ytimg.com/vi/WUvTyaaNkzM/mqdefault.jpg',
+    }
 
     def setUp(self):
-        from django.core.cache import cache
-        cache.clear()
         User.objects.create_user('watcher', 'watcher@example.com', 'Watcher-pass-123')
         self.client.login(username='watcher', password='Watcher-pass-123')
 
-    def offline(self):
-        """Any network call fails the test: the library must work without one."""
-        return mock.patch('dashboard.videos._session.get', side_effect=AssertionError('network used'))
+    def test_youtube_cold_start_shows_feed_without_ad_wording(self):
+        with mock.patch('dashboard.videos.home_feed', return_value=[self.SAMPLE_VIDEO]):
+            res = self.client.get(reverse('youtube'))
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, 'Suggested for you')
+        self.assertContains(res, 'The Essence of Calculus')
+        self.assertContains(res, 'data-id="WUvTyaaNkzM"')
+        self.assertNotIn('ad-free', res.content.decode().lower())
 
-    def test_pages_require_sign_in(self):
+    def test_youtube_topic_chip_filter(self):
+        with mock.patch('dashboard.videos.search_videos', return_value=([self.SAMPLE_VIDEO], None)) as search:
+            res = self.client.get(reverse('youtube') + '?topic=calculus')
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, 'Calculus')
+        self.assertEqual(search.call_args[0][0], 'calculus explained')
+
+    def test_youtube_deep_link_opens_the_watch_view(self):
+        with mock.patch('dashboard.videos.home_feed', return_value=[self.SAMPLE_VIDEO]):
+            res = self.client.get(reverse('youtube') + '?v=WUvTyaaNkzM')
+            bad = self.client.get(reverse('youtube') + '?v=<script>')
+        self.assertContains(res, 'data-start="WUvTyaaNkzM"')
+        self.assertContains(bad, 'data-start=""')
+
+    def test_youtube_watch_data(self):
+        info = dict(self.SAMPLE_VIDEO, description='x', related=[], subscribers='1M', link='https://youtu.be/x')
+        with mock.patch('dashboard.videos.video_details', return_value=info):
+            ok = self.client.get(reverse('youtube-watch', args=['WUvTyaaNkzM']))
+        self.assertEqual(ok.status_code, 200)
+        self.assertEqual(ok.json()['title'], 'The Essence of Calculus')
+        with mock.patch('dashboard.videos.video_details', return_value=None):
+            gone = self.client.get(reverse('youtube-watch', args=['WUvTyaaNkzM']))
+        self.assertEqual(gone.status_code, 404)
         self.client.logout()
-        self.assertEqual(self.client.get(reverse('youtube')).status_code, 302)
-        self.assertEqual(self.client.get(reverse('youtube-watch', args=[self.LESSON])).status_code, 302)
+        self.assertEqual(self.client.get(reverse('youtube-watch', args=['WUvTyaaNkzM'])).status_code, 302)
 
-    def test_page_opens_instantly_then_loads_the_lesson_grid(self):
-        shell = self.client.get(reverse('youtube'))
-        self.assertContains(shell, 'data-async')
-        self.assertContains(shell, 'vid-sk')                       # placeholder while the grid loads
-        with self.offline():
-            grid = self.client.get(reverse('youtube') + '?_part=1')
-        self.assertContains(grid, 'Study Less Study Smart')       # the featured talk comes first
-        self.assertContains(grid, 'The essence of calculus')
-        self.assertContains(grid, f'href="/youtube/watch/{self.LESSON}/"', count=1)
-        self.assertContains(grid, 'https://i.ytimg.com/vi/')
-
-    def test_topic_filter(self):
-        with self.offline():
-            res = self.client.get(reverse('youtube') + '?topic=computing&_part=1')
-        self.assertContains(res, 'Learn Python - Full Course for Beginners')
-        self.assertNotContains(res, 'The essence of calculus')
-
-    def test_search_without_a_key_uses_the_library(self):
-        with self.settings(YOUTUBE_API_KEY='', GEMINI_API_KEY=''), self.offline():
-            hit = self.client.get(reverse('youtube') + '?q=calculus&_part=1')
-            miss = self.client.get(reverse('youtube') + '?q=zzzz-no-such-lesson&_part=1')
-        self.assertContains(hit, 'The essence of calculus')
-        self.assertContains(hit, 'in the lesson library')
-        self.assertContains(miss, 'No lessons found')
-        self.assertContains(miss, '/chatbot/?ask=')
-
-    def test_search_with_a_key_uses_youtube_with_channel_pictures(self):
-        item = {'id': {'videoId': self.OTHER}, 'snippet': {'title': 'Calculus from YouTube', 'channelTitle': 'Some Teacher',
-                                                           'channelId': 'UC' + 'x' * 22, 'publishedAt': '2020-01-02T03:04:05Z'}}
-        answers = {'search': FakeHTTP(data={'items': [item, item]}),
-                   'channels': FakeHTTP(data={'items': [{'id': 'UC' + 'x' * 22, 'snippet': {'thumbnails': {'default': {'url': 'https://yt3.example/a.jpg'}}}}]})}
-        with self.settings(YOUTUBE_API_KEY='k'), mock.patch('dashboard.videos._session.get',
-                                                            side_effect=lambda url, **kw: answers[url.rsplit('/', 1)[1]]):
-            res = self.client.get(reverse('youtube') + '?q=calculus&_part=1')
-        self.assertContains(res, 'Calculus from YouTube')
-        self.assertContains(res, 'src="https://yt3.example/a.jpg"')
-        self.assertContains(res, f'href="/youtube/watch/{self.OTHER}/"', count=1)
-
-    def test_youtube_search_down_falls_back_to_the_library(self):
-        with self.settings(YOUTUBE_API_KEY='k'), mock.patch('dashboard.videos._session.get', return_value=FakeHTTP(403)):
-            res = self.client.get(reverse('youtube') + '?q=calculus&_part=1')
-        self.assertContains(res, 'unavailable right now')
-        self.assertContains(res, 'The essence of calculus')
-
-    def gemini_suggests(self, rows, status=200):
-        body = {'candidates': [{'content': {'parts': [{'text': __import__('json').dumps(rows)}]}}]}
-        return mock.patch('dashboard.videos._session.post', return_value=FakeHTTP(status, body))
-
-    def youtube_lookup(self, known):
-        """oEmbed stand-in: known maps video id -> (title, channel); anything else does not exist."""
-        def get(url, params=None, **kw):
-            vid = (params or {}).get('url', '')[-11:]
-            if vid in known:
-                return FakeHTTP(data={'title': known[vid][0], 'author_name': known[vid][1], 'author_url': ''})
-            return FakeHTTP(404)
-        return mock.patch('dashboard.videos._session.get', side_effect=get)
-
-    def test_search_without_a_youtube_key_finds_real_relevant_videos(self):
-        rows = [{'url': 'https://www.youtube.com/watch?v=aaaaaaaaaaa', 'title': 'Photosynthesis explained', 'channel': 'X'},
-                {'url': 'https://youtu.be/bbbbbbbbbbb', 'title': 'Photosynthesis for kids', 'channel': 'Y'},      # exists, unrelated
-                {'url': 'https://www.youtube.com/watch?v=ccccccccccc', 'title': 'Made-up video', 'channel': 'Z'},  # does not exist
-                {'url': 'not a link', 'title': 'junk'}]
-        known = {'aaaaaaaaaaa': ('Photosynthesis: how plants make food', 'Good Teacher'),
-                 'bbbbbbbbbbb': ('My holiday vlog', 'Someone')}
-        with self.settings(YOUTUBE_API_KEY='', GEMINI_API_KEY='g'), self.gemini_suggests(rows), self.youtube_lookup(known):
-            res = self.client.get(reverse('youtube') + '?q=photosynthesis&_part=1')
-        self.assertContains(res, 'Photosynthesis: how plants make food')
-        self.assertContains(res, 'from YouTube')
-        self.assertNotContains(res, 'My holiday vlog')
-        self.assertNotContains(res, 'ccccccccccc')
-        self.assertContains(res, 'Photosynthesis and the Teeny Tiny')             # the library lesson follows
-
-    def test_search_survives_gemini_being_down(self):
-        with self.settings(YOUTUBE_API_KEY='', GEMINI_API_KEY='g'), self.gemini_suggests([], status=429), self.offline():
+    def test_youtube_results_fragment_for_in_page_search(self):
+        with mock.patch('dashboard.videos.search_videos', return_value=([self.SAMPLE_VIDEO], None)):
             res = self.client.get(reverse('youtube') + '?q=calculus&_part=1')
         self.assertEqual(res.status_code, 200)
-        self.assertContains(res, 'The essence of calculus')
+        self.assertContains(res, 'data-id="WUvTyaaNkzM"')
+        self.assertNotContains(res, '<html')
 
-    def test_youtube_searches_are_limited_per_student(self):
-        from . import videos, views
-        rows = [{'url': 'https://www.youtube.com/watch?v=aaaaaaaaaaa', 'title': 'Calculus', 'channel': 'X'}]
-        known = {'aaaaaaaaaaa': ('Calculus in 10 minutes', 'Good Teacher')}
-        with self.settings(YOUTUBE_API_KEY='', GEMINI_API_KEY='g'), mock.patch.object(views, 'VIDEO_SEARCH_LIMIT', (1, 3600)),                 self.gemini_suggests(rows) as gemini, self.youtube_lookup(known):
-            first = self.client.get(reverse('youtube') + '?q=calculus&_part=1')
-            second = self.client.get(reverse('youtube') + '?q=derivatives&_part=1')
-        self.assertContains(first, 'Calculus in 10 minutes')
-        self.assertContains(second, 'searched a lot')
-        self.assertEqual(gemini.call_count, len(videos.SUGGEST_MODELS))      # one search: each model asked once
+    def test_youtube_lexi_answers_about_the_video(self):
+        info = dict(self.SAMPLE_VIDEO, description='Limits and derivatives', related=[])
+        with mock.patch('dashboard.videos.video_details', return_value=info), \
+                mock.patch('dashboard.videos.transcript_text', return_value='We start with limits.'), \
+                mock.patch('dashboard.views.lexi.answer', return_value='A short summary.') as ask, \
+                self.settings(GEMINI_API_KEY='test-key'):
+            res = self.client.post(reverse('youtube-lexi'), {'video': 'WUvTyaaNkzM', 'question': 'Summarize'})
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertTrue(data['ok'])
+        self.assertTrue(data['captions'])
+        prompt = ask.call_args[0][2]
+        self.assertIn('We start with limits.', prompt)
+        self.assertIn('The Essence of Calculus', prompt)
+        bad = self.client.post(reverse('youtube-lexi'), {'video': 'nope', 'question': 'x'})
+        self.assertEqual(bad.status_code, 400)
+        self.assertEqual(self.client.get(reverse('youtube-lexi')).status_code, 405)
 
-    def test_repeated_search_is_served_from_the_shared_cache(self):
-        from . import videos
-        rows = [{'url': 'https://www.youtube.com/watch?v=aaaaaaaaaaa', 'title': 'Calculus', 'channel': 'X'}]
-        known = {'aaaaaaaaaaa': ('Calculus in 10 minutes', 'Good Teacher')}
-        with self.settings(YOUTUBE_API_KEY='', GEMINI_API_KEY='g'), self.gemini_suggests(rows) as gemini, self.youtube_lookup(known):
-            self.client.get(reverse('youtube') + '?q=Calculus&_part=1')
-            again = self.client.get(reverse('youtube') + '?q=calculus&_part=1')
-        self.assertContains(again, 'Calculus in 10 minutes')
-        self.assertEqual(gemini.call_count, len(videos.SUGGEST_MODELS))      # one search: each model asked once
+    SAMPLE_MANIFEST = {
+        'at': 0, 'public': {'id': 'WUvTyaaNkzM', 'title': 'The Essence of Calculus', 'channel': '3Blue1Brown', 'duration': 1024,
+                            'video': [{'itag': '136', 'height': 720, 'fps': 30, 'codec': 'avc1.4D401F', 'bitrate': 1000000, 'size': 1}],
+                            'audio': {'itag': '140', 'codec': 'mp4a.40.2', 'bitrate': 128000, 'size': 1}},
+        'urls': {'136': 'https://example.com/v', '140': 'https://example.com/a'},
+    }
 
-    def test_watch_a_library_lesson_without_any_network(self):
-        with self.offline():
-            res = self.client.get(reverse('youtube-watch', args=[self.LESSON]))
-        self.assertContains(res, f'https://www.youtube-nocookie.com/embed/{self.LESSON}?autoplay=1')
-        self.assertContains(res, 'The essence of calculus')
-        self.assertContains(res, '/chatbot/?ask=Explain%20the%20main%20ideas')
-        self.assertContains(res, 'Up next')
-        self.assertContains(res, 'Vectors | Chapter 1')              # another maths lesson suggested
+    def test_youtube_stream_manifest_hides_the_links(self):
+        with mock.patch('dashboard.videos.stream_manifest', return_value=self.SAMPLE_MANIFEST):
+            ok = self.client.get(reverse('youtube-stream', args=['WUvTyaaNkzM']))
+        self.assertEqual(ok.status_code, 200)
+        data = ok.json()
+        self.assertEqual(data['video'][0]['height'], 720)
+        self.assertNotIn('example.com', ok.content.decode())
+        with mock.patch('dashboard.videos.stream_manifest', side_effect=__import__('dashboard.videos', fromlist=['x']).StreamUnavailable('nope')):
+            gone = self.client.get(reverse('youtube-stream', args=['WUvTyaaNkzM']))
+        self.assertEqual(gone.status_code, 404)
+        self.client.logout()
+        self.assertEqual(self.client.get(reverse('youtube-stream', args=['WUvTyaaNkzM'])).status_code, 302)
 
-    def test_watch_any_youtube_video_via_the_public_lookup(self):
-        found = FakeHTTP(data={'title': 'Some <b>lesson</b>', 'author_name': 'A Teacher', 'author_url': 'https://www.youtube.com/@t'})
-        with mock.patch('dashboard.videos._session.get', return_value=found):
-            res = self.client.get(reverse('youtube-watch', args=[self.OTHER]))
-        self.assertContains(res, 'Some &lt;b&gt;lesson&lt;/b&gt;')
-        self.assertContains(res, f'youtube-nocookie.com/embed/{self.OTHER}')
+    def test_youtube_media_relays_ranges(self):
+        class Upstream:
+            status_code = 206
+            headers = {'Content-Type': 'video/mp4', 'Content-Length': '4', 'Content-Range': 'bytes 0-3/10'}
+            def iter_content(self, n): yield b'abcd'
+            def close(self): pass
+        with mock.patch('dashboard.videos.media_url', return_value='https://example.com/v'), \
+                mock.patch('dashboard.videos._HTTP_SESSION.get', return_value=Upstream()) as get:
+            res = self.client.get(reverse('youtube-media', args=['WUvTyaaNkzM', '136']), HTTP_RANGE='bytes=0-3')
+            body = b''.join(res.streaming_content)
+        self.assertEqual(res.status_code, 206)
+        self.assertEqual(body, b'abcd')
+        self.assertEqual(res['Content-Range'], 'bytes 0-3/10')
+        self.assertEqual(get.call_args[1]['headers']['Range'], 'bytes=0-3')
+        self.assertEqual(self.client.get(reverse('youtube-media', args=['WUvTyaaNkzM', 'abc'])).status_code, 400)
 
-    def test_missing_and_invalid_videos_are_404(self):
-        with mock.patch('dashboard.videos._session.get', return_value=FakeHTTP(404)):
-            self.assertEqual(self.client.get(reverse('youtube-watch', args=[self.OTHER])).status_code, 404)
-        self.assertEqual(self.client.get('/youtube/watch/%3Cscript%3E/').status_code, 404)
+    def test_youtube_captions_endpoints(self):
+        with mock.patch('dashboard.videos.caption_tracks', return_value=[{'lang': 'en', 'name': 'English', 'auto': False}]):
+            tracks = self.client.get(reverse('youtube-captions', args=['WUvTyaaNkzM'])).json()
+        self.assertEqual(tracks['tracks'][0]['lang'], 'en')
+        with mock.patch('dashboard.videos.caption_cues', return_value=[[0, 2, 'Hello']]):
+            cues = self.client.get(reverse('youtube-caption-cues', args=['WUvTyaaNkzM', 'en'])).json()
+        self.assertEqual(cues['cues'][0][2], 'Hello')
 
-    def test_old_links_still_work(self):
-        self.assertRedirects(self.client.get('/youtube/?q=x&v=' + self.LESSON), reverse('youtube-watch', args=[self.LESSON]))
-        self.assertRedirects(self.client.get('/youtube/channel/UCYO_jab_esuFRV4b17AJtAw/'), reverse('youtube'), fetch_redirect_response=False)
+    def test_youtube_token_only_with_a_configured_service(self):
+        self.assertEqual(self.client.get(reverse('youtube-token')).status_code, 404)
+        with self.settings(MEDIA_SERVICE_URL='https://media.example.com', MEDIA_SERVICE_SECRET='s3cret'):
+            res = self.client.get(reverse('youtube-token'))
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data['base'], 'https://media.example.com')
+        import hashlib, hmac
+        exp, sig = data['token'].split('.')
+        self.assertEqual(sig, hmac.new(b's3cret', exp.encode(), hashlib.sha256).hexdigest())
+        self.assertEqual(res['Cache-Control'], 'no-store')
+        self.client.logout()
+        self.assertEqual(self.client.get(reverse('youtube-token')).status_code, 302)
 
-    def test_player_is_allowed_by_the_content_security_policy(self):
-        with self.offline():
-            res = self.client.get(reverse('youtube-watch', args=[self.LESSON]))
-        self.assertIn('frame-src https://www.youtube-nocookie.com', res['Content-Security-Policy'])
-
-    def test_library_is_well_formed(self):
-        from . import video_library, videos
-        ids = [row[0] for row in video_library.LESSONS] + [video_library.FEATURED[0]]
-        self.assertEqual(len(ids), len(set(ids)))
-        self.assertTrue(all(videos.valid_id(i) for i in ids))
-        for key, _label in video_library.TOPICS:
-            self.assertGreaterEqual(len(videos.library(key)), 4, key)
+    def test_player_mode_defaults(self):
+        self.assertContains(self.client.get(reverse('youtube')), 'data-mode="auto"')
+        with self.settings(PLAYER_MODE='embed'):
+            self.assertContains(self.client.get(reverse('youtube')), 'data-mode="embed"')
 
     def test_lexi_knows_the_videos_page(self):
         from .lexi import SYSTEM_PROMPT

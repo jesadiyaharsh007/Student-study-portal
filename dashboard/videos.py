@@ -1,391 +1,1254 @@
-"""Videos for the Videos page.
-
-The topic shelves show the hand-picked lessons in dashboard/video_library.py. Search finds lessons anywhere
-on YouTube in one of two ways:
-- with YOUTUBE_API_KEY: YouTube's official Data API (with channel pictures);
-- without it: Gemini (the key Lexi already uses) suggests well-known lessons, and every suggestion is checked
-  with YouTube's public lookup (oEmbed). Only real, playable videos whose title fits the search are kept,
-  shown with YouTube's own title and channel. Matching hand-picked lessons are added after them.
-
-Everything plays in YouTube's privacy-friendly embedded player (youtube-nocookie.com). Answers from YouTube
-are cached, because each API search costs quota and the public lookup is slow from far away.
 """
-import hashlib
+High-performance YouTube video search and streaming service for Student Study Portal.
+Provides fast, reliable Innertube API searches, connection pooling, multi-tier fallbacks,
+in-memory LRU caching, and ad-free privacy-enhanced streaming metadata.
+"""
+
 import json
 import logging
 import re
-from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
-from datetime import datetime
+import urllib.parse
+from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
+from typing import Dict, List, Optional, Tuple
 
 import requests
-from django.conf import settings
-from django.core.cache import cache as _memory, caches
-from django.db import DatabaseError
 
-from . import video_library
+logger = logging.getLogger(__name__)
 
-log = logging.getLogger(__name__)
+# Connection-pooled session with browser-grade headers
+_HTTP_SESSION = requests.Session()
+_HTTP_SESSION.mount("https://", requests.adapters.HTTPAdapter(pool_connections=8, pool_maxsize=32))
+_HTTP_SESSION.headers.update({
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept": "application/json, text/plain, */*",
+})
 
-API = "https://www.googleapis.com/youtube/v3"
-OEMBED = "https://www.youtube.com/oembed"
-TIMEOUT = (4, 8)
-SEARCH_TTL = 60 * 30
-SUGGEST_TTL = 60 * 60 * 24        # a found-and-checked list stays good for a day
-GEMINI = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-# Both are asked at once. 3.5-flash suggests the best lessons (~6s) but is sometimes overloaded (503); the lite
-# model answers in ~3s and fills in. Lite also suggests some unrelated videos, which never pass _fits().
-SUGGEST_MODELS = (("gemini-3.5-flash", 12), ("gemini-3.1-flash-lite", 20))   # (model, how many lessons to ask for)
-SUGGEST_WAIT = 8                  # seconds to wait for both models; then whatever has arrived is used
-SUGGEST_BUDGET = 14               # the longest any search waits for Gemini, inside Vercel's 30s
-_POOL = ThreadPoolExecutor(max_workers=10, thread_name_prefix="videos")
-DETAILS_TTL = 60 * 60 * 6
-AVATAR_TTL = 60 * 60 * 24
+# In-memory LRU cache: query -> list of video dicts
+_CACHE_CAPACITY = 256
+_VIDEO_CACHE: OrderedDict[str, List[Dict]] = OrderedDict()
 
-VIDEO_ID_RE = re.compile(r"^[A-Za-z0-9_-]{11}$")
-CHANNEL_ID_RE = re.compile(r"^UC[\w-]{22}$")
-TOPIC_LABELS = dict(video_library.TOPICS)
+# Curated academic topics for fast discovery
+TOPICS: List[Tuple[str, str, str]] = [
+    ("calculus", "Calculus", "calculus explained"),
+    ("physics", "Physics", "physics fundamentals lecture"),
+    ("computer-science", "Computer Science", "computer science principles"),
+    ("chemistry", "Chemistry", "general chemistry study guide"),
+    ("biology", "Biology", "biology cell structure lecture"),
+    ("world-history", "World History", "world history crash course"),
+    ("linear-algebra", "Linear Algebra", "linear algebra 3blue1brown"),
+    ("economics", "Economics", "microeconomics essentials"),
+    ("psychology", "Psychology", "introduction to psychology lecture"),
+]
 
-_session = requests.Session()
+# High-impact curated starter lectures for cold start
+FEATURED_VIDEOS: List[Dict] = [
+    {
+        "id": "WUvTyaaNkzM",
+        "title": "The Essence of Calculus — Chapter 1",
+        "channel": "3Blue1Brown",
+        "duration": "17:05",
+        "views": "11.8M views",
+        "published": "Visual Masterclass",
+        "thumbnail": "https://i.ytimg.com/vi/WUvTyaaNkzM/mqdefault.jpg",
+        "description": "What might it feel like to invent calculus? An intuitive, visual geometric foundation for derivatives and limits.",
+        "link": "https://www.youtube.com/watch?v=WUvTyaaNkzM",
+    },
+    {
+        "id": "8mAITcNt710",
+        "title": "Harvard CS50 — Full Computer Science University Course",
+        "channel": "freeCodeCamp.org",
+        "duration": "24:41:20",
+        "views": "7.9M views",
+        "published": "Complete Course",
+        "thumbnail": "https://i.ytimg.com/vi/8mAITcNt710/mqdefault.jpg",
+        "description": "An introduction to the intellectual enterprises of computer science and the art of programming with David J. Malan.",
+        "link": "https://www.youtube.com/watch?v=8mAITcNt710",
+    },
+    {
+        "id": "b1t41Q3xRM8",
+        "title": "Physics - Basic Introduction",
+        "channel": "The Organic Chemistry Tutor",
+        "duration": "2:23:10",
+        "views": "3.8M views",
+        "published": "Physics Foundations",
+        "thumbnail": "https://i.ytimg.com/vi/b1t41Q3xRM8/mqdefault.jpg",
+        "description": "Comprehensive introductory physics tutorial covering displacement, velocity, acceleration, Newton's laws, vectors, work, and energy.",
+        "link": "https://www.youtube.com/watch?v=b1t41Q3xRM8",
+    },
+    {
+        "id": "094y1Z2wpJg",
+        "title": "The Simplest Math Problem No One Can Solve (Collatz Conjecture)",
+        "channel": "Veritasium",
+        "duration": "22:09",
+        "views": "42M views",
+        "published": "Math & Logic",
+        "thumbnail": "https://i.ytimg.com/vi/094y1Z2wpJg/mqdefault.jpg",
+        "description": "David Eisenbud investigates the famous 3n + 1 problem that has puzzled mathematicians for nearly a century.",
+        "link": "https://www.youtube.com/watch?v=094y1Z2wpJg",
+    },
+    {
+        "id": "FSyAehMdpyI",
+        "title": "The Nucleus: Crash Course Chemistry #1",
+        "channel": "CrashCourse",
+        "duration": "10:12",
+        "views": "5.6M views",
+        "published": "Chemistry Basics",
+        "thumbnail": "https://i.ytimg.com/vi/FSyAehMdpyI/mqdefault.jpg",
+        "description": "Hank Green discusses atoms, elements, the nucleus, protons, neutrons, electrons, and isotopes.",
+        "link": "https://www.youtube.com/watch?v=FSyAehMdpyI",
+    },
+    {
+        "id": "zQGOcOUBi6s",
+        "title": "The Immune System Explained — Bacterial Infection",
+        "channel": "Kurzgesagt – In a Nutshell",
+        "duration": "6:48",
+        "views": "28.5M views",
+        "published": "Cell Biology",
+        "thumbnail": "https://i.ytimg.com/vi/zQGOcOUBi6s/mqdefault.jpg",
+        "description": "A stunning visual breakdown of macro-phages, neutrophils, and dendritic cells defending the body.",
+        "link": "https://www.youtube.com/watch?v=zQGOcOUBi6s",
+    },
+    {
+        "id": "Yocja_N5s1I",
+        "title": "The Agricultural Revolution: Crash Course World History #1",
+        "channel": "CrashCourse",
+        "duration": "11:11",
+        "views": "15.2M views",
+        "published": "World History",
+        "thumbnail": "https://i.ytimg.com/vi/Yocja_N5s1I/mqdefault.jpg",
+        "description": "John Green investigates human history from hunter-gatherers to settled agriculture and early civilization.",
+        "link": "https://www.youtube.com/watch?v=Yocja_N5s1I",
+    },
+    {
+        "id": "fNk_zzaMoSs",
+        "title": "Linear Combinations, Span, and Basis Vectors",
+        "channel": "3Blue1Brown",
+        "duration": "12:12",
+        "views": "5.6M views",
+        "published": "Linear Algebra",
+        "thumbnail": "https://i.ytimg.com/vi/fNk_zzaMoSs/mqdefault.jpg",
+        "description": "Essence of linear algebra: what span, linear independence, and basis vectors look like geometrically.",
+        "link": "https://www.youtube.com/watch?v=fNk_zzaMoSs",
+    },
+]
 
 
-class _SharedCache:
-    """The database cache shared by all instances, falling back to this instance's memory if the table is
-    missing or the database is unreachable (a cache must never break the page)."""
-
-    def get(self, key, default=None):
-        try:
-            return caches["shared"].get(key, default)
-        except DatabaseError:
-            return _memory.get(key, default)
-
-    def set(self, key, value, timeout):
-        try:
-            caches["shared"].set(key, value, timeout)
-        except DatabaseError:
-            _memory.set(key, value, timeout)
+def build_embed_url(video_id: str) -> str:
+    """Returns privacy-enhanced, ad-free YouTube embed URL."""
+    clean_id = urllib.parse.quote(video_id.strip())
+    return (
+        f"https://www.youtube-nocookie.com/embed/{clean_id}"
+        f"?autoplay=1&rel=0&modestbranding=1&iv_load_policy=3&playsinline=1"
+    )
 
 
-cache = _SharedCache()
+# Pre-populate embed_url on all featured videos
+for _fv in FEATURED_VIDEOS:
+    if "embed_url" not in _fv:
+        _fv["embed_url"] = build_embed_url(_fv["id"])
 
 
-class VideoError(Exception):
-    """A message a student can read: why YouTube search is unavailable right now."""
+def search_videos(query: str, max_results: int = 12) -> Tuple[List[Dict], Optional[str]]:
+    """
+    Searches YouTube for educational videos using multi-tier fallback:
+    1. Memory LRU cache
+    2. Official YouTube Innertube API (JSON POST, ~0.8s)
+    3. Direct HTML search scraper with browser headers
+    4. Built-in fallback
+    """
+    clean_q = (query or "").strip()
+    if not clean_q:
+        return home_feed(max_results), None
+
+    cache_key = clean_q.lower()
+    if cache_key in _VIDEO_CACHE:
+        _VIDEO_CACHE.move_to_end(cache_key)
+        return _VIDEO_CACHE[cache_key], None
+
+    # Tier 1: YouTube Innertube API (JSON direct)
+    items = _search_innertube(clean_q, max_results=max_results)
+    if items:
+        _cache_results(cache_key, items)
+        return items, None
+
+    # Tier 2: Direct HTML scrape with connection pooling
+    items = _search_html_scrape(clean_q, max_results=max_results)
+    if items:
+        _cache_results(cache_key, items)
+        return items, None
+
+    # Tier 3: youtube_search package fallback
+    items = _search_youtube_search_pkg(clean_q, max_results=max_results)
+    if items:
+        _cache_results(cache_key, items)
+        return items, None
+
+    # If all tiers fail due to network outage, check if matches any featured videos
+    fallback_matches = [
+        v for v in FEATURED_VIDEOS
+        if clean_q.lower() in v["title"].lower() or clean_q.lower() in v["channel"].lower()
+    ]
+    if fallback_matches:
+        return fallback_matches, None
+
+    return [], "Unable to fetch video lessons. Please check your connection and try again."
 
 
-def valid_id(video_id):
-    return bool(VIDEO_ID_RE.match(video_id or ""))
+def _cache_results(key: str, results: List[Dict]) -> None:
+    if len(_VIDEO_CACHE) >= _CACHE_CAPACITY:
+        _VIDEO_CACHE.popitem(last=False)
+    _VIDEO_CACHE[key] = results
 
 
-def thumb(video_id):
+def _search_innertube(query: str, max_results: int = 12) -> List[Dict]:
+    """Queries YouTube's internal Innertube JSON search endpoint."""
+    try:
+        url = "https://www.youtube.com/youtubei/v1/search"
+        payload = {
+            "context": {
+                "client": {
+                    "clientName": "WEB",
+                    "clientVersion": "2.20240401.01.00",
+                    "hl": "en",
+                    "gl": "US",
+                }
+            },
+            "query": query,
+        }
+        resp = _HTTP_SESSION.post(url, json=payload, timeout=3.8)
+        if resp.status_code != 200:
+            return []
+
+        data = resp.json()
+        contents = (
+            data.get("contents", {})
+            .get("twoColumnSearchResultsRenderer", {})
+            .get("primaryContents", {})
+            .get("sectionListRenderer", {})
+            .get("contents", [])
+        )
+
+        results: List[Dict] = []
+        for sec in contents:
+            item_sec = sec.get("itemSectionRenderer", {}).get("contents", [])
+            for it in item_sec:
+                if "videoRenderer" not in it:
+                    continue
+                vr = it["videoRenderer"]
+                vid_id = vr.get("videoId")
+                if not vid_id:
+                    continue
+
+                title = "".join(r.get("text", "") for r in vr.get("title", {}).get("runs", []))
+                owner_runs = vr.get("ownerText", {}).get("runs", []) or vr.get("longBylineText", {}).get("runs", [])
+                channel = "".join(r.get("text", "") for r in owner_runs)
+                cid = next((r.get("navigationEndpoint", {}).get("browseEndpoint", {}).get("browseId", "")
+                            for r in owner_runs if r.get("navigationEndpoint")), "")
+                pics = vr.get("channelThumbnailSupportedRenderers", {}).get("channelThumbnailWithLinkRenderer", {}) \
+                    .get("thumbnail", {}).get("thumbnails", [])
+                avatar = pics[-1]["url"] if pics else ""
+                duration = vr.get("lengthText", {}).get("simpleText", "")
+                views = vr.get("viewCountText", {}).get("simpleText", "")
+                published = vr.get("publishedTimeText", {}).get("simpleText", "")
+
+                snippets = vr.get("detailedMetadataSnippets", [{}])
+                desc = (
+                    "".join(r.get("text", "") for r in snippets[0].get("snippetText", {}).get("runs", []))
+                    if snippets and "snippetText" in snippets[0]
+                    else ""
+                )
+
+                thumbs = vr.get("thumbnail", {}).get("thumbnails", [])
+                thumb = f"https://i.ytimg.com/vi/{vid_id}/mqdefault.jpg"
+
+                results.append({
+                    "id": vid_id,
+                    "title": title or "Video Lesson",
+                    "channel": channel or "Educational Channel",
+                    "channel_id": cid if _CHANNEL_ID_RE.match(cid or "") else "",
+                    "avatar": avatar,
+                    "duration": duration,
+                    "views": views,
+                    "published": published,
+                    "thumbnail": thumb,
+                    "description": desc[:180],
+                    "link": f"https://www.youtube.com/watch?v={vid_id}",
+                    "embed_url": build_embed_url(vid_id),
+                })
+                if len(results) >= max_results:
+                    return results
+
+        return results
+    except Exception as exc:
+        logger.warning("YouTube Innertube API error: %s", exc)
+        return []
+
+
+def _search_html_scrape(query: str, max_results: int = 12) -> List[Dict]:
+    """Fallback: Scrapes results page with browser headers and extracts ytInitialData."""
+    try:
+        encoded = urllib.parse.quote_plus(query)
+        url = f"https://www.youtube.com/results?search_query={encoded}"
+        resp = _HTTP_SESSION.get(url, timeout=3.5)
+        if resp.status_code != 200:
+            return []
+
+        text = resp.text
+        if "ytInitialData" not in text:
+            return []
+
+        start = text.index("ytInitialData") + len("ytInitialData") + 3
+        end = text.index("};", start) + 1
+        data = json.loads(text[start:end])
+
+        contents = (
+            data.get("contents", {})
+            .get("twoColumnSearchResultsRenderer", {})
+            .get("primaryContents", {})
+            .get("sectionListRenderer", {})
+            .get("contents", [])
+        )
+
+        results: List[Dict] = []
+        for sec in contents:
+            item_sec = sec.get("itemSectionRenderer", {}).get("contents", [])
+            for it in item_sec:
+                if "videoRenderer" in it:
+                    vr = it["videoRenderer"]
+                    vid_id = vr.get("videoId")
+                    if not vid_id:
+                        continue
+                    title = "".join(r.get("text", "") for r in vr.get("title", {}).get("runs", []))
+                    channel = "".join(r.get("text", "") for r in vr.get("longBylineText", {}).get("runs", []))
+                    duration = vr.get("lengthText", {}).get("simpleText", "")
+                    views = vr.get("viewCountText", {}).get("simpleText", "")
+                    published = vr.get("publishedTimeText", {}).get("simpleText", "")
+                    thumbs = vr.get("thumbnail", {}).get("thumbnails", [])
+                    thumb = f"https://i.ytimg.com/vi/{vid_id}/mqdefault.jpg"
+
+                    results.append({
+                        "id": vid_id,
+                        "title": title or "Video Lesson",
+                        "channel": channel or "Educational Channel",
+                        "duration": duration,
+                        "views": views,
+                        "published": published,
+                        "thumbnail": thumb,
+                        "description": "",
+                        "link": f"https://www.youtube.com/watch?v={vid_id}",
+                        "embed_url": build_embed_url(vid_id),
+                    })
+                    if len(results) >= max_results:
+                        return results
+        return results
+    except Exception as exc:
+        logger.warning("YouTube HTML scraper error: %s", exc)
+        return []
+
+
+def _search_youtube_search_pkg(query: str, max_results: int = 12) -> List[Dict]:
+    """Fallback: uses youtube_search library if available."""
+    try:
+        from youtube_search import YoutubeSearch
+        found = YoutubeSearch(query, max_results=max_results).to_dict()
+        results: List[Dict] = []
+        for v in found:
+            vid_id = v.get("id")
+            if not vid_id and v.get("url_suffix"):
+                match = re.search(r"v=([a-zA-Z0-9_-]+)", v["url_suffix"])
+                if match:
+                    vid_id = match.group(1)
+            if not vid_id:
+                continue
+
+            results.append({
+                "id": vid_id,
+                "title": v.get("title", "Video Lesson"),
+                "channel": v.get("channel", "Educational Channel"),
+                "duration": v.get("duration", ""),
+                "views": v.get("views", ""),
+                "published": v.get("publish_time", ""),
+                "thumbnail": f"https://i.ytimg.com/vi/{vid_id}/mqdefault.jpg",
+                "description": (v.get("long_desc") or "")[:180],
+                "link": f"https://www.youtube.com{v.get('url_suffix', f'/watch?v={vid_id}')}",
+                "embed_url": build_embed_url(vid_id),
+            })
+        return results
+    except Exception as exc:
+        logger.warning("youtube_search pkg error: %s", exc)
+        return []
+
+
+# --------------------------------------------------------------------------- watch page data
+
+_DETAIL_CACHE: "OrderedDict[str, Dict]" = OrderedDict()
+_CHANNEL_CACHE: "OrderedDict[str, Dict]" = OrderedDict()
+_CHANNEL_ID_RE = re.compile(r"^UC[\w-]{22}$")
+_CHANNEL_VIDEOS_TAB = "EgZ2aWRlb3PyBgQKAjoA"      # YouTube's "Videos" tab, newest first
+_ID_RE = re.compile(r"^[A-Za-z0-9_-]{11}$")
+_INNERTUBE_CONTEXT = {"client": {"clientName": "WEB", "clientVersion": "2.20240401.01.00", "hl": "en", "gl": "US"}}
+
+
+def valid_id(video_id: str) -> bool:
+    return bool(_ID_RE.match(video_id or ""))
+
+
+def thumb(video_id: str) -> str:
+    """Clean 16:9 thumbnail (the hq variants carry black bars)."""
     return f"https://i.ytimg.com/vi/{video_id}/mqdefault.jpg"
 
 
-def _key(*parts):
-    """Cache keys must be plain text for every cache backend, so hash the search words."""
-    return "videos:" + hashlib.sha1(repr(parts).encode("utf-8")).hexdigest()
+def _text(node) -> str:
+    if not node:
+        return ""
+    if isinstance(node, str):
+        return node
+    if "simpleText" in node:
+        return node["simpleText"]
+    return "".join(r.get("text", "") for r in node.get("runs", []))
 
 
-def _card(video_id, title, channel, topic="", **extra):
-    return {"id": video_id, "title": title, "channel": channel, "topic": topic,
-            "topic_label": TOPIC_LABELS.get(topic, ""), "thumbnail": thumb(video_id),
-            "channel_avatar": "", "published": None, **extra}
-
-
-# --------------------------------------------------------------------------- the hand-picked library
-
-LIBRARY = [_card(*row) for row in video_library.LESSONS]
-FEATURED = _card(*video_library.FEATURED, topic="")
-_BY_ID = {v["id"]: v for v in LIBRARY + [FEATURED]}
-
-
-def library(topic=""):
-    if topic:
-        return [v for v in LIBRARY if v["topic"] == topic]
-    # "All": the study-skills talk first, then the topics taking turns so every subject shows near the top
-    shelves = [[v for v in LIBRARY if v["topic"] == key] for key, _label in video_library.TOPICS]
-    mixed = [v for row in zip(*shelves) for v in row]
-    mixed += [v for v in LIBRARY if v not in mixed]
-    return [FEATURED] + mixed
-
-
-_FILLER = {"the", "of", "and", "in", "to", "is", "on", "for", "with", "how", "what", "why", "an", "no", "it", "by",
-           "do", "does", "about", "video", "videos", "lesson", "lessons", "explained", "learn"}
-
-
-def _words(text):
-    """Meaningful words, singular: "black holes" and "Black Hole" share "black" and "hole"."""
-    words = (w for w in re.findall(r"[a-z0-9]+", text.lower()) if len(w) > 1 and w not in _FILLER)
-    return {w[:-1] if len(w) > 3 and w.endswith("s") and not w.endswith("ss") else w for w in words}
-
-
-def _match(words, hay):
-    """How well the query words fit one set of words: whole words count 1, near words (a prefix such as
-    "derivat" for "derivative", or the same first six letters such as "economy" ~ "economics") count 0.5."""
-    near = sum(1 for w in words - hay if len(w) >= 4 and any(
-        h.startswith(w) or (len(w) >= 6 and h[:6] == w[:6]) for h in hay))
-    return len(words & hay) + 0.5 * near
-
-
-def library_search(query, limit=24):
-    """Lessons that fit the query, best first. The title counts twice as much as the channel and topic,
-    so "chemistry" finds the chemistry lesson before a calculus video from "The Organic Chemistry Tutor"."""
-    words = _words(query)
-    if not words:
-        return []
-    scored = []
-    for n, v in enumerate(LIBRARY + [FEATURED]):
-        score = 2 * _match(words, _words(v["title"])) + _match(words, _words(f"{v['channel']} {v['topic_label']}"))
-        if score:
-            scored.append((-score, n, v))
-    scored.sort(key=lambda s: s[:2])
-    return [v for _score, _n, v in scored[:limit]]
-
-
-# --------------------------------------------------------------------------- YouTube Data API (optional)
-
-def has_key():
-    return bool(getattr(settings, "YOUTUBE_API_KEY", ""))
-
-
-def _api(endpoint, **params):
-    try:
-        resp = _session.get(f"{API}/{endpoint}", params={**params, "key": settings.YOUTUBE_API_KEY}, timeout=TIMEOUT)
-    except requests.RequestException as exc:
-        log.warning("YouTube API unreachable (%s)", exc.__class__.__name__)
-        raise VideoError("YouTube did not respond.") from None
-    if resp.status_code != 200:
-        log.warning("YouTube API %s answered %s", endpoint, resp.status_code)
-        raise VideoError("YouTube search is unavailable right now (its daily limit may be reached).")
-    return resp.json()
-
-
-def _when(iso):
-    try:
-        return datetime.fromisoformat((iso or "").replace("Z", "+00:00"))
-    except ValueError:
+def _parse_lockup(item: Dict) -> Optional[Dict]:
+    """One up-next entry from YouTube's lockupViewModel."""
+    lv = item.get("lockupViewModel")
+    if not lv or lv.get("contentType") != "LOCKUP_CONTENT_TYPE_VIDEO":
         return None
+    vid = lv.get("contentId")
+    if not valid_id(vid):
+        return None
+    meta = lv.get("metadata", {}).get("lockupMetadataViewModel", {})
+    rows = meta.get("metadata", {}).get("contentMetadataViewModel", {}).get("metadataRows", [])
+    parts = [[p.get("text", {}).get("content", "") for p in r.get("metadataParts", [])] for r in rows]
+    channel = parts[0][0] if parts and parts[0] else ""
+    views = parts[1][0] if len(parts) > 1 and parts[1] else ""
+    published = parts[1][1] if len(parts) > 1 and len(parts[1]) > 1 else ""
+    duration = ""
+    for ov in lv.get("contentImage", {}).get("thumbnailViewModel", {}).get("overlays", []):
+        for b in ov.get("thumbnailBottomOverlayViewModel", {}).get("badges", []):
+            duration = b.get("thumbnailBadgeViewModel", {}).get("text", "") or duration
+
+    # Directly extract avatar and channel_id from lockupViewModel (avoids slow sub-requests)
+    avatar_src = meta.get("image", {}).get("decoratedAvatarViewModel", {}).get("avatar", {}).get("avatarViewModel", {}).get("image", {}).get("sources", [])
+    avatar = avatar_src[-1]["url"] if avatar_src else ""
+    on_tap = meta.get("image", {}).get("decoratedAvatarViewModel", {}).get("rendererContext", {}).get("commandContext", {}).get("onTap", {})
+    cid = on_tap.get("innertubeCommand", {}).get("browseEndpoint", {}).get("browseId", "")
+    if not cid:
+        raw = str(meta)
+        m = re.search(r'UC[\w-]{22}', raw)
+        if m:
+            cid = m.group(0)
+
+    return {
+        "id": vid, "title": meta.get("title", {}).get("content", "Video"), "channel": channel,
+        "channel_id": cid if _CHANNEL_ID_RE.match(cid or "") else "",
+        "avatar": avatar,
+        "views": (views + " views") if views and "view" not in views else views, "published": published,
+        "duration": duration, "thumbnail": thumb(vid),
+    }
 
 
-def _best_thumb(snippet, video_id=""):
-    thumbs = snippet.get("thumbnails") or {}
-    for size in ("medium", "high", "default"):
-        if size in thumbs:
-            return thumbs[size]["url"]
-    return thumb(video_id) if video_id else ""
+def _parse_compact(item: Dict) -> Optional[Dict]:
+    cv = item.get("compactVideoRenderer")
+    if not cv or not valid_id(cv.get("videoId", "")):
+        return None
+    vid = cv["videoId"]
+    avatar_src = cv.get("channelThumbnail", {}).get("thumbnails", [])
+    avatar = avatar_src[-1]["url"] if avatar_src else ""
+    cid = cv.get("channelNavigationEndpoint", {}).get("browseEndpoint", {}).get("browseId", "")
+    if not cid:
+        runs = cv.get("shortBylineText", {}).get("runs", []) or cv.get("longBylineText", {}).get("runs", [])
+        if runs:
+            cid = runs[0].get("navigationEndpoint", {}).get("browseEndpoint", {}).get("browseId", "")
+
+    return {
+        "id": vid, "title": _text(cv.get("title")), "channel": _text(cv.get("longBylineText")),
+        "channel_id": cid if _CHANNEL_ID_RE.match(cid or "") else "",
+        "avatar": avatar,
+        "views": _text(cv.get("viewCountText")), "published": _text(cv.get("publishedTimeText")),
+        "duration": _text(cv.get("lengthText")), "thumbnail": thumb(vid),
+    }
 
 
-def _avatars(channel_ids):
-    """Channel id -> picture URL ("" when there is none), each channel looked up once a day."""
-    ids = [c for c in set(channel_ids) if CHANNEL_ID_RE.match(c or "")]
-    found, missing = {}, []
-    for cid in ids:
-        hit = cache.get(_key("avatar", cid))
-        if hit is None:
-            missing.append(cid)
-        else:
-            found[cid] = hit
-    if missing:
-        try:
-            data = _api("channels", part="snippet", id=",".join(missing[:50]), maxResults=50)
-            for ch in data.get("items", []):
-                found[ch["id"]] = _best_thumb(ch.get("snippet", {}))
-        except VideoError:
-            return found
-        for cid in missing[:50]:
-            found.setdefault(cid, "")
-            cache.set(_key("avatar", cid), found[cid], AVATAR_TTL)
-    return found
+def _parse_playlist_panel(item: Dict) -> Optional[Dict]:
+    """An item inside a watch playlist panel or Mix (playlistPanelVideoRenderer)."""
+    pvr = item.get("playlistPanelVideoRenderer")
+    if not pvr or not valid_id(pvr.get("videoId", "")):
+        return None
+    vid = pvr["videoId"]
+    ch_runs = pvr.get("longBylineText", {}).get("runs", []) or pvr.get("shortBylineText", {}).get("runs", [])
+    channel = ch_runs[0].get("text", "") if ch_runs else ""
+    cid = ch_runs[0].get("navigationEndpoint", {}).get("browseEndpoint", {}).get("browseId", "") if ch_runs else ""
+    return {
+        "id": vid,
+        "title": _text(pvr.get("title")),
+        "channel": channel,
+        "channel_id": cid if _CHANNEL_ID_RE.match(cid or "") else "",
+        "avatar": "",
+        "duration": _text(pvr.get("lengthText")),
+        "thumbnail": thumb(vid),
+        "views": "",
+        "published": "",
+    }
 
 
-def youtube_search(query, limit=24):
-    """All of YouTube (embeddable videos only), one card per video, each with its channel's picture."""
-    k = _key("search", query.lower(), limit)
-    hit = cache.get(k)
-    if hit is not None:
-        return hit
-    data = _api("search", part="snippet", type="video", q=query, maxResults=limit, safeSearch="strict",
-                videoEmbeddable="true", relevanceLanguage="en")
-    videos, seen = [], set()
-    for item in data.get("items", []):
-        vid, sn = (item.get("id") or {}).get("videoId", ""), item.get("snippet", {})
-        if valid_id(vid) and vid not in seen:
-            seen.add(vid)
-            videos.append(_card(vid, sn.get("title", ""), sn.get("channelTitle", ""), channel_id=sn.get("channelId", ""),
-                                published=_when(sn.get("publishedAt")), thumbnail=_best_thumb(sn, vid)))
-    avatars = _avatars([v["channel_id"] for v in videos])
-    for v in videos:
-        v["channel_avatar"] = avatars.get(v["channel_id"], "")
-    cache.set(k, videos, SEARCH_TTL)
-    return videos
+def _parse_playlist_video(pvr: Dict) -> Optional[Dict]:
+    """An item inside a standard playlist browse page (playlistVideoRenderer)."""
+    if not pvr or not valid_id(pvr.get("videoId", "")):
+        return None
+    vid = pvr["videoId"]
+    runs = pvr.get("shortBylineText", {}).get("runs", []) or pvr.get("longBylineText", {}).get("runs", [])
+    channel = runs[0].get("text", "") if runs else ""
+    cid = runs[0].get("navigationEndpoint", {}).get("browseEndpoint", {}).get("browseId", "") if runs else ""
+    return {
+        "id": vid,
+        "title": _text(pvr.get("title")),
+        "channel": channel,
+        "channel_id": cid if _CHANNEL_ID_RE.match(cid or "") else "",
+        "views": "",
+        "published": "",
+        "duration": _text(pvr.get("lengthText")),
+        "thumbnail": thumb(vid),
+    }
 
 
-# --------------------------------------------------------------------------- search without a YouTube key
-
-_LINK = re.compile(r"(?:youtube\.com/(?:watch\?v=|embed/|shorts/|live/)|youtu\.be/)([A-Za-z0-9_-]{11})")
-SUGGEST_SCHEMA = {"type": "ARRAY", "items": {"type": "OBJECT", "required": ["url", "title"], "properties": {
-    "url": {"type": "STRING"}, "title": {"type": "STRING"}, "channel": {"type": "STRING"}}}}
-
-
-def can_suggest():
-    return bool(getattr(settings, "GEMINI_API_KEY", ""))
-
-
-def _ask_model(model, body):
-    """One model's suggestions: [(video_id, claimed_title), ...]. Raises on any failure."""
-    resp = _session.post(GEMINI.format(model=model), json=body, headers={"x-goog-api-key": settings.GEMINI_API_KEY},
-                         timeout=(4, SUGGEST_BUDGET))
-    if resp.status_code != 200:
-        log.warning("video suggestions from %s: HTTP %s", model, resp.status_code)
-        raise VideoError(f"HTTP {resp.status_code}")
-    parts = ((resp.json().get("candidates") or [{}])[0].get("content") or {}).get("parts") or []
-    text = "".join(part.get("text", "") for part in parts if not part.get("thought"))
-    try:
-        rows = json.loads(text)
-    except ValueError:                                       # not JSON after all: pick the links out of the text
-        rows = [{"url": f"https://youtu.be/{vid}", "title": ""} for vid in _LINK.findall(text)]
-    found = []
-    for row in rows if isinstance(rows, list) else []:
-        m = _LINK.search(str(row.get("url", ""))) if isinstance(row, dict) else None
-        if m and valid_id(m.group(1)):
-            found.append((m.group(1), str(row.get("title", ""))[:200]))
-    return found
-
-
-def _suggest(query):
-    """Ask both models at once for well-known lessons on the query: [(video_id, claimed_title), ...].
-    The better model's picks come first and the fast model's fill in (it is asked for more, as fewer of its picks
-    pass the checks). We wait SUGGEST_WAIT seconds for both; after that whatever has arrived is used (and if
-    nothing has, the first answer up to SUGGEST_BUDGET)."""
-    def body(count):
-        prompt = (f"A student wants to learn about: {query}\n"
-                  f"List {count} real, popular YouTube videos that teach this well, preferring established educational "
-                  "channels (for example Khan Academy, CrashCourse, TED-Ed, 3Blue1Brown, The Organic Chemistry Tutor, "
-                  "freeCodeCamp, MIT OpenCourseWare, Kurzgesagt, Professor Dave Explains, Amoeba Sisters, OverSimplified). "
-                  "Give each video's full https://www.youtube.com/watch?v= link exactly, its exact title and its channel. "
-                  "Only list videos you are confident exist. Nothing unsuitable for school students.")
-        return {"contents": [{"role": "user", "parts": [{"text": prompt}]}],
-                "generationConfig": {"temperature": 0.2, "responseMimeType": "application/json",
-                                     "responseSchema": SUGGEST_SCHEMA, "thinkingConfig": {"thinkingLevel": "minimal"}}}
-    futures = [_POOL.submit(_ask_model, model, body(count)) for model, count in SUGGEST_MODELS]
-    wait(futures, timeout=SUGGEST_WAIT)
-    if not any(f.done() and not f.exception() for f in futures):
-        wait(futures, timeout=SUGGEST_BUDGET - SUGGEST_WAIT, return_when=FIRST_COMPLETED)
-    found, seen = [], set()
-    for fut in futures:                                       # in model order: the better model's picks first
-        if fut.done() and not fut.exception():
-            for vid, title in fut.result():
-                if vid not in seen:
-                    seen.add(vid)
-                    found.append((vid, title))
-    return found
-
-
-def _fits(query, claimed, real):
-    """A real video is kept only if it is about the search: its title shares a word with the query, or it is
-    clearly the video Gemini meant (most of the claimed title's words). This drops ids that exist but belong
-    to some unrelated video."""
-    title = _words(real["title"])
-    if _words(query) & (title | _words(real["channel"])):
-        return True
-    said = _words(claimed)
-    return bool(said) and len(said & title) >= 0.6 * len(said)
-
-
-def suggested_search(query, limit=18):
-    """Lessons from anywhere on YouTube without a YouTube key. Cached for a day per search."""
-    k = _key("suggest", query.lower())
-    hit = cache.get(k)
-    if hit is not None:
-        return hit
-    claims = _suggest(query)
-    checked = list(_POOL.map(lambda c: (c[1], details(c[0])), claims))
-    videos = [real for claimed, real in checked if real and _fits(query, claimed, real)][:limit]
-    if claims:                                   # an empty list from a Gemini error is not worth remembering
-        cache.set(k, videos, SUGGEST_TTL)
-    return videos
-
-
-# --------------------------------------------------------------------------- what the views ask for
-
-def browse(query="", topic="", allow_suggest=True):
-    """What the grid shows: {"videos": [...], "source": "youtube" | "suggested" | "library", "note": str}.
-    allow_suggest=False (a student over their search limit) keeps a search to the library."""
-    if not query:
-        return {"videos": library(topic), "source": "library", "note": ""}
-    if has_key():
-        try:
-            return {"videos": youtube_search(query), "source": "youtube", "note": ""}
-        except VideoError as exc:
-            return {"videos": library_search(query), "source": "library",
-                    "note": f"{exc} Showing matches from the lesson library instead."}
-    picked = library_search(query)
-    if allow_suggest and can_suggest():
-        found = suggested_search(query)
-        ids = {v["id"] for v in found}
-        merged = found + [v for v in picked if v["id"] not in ids]
-        if found:
-            return {"videos": merged, "source": "suggested", "note": ""}
-        note = "" if picked else "Could not find YouTube lessons for that right now."
-        return {"videos": picked, "source": "library", "note": note}
-    note = "" if allow_suggest else "You have searched a lot in a short time, so this search used the lesson library only."
-    return {"videos": picked, "source": "library", "note": note}
-
-
-def details(video_id):
-    """Title, channel and (with a key) description and views of one video; None when YouTube has no such
-    embeddable video. Lessons from the library need no network at all."""
+def video_details(video_id: str, header_only: bool = False, playlist_id: str = "") -> Optional[Dict]:
+    """Title, channel, views, date, description and up-next for one video (cached).
+    header_only skips the up-next lists so the channel and subscriber count can appear straight away."""
     if not valid_id(video_id):
         return None
-    if video_id in _BY_ID:
-        return dict(_BY_ID[video_id])
-    k = _key("details", video_id)
-    hit = cache.get(k)
-    if hit is not None:
-        return hit or None
-    info = None
-    if has_key():
-        try:
-            items = _api("videos", part="snippet,statistics", id=video_id).get("items", [])
-            if items:
-                sn, st = items[0].get("snippet", {}), items[0].get("statistics", {})
-                views = int(st["viewCount"]) if str(st.get("viewCount", "")).isdigit() else None
-                info = _card(video_id, sn.get("title", ""), sn.get("channelTitle", ""), channel_id=sn.get("channelId", ""),
-                             published=_when(sn.get("publishedAt")), description=sn.get("description", ""),
-                             views_label=f"{views:,} views" if views is not None else "")
-                info["channel_avatar"] = _avatars([info["channel_id"]]).get(info["channel_id"], "")
-        except VideoError:
-            info = None
-    if info is None:
-        info = _oembed(video_id)
-    if info is not False:                      # False: YouTube could not be reached; try again next time
-        cache.set(k, info or {}, DETAILS_TTL)
-    return info or None
 
+    cache_key = f"{video_id}:{playlist_id}" if playlist_id else video_id
+    if not header_only and cache_key in _DETAIL_CACHE:
+        cached = _DETAIL_CACHE[cache_key]
+        if cached.get("related") or cached.get("playlist_videos"):
+            _DETAIL_CACHE.move_to_end(cache_key)
+            return cached
 
-def _oembed(video_id):
-    """YouTube's public lookup: works without a key. None if the video does not exist or cannot be embedded."""
+    info: Dict = {"id": video_id, "title": "", "channel": "", "channel_id": "", "avatar": "", "subscribers": "",
+                  "views": "", "published": "", "description": "", "related": [],
+                  "link": f"https://www.youtube.com/watch?v={video_id}"}
+
+    payload = {"context": _INNERTUBE_CONTEXT, "videoId": video_id}
+    if playlist_id and _PLAYLIST_ID_RE.match(playlist_id):
+        payload["playlistId"] = playlist_id
+
     try:
-        resp = _session.get(OEMBED, params={"url": f"https://www.youtube.com/watch?v={video_id}", "format": "json"}, timeout=TIMEOUT)
-    except requests.RequestException:
-        return False
-    if resp.status_code != 200:
-        return None if resp.status_code in (400, 401, 403, 404) else False
-    data = resp.json()
-    return _card(video_id, data.get("title", ""), data.get("author_name", ""), channel_url=data.get("author_url", ""))
+        resp = _HTTP_SESSION.post("https://www.youtube.com/youtubei/v1/next",
+                                  json=payload, timeout=6)
+        if resp.status_code == 200:
+            two = resp.json().get("contents", {}).get("twoColumnWatchNextResults", {})
+            for block in two.get("results", {}).get("results", {}).get("contents", []):
+                pri = block.get("videoPrimaryInfoRenderer")
+                if pri:
+                    info["title"] = _text(pri.get("title"))
+                    info["views"] = _text(pri.get("viewCount", {}).get("videoViewCountRenderer", {}).get("viewCount"))
+                    info["published"] = _text(pri.get("dateText"))
+                sec = block.get("videoSecondaryInfoRenderer")
+                if sec:
+                    owner = sec.get("owner", {}).get("videoOwnerRenderer", {})
+                    info["channel"] = _text(owner.get("title"))
+                    cid = owner.get("navigationEndpoint", {}).get("browseEndpoint", {}).get("browseId", "")
+                    info["channel_id"] = cid if _CHANNEL_ID_RE.match(cid or "") else ""
+                    avatars = owner.get("thumbnail", {}).get("thumbnails", [])
+                    info["avatar"] = avatars[-1]["url"] if avatars else ""
+                    info["subscribers"] = _text(owner.get("subscriberCountText"))
+                    info["description"] = sec.get("attributedDescription", {}).get("content", "")[:2500]
 
+            # Playlist contents from watch next (Mixes, radios, or watch-panel playlists)
+            p_node = two.get("playlist", {}).get("playlist", {})
+            if p_node:
+                p_title = p_node.get("title") or "Playlist"
+                p_contents = []
+                for c in p_node.get("contents", []):
+                    item = _parse_playlist_panel(c)
+                    if item:
+                        p_contents.append(item)
+                if p_contents:
+                    info["playlist"] = {"id": playlist_id, "title": p_title, "count": len(p_contents)}
+                    info["playlist_videos"] = p_contents
 
-def related(video, limit=12):
-    """Videos to watch next: from YouTube search on the title (with a key), else lessons on the same topic."""
-    if has_key():
+            # Recommendations / Up Next
+            for item in two.get("secondaryResults", {}).get("secondaryResults", {}).get("results", []):
+                rel = _parse_lockup(item) or _parse_compact(item)
+                if rel and rel["id"] != video_id:
+                    info["related"].append(rel)
+    except Exception as exc:
+        logger.warning("YouTube watch data error: %s", exc)
+
+    if not info["title"]:
+        # oEmbed is lighter and tells us when a video is gone
         try:
-            found = [v for v in youtube_search(video["title"], limit=limit + 1) if v["id"] != video["id"]]
-            if found:
-                return found[:limit]
-        except VideoError:
+            r = _HTTP_SESSION.get("https://www.youtube.com/oembed", params={"url": info["link"], "format": "json"}, timeout=4)
+            if r.status_code == 200:
+                data = r.json()
+                info["title"] = info["title"] or data.get("title", "Video")
+                info["channel"] = info["channel"] or data.get("author_name", "")
+        except Exception:
             pass
-    same = [v for v in LIBRARY if v["topic"] == video.get("topic") and v["id"] != video["id"]]
-    if len(same) < limit:
-        same += [v for v in library_search(video["title"], limit=limit) if v["id"] != video["id"] and v not in same]
-    if len(same) < limit:
-        same += [v for v in library() if v["id"] != video["id"] and v not in same]
-    return same[:limit]
+
+    if not info["title"]:
+        # Fallback check against featured videos
+        for fv in FEATURED_VIDEOS:
+            if fv["id"] == video_id:
+                info.update(title=fv["title"], channel=fv["channel"], thumbnail=fv["thumbnail"])
+                break
+
+    if not info["title"]:
+        return None
+
+    if header_only:
+        return info
+
+    # Ensure recommendations are populated:
+    # If Innertube gave fewer than 12 recommendations, top up with search
+    if len(info["related"]) < 12:
+        seen = {video_id} | {v["id"] for v in info["related"]}
+        for query in (info["title"], info["channel"]):
+            if not query or len(info["related"]) >= 24:
+                continue
+            try:
+                items, _ = search_videos(query, max_results=16)
+                for v in items:
+                    if v["id"] not in seen:
+                        seen.add(v["id"])
+                        info["related"].append(v)
+            except Exception:
+                pass
+
+    # If still empty (e.g. video blocked or network issue), fallback to home feed
+    if not info["related"]:
+        try:
+            feed = home_feed(16)
+            info["related"] = [v for v in feed if v["id"] != video_id]
+        except Exception:
+            pass
+
+    if len(_DETAIL_CACHE) >= 128:
+        _DETAIL_CACHE.popitem(last=False)
+    _DETAIL_CACHE[cache_key] = info
+    return info
+
+
+def _channel_lockup(item: Dict) -> Optional[Dict]:
+    """One upload on a channel page. Its metadata rows come in a different order from search results, so match by text."""
+    v = _parse_lockup(item)
+    if not v:
+        return None
+    rows = item.get("lockupViewModel", {}).get("metadata", {}).get("lockupMetadataViewModel", {}) \
+        .get("metadata", {}).get("contentMetadataViewModel", {}).get("metadataRows", [])
+    texts = [p.get("text", {}).get("content", "") for r in rows for p in r.get("metadataParts", [])]
+    v["channel"] = ""                                   # every upload here is from this channel
+    v["views"] = next((t for t in texts if "view" in t.lower()), "")
+    v["published"] = next((t for t in texts if "ago" in t.lower()), "")
+    return v
+
+
+def channel_page(channel_id: str) -> Optional[Dict]:
+    """A channel's name, picture, subscriber count and its uploads (newest first, first page only; cached)."""
+    if not _CHANNEL_ID_RE.match(channel_id or ""):
+        return None
+    if channel_id in _CHANNEL_CACHE:
+        _CHANNEL_CACHE.move_to_end(channel_id)
+        return _CHANNEL_CACHE[channel_id]
+    try:
+        resp = _HTTP_SESSION.post("https://www.youtube.com/youtubei/v1/browse",
+                                  json={"context": _INNERTUBE_CONTEXT, "browseId": channel_id, "params": _CHANNEL_VIDEOS_TAB},
+                                  timeout=8)
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+    except Exception as exc:
+        logger.warning("YouTube channel data error: %s", exc)
+        return None
+
+    header_wrap = data.get("header", {}).get("pageHeaderRenderer", {})
+    header = header_wrap.get("content", {}).get("pageHeaderViewModel", {})
+    raw = json.dumps(header, ensure_ascii=False)
+    name = header_wrap.get("pageTitle") or _text(header.get("title", {}).get("dynamicTextViewModel", {}).get("text"))
+    subs = re.search(r'"content": "([^"]*subscriber[^"]*)"', raw)
+    # Avatars are the square "=sNN-c-k" images. The header also holds a banner, which must not be picked.
+    sized = [(int(m.group(2)), m.group(1)) for m in re.finditer(r'(https://yt3\.[^"\s]*?=s(\d+)-c-k[^"\s]*)', raw)]
+    avatars = [url for _, url in sorted(sized)]
+
+    videos_out: List[Dict] = []
+    for tab in data.get("contents", {}).get("twoColumnBrowseResultsRenderer", {}).get("tabs", []):
+        tr = tab.get("tabRenderer")
+        if not (tr and tr.get("selected")):
+            continue
+        for item in tr.get("content", {}).get("richGridRenderer", {}).get("contents", []):
+            v = _channel_lockup(item.get("richItemRenderer", {}).get("content", {}))
+            if v:
+                videos_out.append(v)
+
+    info = {"id": channel_id, "name": name or "Channel", "subscribers": subs.group(1) if subs else "",
+            "avatar": avatars[-1] if avatars else "", "videos": videos_out}
+    if len(_CHANNEL_CACHE) >= 64:
+        _CHANNEL_CACHE.popitem(last=False)
+    _CHANNEL_CACHE[channel_id] = info
+    return info
+
+
+def channel_summaries(channel_ids) -> Dict[str, Dict]:
+    """Subscriber count and picture for several channels at once, for the search results."""
+    ids = [c for c in dict.fromkeys(channel_ids or []) if _CHANNEL_ID_RE.match(c or "")][:24]
+    out: Dict[str, Dict] = {}
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        for cid, ch in zip(ids, pool.map(channel_page, ids)):
+            if ch:
+                out[cid] = {"subscribers": ch["subscribers"], "avatar": ch["avatar"], "name": ch["name"]}
+    return out
+
+
+_PLAYLIST_ID_RE = re.compile(r"^(PL|UU|OL|LL|RD)[\w-]{10,64}$")
+_PLAYLIST_SEARCH_PARAM = "EgIQAw=="                   # YouTube's "Playlist" filter
+_PLAYLISTS: "OrderedDict[str, List[Dict]]" = OrderedDict()
+
+
+def _walk_lockups(node, found):
+    if isinstance(node, dict):
+        if "lockupViewModel" in node:
+            found.append(node["lockupViewModel"])
+        for v in node.values():
+            _walk_lockups(v, found)
+    elif isinstance(node, list):
+        for x in node:
+            _walk_lockups(x, found)
+    return found
+
+
+def _parse_playlist(lv: Dict) -> Optional[Dict]:
+    """A playlist from a search result (contentType LOCKUP_CONTENT_TYPE_PLAYLIST)."""
+    if lv.get("contentType") != "LOCKUP_CONTENT_TYPE_PLAYLIST" or not _PLAYLIST_ID_RE.match(lv.get("contentId", "")):
+        return None
+    meta = lv.get("metadata", {}).get("lockupMetadataViewModel", {})
+    rows = meta.get("metadata", {}).get("contentMetadataViewModel", {}).get("metadataRows", [])
+    texts = [p.get("text", {}).get("content", "") for r in rows for p in r.get("metadataParts", [])]
+    count = re.search(r"\d[\d,.]*\s*[KkMm]?\s*videos?", json.dumps(lv, ensure_ascii=False))
+    sources = lv.get("contentImage", {}).get("collectionThumbnailViewModel", {}).get("primaryThumbnail", {})         .get("thumbnailViewModel", {}).get("image", {}).get("sources", [])
+    return {
+        "id": lv["contentId"], "title": meta.get("title", {}).get("content", "Playlist"),
+        "channel": texts[0] if texts else "", "count": count.group(0) if count else "",
+        "thumbnail": sources[-1]["url"] if sources else "",
+    }
+
+
+def playlist_search(query: str) -> List[Dict]:
+    """Playlists that match the search, from YouTube's Playlist filter (cached)."""
+    q = (query or "").strip()
+    if not q:
+        return []
+    if q in _PLAYLISTS:
+        _PLAYLISTS.move_to_end(q)
+        return _PLAYLISTS[q]
+    out: List[Dict] = []
+    try:
+        resp = _HTTP_SESSION.post("https://www.youtube.com/youtubei/v1/search",
+                                  json={"context": _INNERTUBE_CONTEXT, "query": q, "params": _PLAYLIST_SEARCH_PARAM}, timeout=8)
+        if resp.status_code == 200:
+            seen = set()
+            for lv in _walk_lockups(resp.json(), []):
+                pl = _parse_playlist(lv)
+                if pl and pl["id"] not in seen:
+                    seen.add(pl["id"])
+                    out.append(pl)
+    except Exception as exc:
+        logger.warning("YouTube playlist search error: %s", exc)
+    if len(_PLAYLISTS) >= 64:
+        _PLAYLISTS.popitem(last=False)
+    _PLAYLISTS[q] = out[:8]
+    return _PLAYLISTS[q]
+
+
+_PLAYLIST_PAGES: "OrderedDict[str, Dict]" = OrderedDict()
+
+
+def playlist_page(playlist_id: str) -> Optional[Dict]:
+    """A playlist's title and its videos (first page, cached)."""
+    if not _PLAYLIST_ID_RE.match(playlist_id or ""):
+        return None
+    if playlist_id in _PLAYLIST_PAGES:
+        _PLAYLIST_PAGES.move_to_end(playlist_id)
+        return _PLAYLIST_PAGES[playlist_id]
+
+    # Handle YouTube Mix / Radio playlists (e.g. RD...)
+    if playlist_id.startswith("RD"):
+        seed_vid = playlist_id[2:13]
+        try:
+            resp = _HTTP_SESSION.post(
+                "https://www.youtube.com/youtubei/v1/next",
+                json={"context": _INNERTUBE_CONTEXT, "videoId": seed_vid, "playlistId": playlist_id},
+                timeout=8
+            )
+            if resp.status_code == 200:
+                p_node = resp.json().get("contents", {}).get("twoColumnWatchNextResults", {}).get("playlist", {}).get("playlist", {})
+                if p_node:
+                    title = p_node.get("title") or "Mix Playlist"
+                    vids = []
+                    for c in p_node.get("contents", []):
+                        item = _parse_playlist_panel(c)
+                        if item:
+                            vids.append(item)
+                    if vids:
+                        info = {"id": playlist_id, "title": title, "videos": vids}
+                        if len(_PLAYLIST_PAGES) >= 32:
+                            _PLAYLIST_PAGES.popitem(last=False)
+                        _PLAYLIST_PAGES[playlist_id] = info
+                        return info
+        except Exception as exc:
+            logger.warning("YouTube mix playlist error: %s", exc)
+
+    # Standard VL browse playlist
+    try:
+        resp = _HTTP_SESSION.post(
+            "https://www.youtube.com/youtubei/v1/browse",
+            json={"context": _INNERTUBE_CONTEXT, "browseId": "VL" + playlist_id},
+            timeout=8
+        )
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+    except Exception as exc:
+        logger.warning("YouTube playlist data error: %s", exc)
+        return None
+
+    title = data.get("header", {}).get("pageHeaderRenderer", {}).get("pageTitle") or "Playlist"
+    vids, seen = [], set()
+    for lv in _walk_lockups(data.get("contents", {}), []):
+        v = _parse_lockup({"lockupViewModel": lv})
+        if v and v["id"] not in seen:
+            seen.add(v["id"])
+            vids.append(v)
+
+    # Fallback to walk playlist video renderers if no lockups found
+    if not vids:
+        def _walk_pvr(node, found):
+            if isinstance(node, dict):
+                if "playlistVideoRenderer" in node:
+                    pv = _parse_playlist_video(node["playlistVideoRenderer"])
+                    if pv:
+                        found.append(pv)
+                for val in node.values():
+                    _walk_pvr(val, found)
+            elif isinstance(node, list):
+                for x in node:
+                    _walk_pvr(x, found)
+            return found
+        for pv in _walk_pvr(data.get("contents", {}), []):
+            if pv and pv["id"] not in seen:
+                seen.add(pv["id"])
+                vids.append(pv)
+
+    info = {"id": playlist_id, "title": title, "videos": vids}
+    if len(_PLAYLIST_PAGES) >= 32:
+        _PLAYLIST_PAGES.popitem(last=False)
+    _PLAYLIST_PAGES[playlist_id] = info
+    return info
+
+
+def search_suggestions(query: str) -> List[str]:
+    """What YouTube suggests while the student types (the same list the YouTube search box shows)."""
+    q = (query or "").strip()[:100]
+    if not q:
+        return []
+    try:
+        r = _HTTP_SESSION.get("https://suggestqueries.google.com/complete/search",
+                              params={"client": "firefox", "ds": "yt", "q": q}, timeout=4)
+        if r.status_code != 200:
+            return []
+        data = r.json()
+        return [str(x) for x in data[1]][:8] if isinstance(data, list) and len(data) > 1 else []
+    except Exception as exc:
+        logger.warning("YouTube suggestions error: %s", exc)
+        return []
+
+
+_VIDEO_CHANNELS_CACHE: OrderedDict[str, Dict] = OrderedDict()
+
+
+def video_channels(video_ids) -> Dict[str, Dict]:
+    """Channel, picture and subscribers for a list of videos (the up-next items do not carry the channel ID)."""
+    ids = [v for v in dict.fromkeys(video_ids or []) if valid_id(v)][:16]
+    out: Dict[str, Dict] = {}
+    missing = []
+    for vid in ids:
+        if vid in _VIDEO_CHANNELS_CACHE:
+            out[vid] = _VIDEO_CHANNELS_CACHE[vid]
+        else:
+            missing.append(vid)
+    if missing:
+        with ThreadPoolExecutor(max_workers=min(4, len(missing))) as pool:
+            for vid, info in zip(missing, pool.map(lambda v: video_details(v, header_only=True), missing)):
+                if info and info.get("channel_id"):
+                    data = {"channel_id": info["channel_id"], "channel": info["channel"],
+                            "avatar": info["avatar"], "subscribers": info["subscribers"]}
+                    out[vid] = data
+                    _VIDEO_CHANNELS_CACHE[vid] = data
+                    if len(_VIDEO_CHANNELS_CACHE) > 500:
+                        _VIDEO_CHANNELS_CACHE.popitem(last=False)
+    return out
+
+
+# --------------------------------------------------------------------------- home feed
+
+_FEED: Dict = {"at": 0.0, "items": []}
+_FEED_TTL = 900
+
+
+def _alive(video_id: str) -> bool:
+    try:
+        return _HTTP_SESSION.get("https://www.youtube.com/oembed",
+                                 params={"url": f"https://www.youtube.com/watch?v={video_id}", "format": "json"}, timeout=3).status_code == 200
+    except Exception:
+        return True      # network trouble is not proof the video is gone
+
+
+def home_feed(limit: int = 24) -> List[Dict]:
+    """A mixed feed across the subject topics, fetched live (curated list only as an offline fallback)."""
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    if _FEED["items"] and time.time() - _FEED["at"] < _FEED_TTL:
+        return _FEED["items"][:limit]
+    queries = [t[2] for t in TOPICS[:8]]
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        batches = list(pool.map(lambda q: _search_innertube(q, max_results=6), queries))
+    seen, feed = set(), []
+    for rank in range(6):
+        for batch in batches:
+            if rank < len(batch) and batch[rank]["id"] not in seen:
+                seen.add(batch[rank]["id"])
+                feed.append(batch[rank])
+    if not feed:
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            alive = list(pool.map(lambda v: _alive(v["id"]), FEATURED_VIDEOS))
+        return [v for v, ok in zip(FEATURED_VIDEOS, alive) if ok][:limit]
+    _FEED["at"], _FEED["items"] = time.time(), feed
+    return feed[:limit]
+
+
+# --------------------------------------------------------------------------- transcript (for Lexi)
+
+_TRANSCRIPTS: "OrderedDict[str, str]" = OrderedDict()
+
+
+def transcript_text(video_id: str, limit: int = 9000) -> str:
+    """Caption text of a video (empty when it has none). Uses the youtube-transcript-api library; cached."""
+    if not valid_id(video_id):
+        return ""
+    if video_id in _TRANSCRIPTS:
+        _TRANSCRIPTS.move_to_end(video_id)
+        return _TRANSCRIPTS[video_id][:limit]
+    text = ""
+    try:
+        from youtube_transcript_api import YouTubeTranscriptApi
+
+        api = YouTubeTranscriptApi()
+        try:
+            snippets = api.fetch(video_id, languages=["en", "en-US", "en-GB", "hi"])
+        except Exception:
+            listing = api.list(video_id)
+            first = next(iter(listing), None)
+            snippets = first.fetch() if first else []
+        text = " ".join(s.text.replace("\n", " ") for s in snippets)
+        text = re.sub(r"\s+", " ", text).strip()
+    except Exception as exc:
+        logger.info("No transcript for %s: %s", video_id, exc)
+    if len(_TRANSCRIPTS) >= 64:
+        _TRANSCRIPTS.popitem(last=False)
+    _TRANSCRIPTS[video_id] = text
+    return text[:limit]
+
+
+# --------------------------------------------------------------------------- the player's media (yt-dlp) and captions
+
+_MANIFESTS: "OrderedDict[str, Dict]" = OrderedDict()
+_MANIFEST_TTL = 1500        # googlevideo links last hours; refresh well before that
+_MUXED: "OrderedDict[str, Dict]" = OrderedDict()
+_BROWSER_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+               "Chrome/124.0.0.0 Safari/537.36")
+
+
+class StreamUnavailable(Exception):
+    pass
+
+
+def _ytdlp_info(video_id: str, client: Optional[str] = None) -> Dict:
+    try:
+        import yt_dlp
+    except ImportError as exc:
+        raise StreamUnavailable("yt-dlp is not installed") from exc
+
+    import shutil
+    import os
+    node_path = shutil.which("node")
+    base_opts = {
+        "quiet": True,
+        "no_warnings": True,
+        "skip_download": True,
+        "noplaylist": True,
+        "socket_timeout": 12,
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["visionos", "tv_samsung"],
+            }
+        },
+    }
+    if node_path:
+        base_opts["js_runtimes"] = {"node": {}}
+
+    # Load Netscape cookies if available to prevent YouTube bot verification and timeouts
+    cookie_paths = [
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "yt_cookies.txt")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "yt_cookies.txt")),
+        os.path.abspath("yt_cookies.txt"),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "media_service", "yt_cookies.txt")),
+    ]
+    for cp in cookie_paths:
+        if os.path.exists(cp) and os.path.getsize(cp) > 10:
+            base_opts["cookiefile"] = cp
+            break
+
+    # 1. Try visionos / tv_samsung extraction first (gets full 1080p, 720p, 480p, 360p, 240p, 144p DASH sets without JS requirement)
+    if not client:
+        try:
+            with yt_dlp.YoutubeDL(base_opts) as ydl:
+                res = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
+                if res and res.get("formats"):
+                    has_dash = any(f.get("ext") == "mp4" and (f.get("vcodec") or "").startswith("avc1") and f.get("acodec") == "none" for f in res.get("formats", []))
+                    if has_dash:
+                        return res
+                    best_res = res
+                else:
+                    best_res = None
+        except Exception:
+            best_res = None
+    else:
+        best_res = None
+
+    # 2. Try specific client fallbacks in fast order
+    clients_to_try = [client] if client else ["visionos", "tv_samsung", "android"]
+    last_exc = None
+    for c in clients_to_try:
+        opts = dict(base_opts)
+        opts["extractor_args"] = {
+            "youtube": {
+                "player_client": [c],
+                "player_skip": ["webpage", "configs"],
+            }
+        }
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                res = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
+                if res and res.get("formats"):
+                    has_hd = any((f.get("height") or 0) >= 720 for f in res.get("formats", []))
+                    if has_hd or not best_res:
+                        return res
+        except Exception as exc:
+            last_exc = exc
+            err_str = str(exc)
+            if "Sign in to confirm" in err_str:
+                break
+            continue
+
+    if best_res:
+        return best_res
+    raise StreamUnavailable(str(last_exc or "Stream unavailable")[:200])
+
+
+def stream_manifest(video_id: str, refresh: bool = False) -> Dict:
+    """What the player can play for a video: H.264 video qualities plus the best AAC audio,
+    or high-quality progressive MP4 streams.
+    Returns {"public": manifest-for-the-browser, "urls": {itag: googlevideo-url}} and caches it."""
+    import time
+
+    if not valid_id(video_id):
+        raise StreamUnavailable("bad id")
+    hit = _MANIFESTS.get(video_id)
+    if hit and not refresh and time.time() - hit["at"] < _MANIFEST_TTL:
+        if len(hit.get("public", {}).get("video", [])) > 1:
+            return hit
+    info = _ytdlp_info(video_id)
+    if info.get("is_live") or info.get("live_status") in ("is_live", "is_upcoming"):
+        raise StreamUnavailable("Live streams cannot be played here.")
+    by_height: Dict[int, Dict] = {}
+    audio = None
+    audio_best_score = (-999, -999, -999)
+    muxed_by_height: Dict[int, Dict] = {}
+    urls: Dict[str, str] = {}
+    for f in info.get("formats", []):
+        url, itag = f.get("url"), str(f.get("format_id"))
+        if not url or f.get("protocol") not in ("https", "http", None) or not re.match(r"^[\w-]+$", itag):
+            continue
+        vcodec, acodec = f.get("vcodec") or "none", f.get("acodec") or "none"
+        h = f.get("height") or 0
+
+        # Separate DASH video (H.264)
+        if f.get("ext") == "mp4" and vcodec.startswith("avc1") and acodec == "none":
+            entry = {
+                "itag": itag, "height": h, "fps": f.get("fps") or 30, "codec": vcodec,
+                "bitrate": int((f.get("tbr") or 0) * 1000), "size": f.get("filesize") or f.get("filesize_approx") or 0,
+            }
+            if h and (h not in by_height or entry["bitrate"] > by_height[h]["bitrate"]):
+                by_height[h] = entry
+            urls[itag] = url
+
+        # Separate DASH audio (AAC)
+        elif f.get("ext") == "m4a" and acodec.startswith("mp4a") and vcodec == "none":
+            entry = {
+                "itag": itag, "codec": acodec, "bitrate": int((f.get("abr") or f.get("tbr") or 0) * 1000),
+                "size": f.get("filesize") or f.get("filesize_approx") or 0,
+            }
+            lang_pref = f.get("language_preference") if f.get("language_preference") is not None else 0
+            is_default = 1 if ("default" in (f.get("format_note") or "").lower() or (f.get("language") or "").startswith("en")) else 0
+            score = (lang_pref, is_default, entry["bitrate"])
+            if audio is None or score > audio_best_score:
+                audio = entry
+                audio_best_score = score
+            urls[itag] = url
+
+        # Progressive muxed MP4 (e.g. itag 18=360p, 22=720p)
+        elif f.get("ext") == "mp4" and (vcodec.startswith("avc1") or vcodec != "none") and acodec != "none":
+            h = h or 360
+            entry = {
+                "itag": itag, "height": h, "fps": f.get("fps") or 30, "codec": vcodec, "acodec": acodec,
+                "bitrate": int((f.get("tbr") or 0) * 1000), "size": f.get("filesize") or f.get("filesize_approx") or 0,
+                "muxed": True,
+            }
+            if h not in muxed_by_height or entry["bitrate"] > muxed_by_height[h]["bitrate"]:
+                muxed_by_height[h] = entry
+            urls[itag] = url
+
+    # Choose DASH if both video and audio are present, otherwise progressive muxed
+    if by_height and audio:
+        videos_list = sorted(by_height.values(), key=lambda v: v["height"])
+        keep = {v["itag"] for v in videos_list} | {audio["itag"]}
+        is_muxed = False
+        best_muxed = None
+    elif muxed_by_height:
+        videos_list = sorted(muxed_by_height.values(), key=lambda v: v["height"])
+        keep = {v["itag"] for v in videos_list}
+        is_muxed = True
+        best_muxed = videos_list[-1]
+        audio = {"itag": best_muxed["itag"], "codec": best_muxed.get("acodec", "mp4a"), "bitrate": 128000, "size": 0}
+    else:
+        raise StreamUnavailable("No playable formats were found for this video.")
+
+    data = {
+        "at": time.time(),
+        "public": {
+            "id": video_id,
+            "title": info.get("title") or "",
+            "channel": info.get("channel") or info.get("uploader") or "",
+            "duration": info.get("duration") or 0,
+            "video": videos_list,
+            "audio": audio,
+            "is_muxed": is_muxed,
+            "progressive_itag": best_muxed["itag"] if best_muxed else None,
+        },
+        "urls": {k: v for k, v in urls.items() if k in keep},
+    }
+    if len(_MANIFESTS) >= 48:
+        _MANIFESTS.popitem(last=False)
+    _MANIFESTS[video_id] = data
+    return data
+
+
+def media_url(video_id: str, itag: str, refresh: bool = False) -> str:
+    data = stream_manifest(video_id, refresh=refresh)
+    url = data["urls"].get(str(itag))
+    if not url:
+        raise StreamUnavailable("Unknown stream.")
+    return url
+
+
+def muxed_stream(video_id: str) -> Optional[Dict]:
+    """One MP4 with picture and sound together (360p), for the Download menu."""
+    import time
+
+    hit = _MUXED.get(video_id)
+    if hit and time.time() - hit["at"] < _MANIFEST_TTL:
+        return hit
+    for client in ("android", "android_vr"):
+        try:
+            info = _ytdlp_info(video_id, client)
+        except StreamUnavailable:
+            continue
+        for f in sorted(info.get("formats", []), key=lambda x: x.get("height") or 0, reverse=True):
+            if f.get("url") and f.get("ext") == "mp4" and (f.get("acodec") or "none") != "none" and (f.get("vcodec") or "none") != "none":
+                try:
+                    ok = _HTTP_SESSION.get(f["url"], headers={"Range": "bytes=0-255", "User-Agent": _BROWSER_UA}, timeout=6).status_code in (200, 206)
+                except Exception:
+                    ok = False
+                if ok:
+                    data = {"at": time.time(), "url": f["url"], "height": f.get("height") or 0, "title": info.get("title") or "video"}
+                    if len(_MUXED) >= 32:
+                        _MUXED.popitem(last=False)
+                    _MUXED[video_id] = data
+                    return data
+    return None
+
+
+_CAPTIONS: "OrderedDict[str, Dict]" = OrderedDict()
+
+
+def caption_tracks(video_id: str) -> List[Dict]:
+    """Languages the video has captions in (youtube-transcript-api or yt-dlp)."""
+    if not valid_id(video_id):
+        return []
+    entry = _CAPTIONS.get(video_id)
+    if entry is not None:
+        return entry["tracks"]
+    tracks: List[Dict] = []
+    try:
+        from youtube_transcript_api import YouTubeTranscriptApi
+
+        for t in YouTubeTranscriptApi().list(video_id):
+            tracks.append({"lang": t.language_code, "name": t.language, "auto": bool(t.is_generated)})
+    except Exception as exc:
+        logger.info("No caption list for %s: %s", video_id, exc)
+
+    if not tracks:
+        try:
+            info = _ytdlp_info(video_id)
+            for l_code, subs in (info.get("subtitles") or {}).items():
+                name = (subs[0].get("name") if subs else l_code) or l_code
+                tracks.append({"lang": l_code, "name": name, "auto": False})
+            for l_code, subs in (info.get("automatic_captions") or {}).items():
+                if not any(t["lang"] == l_code for t in tracks):
+                    name = (subs[0].get("name") if subs else l_code) or l_code
+                    tracks.append({"lang": l_code, "name": f"{name} (auto)", "auto": True})
+        except Exception:
+            pass
+
+    tracks.sort(key=lambda t: (t["auto"], t["lang"] != "en"))
+    if len(_CAPTIONS) >= 64:
+        _CAPTIONS.popitem(last=False)
+    _CAPTIONS[video_id] = {"tracks": tracks, "cues": {}}
+    return tracks
+
+
+def caption_cues(video_id: str, lang: str) -> List[List]:
+    caption_tracks(video_id)
+    entry = _CAPTIONS.get(video_id)
+    if entry is None:
+        return []
+    if lang in entry["cues"]:
+        return entry["cues"][lang]
+    cues: List[List] = []
+    try:
+        from youtube_transcript_api import YouTubeTranscriptApi
+
+        for s in YouTubeTranscriptApi().fetch(video_id, languages=[lang]):
+            text = re.sub(r"\s+", " ", s.text.replace("\n", " ")).strip()
+            if text:
+                cues.append([round(s.start, 2), round(s.start + s.duration, 2), text])
+    except Exception as exc:
+        logger.info("No captions for %s/%s: %s", video_id, lang, exc)
+    entry["cues"][lang] = cues
+    return cues
